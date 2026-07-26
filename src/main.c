@@ -606,9 +606,6 @@ int main(void)
 
     g_yaw_rad = 0.0f;
     g_estimated_distance_m = 0.0f;
-    board_servo_set_angle_deg_index(0U, ROUTE_SERVO_INITIAL_ANGLE_DEG);
-    board_servo_set_angle_deg_index(1U, ROUTE_SERVO_INITIAL_ANGLE_DEG);
-    HAL_Delay(ROUTE_SERVO_SETTLE_MS);
 
     g_run_state = RUN_STRAFE_RIGHT;
     if (!run_translation(0.0f, ROUTE_RIGHT_STRAFE_SIGN,
@@ -678,17 +675,6 @@ int main(void)
                          ROUTE_FINAL_FORWARD_DISTANCE_M)) {
         enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
     }
-    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-    g_run_state = RUN_FINAL_TURN_RIGHT;
-    if (!run_relative_turn(ROUTE_RIGHT_TURN_SIGN * ROUTE_TURN_ANGLE_RAD *
-                           ROUTE_GYRO_TURN_SCALE)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-    }
-
     hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     if (g_run_state == RUN_FAULT) {
         enter_fault(g_fault_code);

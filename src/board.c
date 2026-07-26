@@ -97,6 +97,13 @@ static void gpio_init(void)
     gpio.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     HAL_GPIO_Init(GPIOC, &gpio);
 
+    HAL_GPIO_WritePin(PWM_5V_EN_GPIO_Port, PWM_5V_EN_Pin, GPIO_PIN_SET);
+    gpio.Pin = PWM_5V_EN_Pin;
+    gpio.Mode = GPIO_MODE_OUTPUT_PP;
+    gpio.Pull = GPIO_NOPULL;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(PWM_5V_EN_GPIO_Port, &gpio);
+
 }
 
 static void spi2_init(void)
@@ -233,7 +240,7 @@ static void servo_pwm_init(void)
     }
 
     channel.OCMode = TIM_OCMODE_PWM1;
-    channel.Pulse = (SERVO_MG90S_MIN_PULSE_US + SERVO_MG90S_MAX_PULSE_US) / 2U;
+    channel.Pulse = 0U;
     channel.OCPolarity = TIM_OCPOLARITY_HIGH;
     channel.OCNPolarity = TIM_OCNPOLARITY_HIGH;
     channel.OCIdleState = TIM_OCIDLESTATE_RESET;
