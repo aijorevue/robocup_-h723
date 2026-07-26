@@ -15,7 +15,7 @@
 264	1847	8066850501446295	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_cortex.c.obj	4ff1b3b04a5fbf29
 151	2313	8067774825608727	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/target/usbd_conf.c.obj	638adfb9a0156ac0
 316	1859	8066850501939695	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_gpio.c.obj	250a23b3caea3a27
-66	1430	8067790816181401	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/main.c.obj	81eead77f0827f9f
+49	1337	8067795603686146	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/main.c.obj	81eead77f0827f9f
 82	1444	8067790816383207	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj	704361a5ecca0925
 289	1879	8066850501695684	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash.c.obj	a2fddeab5a38a8ad
 248	1928	8066850501295237	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal.c.obj	216385d4f9843a5c
@@ -37,6 +37,9 @@
 277	2652	8066850501577324	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_fdcan.c.obj	9cc4d2089a620d9c
 494	3163	8066850503742808	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart.c.obj	7d544b36b339a125
 455	3490	8066850503348326	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim.c.obj	ebece6b31669bdb2
-1444	2648	8067790830017107	DM_MC02_Gyro_3m.elf	6c5e11c502a56b9d
-52	1306	8067792016261980	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/main.c.obj	81eead77f0827f9f
-1307	2411	8067792028821624	DM_MC02_Gyro_3m.elf	6c5e11c502a56b9d
+1339	2443	8067795616592169	DM_MC02_Gyro_3m.elf	6c5e11c502a56b9d
+82	1181	8067797474422290	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/motor_output.c.obj	113ac068f9f2bd5
+94	1292	8067797474503543	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/run_log.c.obj	59229ddbe8660fc7
+68	1451	8067797474255214	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj	704361a5ecca0925
+53	1458	8067797474135805	CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/main.c.obj	81eead77f0827f9f
+1458	2576	8067797488178121	DM_MC02_Gyro_3m.elf	6c5e11c502a56b9d

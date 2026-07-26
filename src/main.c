@@ -680,6 +680,17 @@ int main(void)
         enter_fault(g_fault_code);
     }
 
+    g_run_state = RUN_FINAL_TURN_RIGHT;
+    if (!run_relative_turn(ROUTE_RIGHT_TURN_SIGN * ROUTE_TURN_ANGLE_RAD *
+                           ROUTE_GYRO_TURN_SCALE)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+
+    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
     g_run_state = RUN_AFTER_FINAL_STRAFE_RIGHT;
     if (!run_translation(0.0f, ROUTE_RIGHT_STRAFE_SIGN,
                          ROUTE_AFTER_FINAL_TURN_STRAFE_M)) {
@@ -727,6 +738,8 @@ int main(void)
     board_servo_set_angle_deg_index(0U, SERVO_MG90S_ROUTE_ANGLE_DEG);
     board_servo_set_angle_deg_index(1U, SERVO_MG90S_ROUTE_ANGLE_DEG);
     HAL_Delay(ROUTE_SERVO_SETTLE_MS);
+    board_servo_disable_index(0U);
+    board_servo_disable_index(1U);
 
     g_run_state = RUN_STOPPING;
     hold_zero(1000U);

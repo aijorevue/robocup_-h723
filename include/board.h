@@ -26,6 +26,7 @@ void board_uart1_write_only(const char *text);
 void board_uart1_write(const char *text);
 void board_usb_write(const char *text);
 void board_servo_set_angle_deg_index(uint8_t servo_index, float angle_deg);
+void board_servo_disable_index(uint8_t servo_index);
 void board_servo_set_angle_deg(float angle_deg);
 bool board_fdcan1_abort_all_pending(void);
 bool board_fdcan1_wait_tx_fifo_free(uint32_t min_free, uint32_t timeout_ms);

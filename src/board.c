@@ -330,6 +330,26 @@ void board_servo_set_angle_deg_index(uint8_t servo_index, float angle_deg)
     }
 }
 
+void board_servo_disable_index(uint8_t servo_index)
+{
+    switch (servo_index) {
+    case 0U:
+        __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0U);
+        break;
+    case 1U:
+        __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0U);
+        break;
+    case 2U:
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 0U);
+        break;
+    case 3U:
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 0U);
+        break;
+    default:
+        break;
+    }
+}
+
 void board_servo_set_angle_deg(float angle_deg)
 {
     board_servo_set_angle_deg_index(0U, angle_deg);
