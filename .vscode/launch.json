@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "STM32H723 Gyro 2m: Build, Flash and Debug",
+      "type": "cortex-debug",
+      "request": "launch",
+      "cwd": "D:/DM_MC02_Gyro_Test1/build_vscode_arm",
+      "executable": "D:/DM_MC02_Gyro_Test1/build_vscode_arm/DM_MC02_Gyro_2m.elf",
+      "device": "STM32H723VG",
+      "servertype": "openocd",
+      "serverpath": "C:/Users/19901/scoop/shims/openocd.exe",
+      "configFiles": [
+        "interface/stlink.cfg",
+        "target/stm32h7x.cfg"
+      ],
+      "searchDir": [
+        "C:/Users/19901/scoop/apps/openocd/0.12.0/share/openocd/scripts"
+      ],
+      "armToolchainPath": "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin",
+      "gdbPath": "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gdb.exe",
+      "interface": "swd",
+      "runToEntryPoint": "main",
+      "preLaunchTask": "STM32: Build and warm GDB"
+    }
+  ]
+}

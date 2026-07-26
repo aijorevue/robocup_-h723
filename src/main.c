@@ -1,0 +1,769 @@
+#include "app_config.h"
+#include "board.h"
+#include "BMI088driver.h"
+#include "mecanum.h"
+#include "motor_output.h"
+#include "run_log.h"
+#include "usbd_cdc_if.h"
+
+#include <math.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+
+typedef enum {
+    RUN_BOOT = 0,
+    RUN_IMU_INIT,
+    RUN_GYRO_CALIBRATION,
+    RUN_MOTOR_ENABLE,
+    RUN_STRAFE_RIGHT,
+    RUN_STOPPING = 5,
+    RUN_DONE = 6,
+    RUN_FAULT = 7,
+    RUN_FORWARD = 8,
+    RUN_TURN_RIGHT = 9,
+    RUN_TURN_BACK = 10,
+    RUN_RETURN_FORWARD = 11,
+    RUN_TURN_LEFT = 12,
+    RUN_FINAL_FORWARD = 13,
+    RUN_FINAL_TURN_RIGHT = 14,
+    RUN_WAIT_USB_RUN = 15,
+    RUN_AFTER_FINAL_STRAFE_RIGHT = 16,
+    RUN_LEFT_BACK_DIAGONAL = 17,
+    RUN_LAST_TURN_RIGHT = 18,
+    RUN_FRONT_CENTER_ORBIT = 19,
+    RUN_FINAL_REVERSE = 20,
+    RUN_SERVO_90 = 21
+} run_state_t;
+
+enum {
+    FAULT_NONE = 0,
+    FAULT_IMU_INIT = 1,
+    FAULT_IMU_MOVING = 2,
+    FAULT_CAN_STARTUP = 3,
+    FAULT_MOTOR_ENABLE = 4,
+    FAULT_MOTOR_COMMAND = 5,
+    FAULT_KINEMATICS = 6,
+    FAULT_TURN_TIMEOUT = 7
+};
+
+volatile run_state_t g_run_state = RUN_BOOT;
+volatile uint32_t g_fault_code = FAULT_NONE;
+volatile uint8_t g_bmi088_init_error;
+volatile float g_gyro_z_bias_rad_s;
+volatile float g_gyro_z_rad_s;
+volatile float g_yaw_rad;
+volatile float g_command_speed_m_s;
+volatile float g_heading_correction_rad_s;
+volatile float g_estimated_distance_m;
+volatile float g_imu_temperature_c;
+
+static const mecanum_config_t chassis = {
+    .wheel_radius_m = WHEEL_RADIUS_M,
+    .half_length_m = CHASSIS_HALF_LENGTH_M,
+    .half_width_m = CHASSIS_HALF_WIDTH_M,
+    .max_wheel_rad_s = MOTOR_MAX_WHEEL_RAD_S,
+    .direction = {WHEEL_FL_SIGN, WHEEL_FR_SIGN, WHEEL_RL_SIGN, WHEEL_RR_SIGN}
+};
+
+static float clampf(float value, float minimum, float maximum)
+{
+    if (value < minimum) {
+        return minimum;
+    }
+    if (value > maximum) {
+        return maximum;
+    }
+    return value;
+}
+
+static void hold_zero(uint32_t duration_ms)
+{
+    uint32_t started_ms = HAL_GetTick();
+    uint32_t last_send_ms = started_ms - CONTROL_PERIOD_MS;
+
+    while ((uint32_t)(HAL_GetTick() - started_ms) < duration_ms) {
+        uint32_t now_ms = HAL_GetTick();
+        if ((uint32_t)(now_ms - last_send_ms) >= CONTROL_PERIOD_MS) {
+            last_send_ms = now_ms;
+            if (!motor_send_zero_all()) {
+                g_fault_code = FAULT_MOTOR_COMMAND;
+                g_run_state = RUN_FAULT;
+                return;
+            }
+        }
+    }
+}
+
+static void enter_fault(uint32_t code)
+{
+    static const float stopped[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    g_fault_code = code;
+    g_run_state = RUN_FAULT;
+    (void)motor_send_zero_all();
+    (void)motor_disable_all();
+    run_log_sample(HAL_GetTick(), (uint32_t)g_run_state, g_fault_code,
+                   g_gyro_z_rad_s, g_yaw_rad, g_command_speed_m_s,
+                   g_heading_correction_rad_s, g_estimated_distance_m,
+                   g_imu_temperature_c, stopped);
+    (void)run_log_save((uint32_t)g_run_state, g_fault_code);
+    run_log_dump_stored();
+    for (;;) {
+        (void)motor_send_zero_all();
+        (void)motor_disable_all();
+        HAL_Delay(500U);
+    }
+}
+
+static bool calibrate_gyro(void)
+{
+    float gyro[3] = {0.0f};
+    float accel[3] = {0.0f};
+    float temperature = 0.0f;
+    float sum = 0.0f;
+    float sum_square = 0.0f;
+    uint32_t sample;
+
+    for (sample = 0U; sample < GYRO_CALIBRATION_SAMPLES; ++sample) {
+        float z;
+        BMI088_read(gyro, accel, &temperature);
+        z = gyro[2] * GYRO_Z_SIGN;
+        sum += z;
+        sum_square += z * z;
+        g_imu_temperature_c = temperature;
+        HAL_Delay(GYRO_CALIBRATION_PERIOD_MS);
+    }
+
+    g_gyro_z_bias_rad_s = sum / (float)GYRO_CALIBRATION_SAMPLES;
+    {
+        float variance = sum_square / (float)GYRO_CALIBRATION_SAMPLES -
+                         g_gyro_z_bias_rad_s * g_gyro_z_bias_rad_s;
+        float limit = GYRO_STATIONARY_STDDEV_MAX_RAD_S;
+        if (variance < 0.0f) {
+            variance = 0.0f;
+        }
+        if (variance > limit * limit) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool enable_motors(void)
+{
+    return motor_clear_errors_all() &&
+           board_fdcan1_wait_tx_fifo_free(8U, MOTOR_TX_DRAIN_TIMEOUT_MS) &&
+           motor_enable_all() &&
+           board_fdcan1_wait_tx_fifo_free(8U, MOTOR_TX_DRAIN_TIMEOUT_MS) &&
+           motor_send_zero_all() &&
+           board_fdcan1_wait_tx_fifo_free(8U, MOTOR_TX_DRAIN_TIMEOUT_MS);
+}
+
+static bool wait_for_can_startup(void)
+{
+    uint32_t started_ms;
+
+    HAL_Delay(ROUTE_POWER_ON_SETTLE_MS);
+    started_ms = HAL_GetTick();
+    while ((uint32_t)(HAL_GetTick() - started_ms) < CAN_STARTUP_RETRY_TIMEOUT_MS) {
+        (void)board_fdcan1_abort_all_pending();
+        if (motor_send_zero_all() &&
+            board_fdcan1_wait_tx_fifo_free(8U, MOTOR_TX_DRAIN_TIMEOUT_MS)) {
+            return true;
+        }
+        HAL_Delay(CAN_STARTUP_RETRY_GAP_MS);
+    }
+    return false;
+}
+
+#if ROUTE_AUTO_RUN_ON_BOOT == 0U
+static bool command_matches(const char *command, const char *target)
+{
+    size_t index = 0U;
+
+    while (target[index] != '\0') {
+        char c = command[index];
+        if (c >= 'a' && c <= 'z') {
+            c = (char)(c - 'a' + 'A');
+        }
+        if (c != target[index]) {
+            return false;
+        }
+        ++index;
+    }
+    return command[index] == '\0' || command[index] == '\r' ||
+           command[index] == '\n' || command[index] == ' ';
+}
+
+static void wait_for_usb_run_command(void)
+{
+    uint8_t rx[32];
+    char line[32];
+    uint32_t line_len = 0U;
+    uint32_t last_hello_ms = HAL_GetTick() - 1000U;
+
+    g_run_state = RUN_WAIT_USB_RUN;
+    for (;;) {
+        uint32_t now_ms = HAL_GetTick();
+        uint32_t read_len;
+        uint32_t i;
+
+        if ((uint32_t)(now_ms - last_hello_ms) >= 1000U) {
+            last_hello_ms = now_ms;
+            board_uart1_write_only("H7,USB,READY,send RUN to start\r\n");
+        }
+        read_len = CDC_Read_HS(rx, sizeof(rx));
+        for (i = 0U; i < read_len; ++i) {
+            char c = (char)rx[i];
+
+            if (c == '\r' || c == '\n') {
+                line[line_len] = '\0';
+                if (line_len > 0U) {
+                    if (command_matches(line, "PING")) {
+                        board_usb_write("H7,PONG\r\n");
+                    } else if (command_matches(line, "LOG")) {
+                        run_log_dump_stored();
+                    } else if (command_matches(line, "RUN")) {
+                        board_uart1_write("H7,USB,RUN\r\n");
+                        return;
+                    } else if (command_matches(line, "STOP")) {
+                        board_uart1_write("H7,USB,STOPPED\r\n");
+                    } else {
+                        board_uart1_write_only("H7,ERR,UNKNOWN_CMD\r\n");
+                    }
+                }
+                line_len = 0U;
+            } else if (line_len + 1U < sizeof(line)) {
+                line[line_len++] = c;
+            } else {
+                line_len = 0U;
+                board_uart1_write_only("H7,ERR,CMD_TOO_LONG\r\n");
+            }
+        }
+    }
+}
+#endif
+
+static void update_imu(float dt)
+{
+    float gyro[3] = {0.0f};
+    float accel[3] = {0.0f};
+    float temperature = 0.0f;
+
+    BMI088_read(gyro, accel, &temperature);
+    g_imu_temperature_c = temperature;
+    g_gyro_z_rad_s = gyro[2] * GYRO_Z_SIGN - g_gyro_z_bias_rad_s;
+    g_yaw_rad += g_gyro_z_rad_s * dt;
+}
+
+static void log_route_sample(uint32_t now_ms, const float wheel_speed[4])
+{
+    run_log_sample(now_ms, (uint32_t)g_run_state, g_fault_code,
+                   g_gyro_z_rad_s, g_yaw_rad, g_command_speed_m_s,
+                   g_heading_correction_rad_s, g_estimated_distance_m,
+                   g_imu_temperature_c, wheel_speed);
+}
+
+static bool run_translation(float vx_direction, float vy_direction,
+                            float target_distance_m)
+{
+    float wheel_speed[4] = {0.0f};
+    float measured_wheel_speed[4] = {0.0f};
+    float actual_vx_m_s = 0.0f;
+    float actual_vy_m_s = 0.0f;
+    float actual_wz_rad_s = 0.0f;
+    float segment_distance_m = 0.0f;
+    float commanded_distance_m = 0.0f;
+    const float heading_target_rad = g_yaw_rad;
+    uint32_t previous_ms = HAL_GetTick();
+    uint32_t last_control_ms = previous_ms;
+    uint32_t last_log_ms = previous_ms - RUN_LOG_SAMPLE_PERIOD_MS;
+    const uint32_t started_ms = previous_ms;
+
+    g_command_speed_m_s = 0.0f;
+    g_heading_correction_rad_s = 0.0f;
+
+    while (segment_distance_m < target_distance_m - DRIVE_STOP_TOLERANCE_M &&
+           commanded_distance_m < target_distance_m - DRIVE_STOP_TOLERANCE_M) {
+        uint32_t now_ms = HAL_GetTick();
+        float dt;
+        float feedback_remaining;
+        float command_remaining;
+        float remaining;
+        float stopping_speed;
+        float desired_speed;
+        float max_delta;
+        float correction_limit_rad_s;
+        float actual_translation_speed_m_s;
+
+        if ((uint32_t)(now_ms - started_ms) >= ROUTE_TRANSLATION_TIMEOUT_MS) {
+            g_fault_code = FAULT_MOTOR_COMMAND;
+            return false;
+        }
+        if ((uint32_t)(now_ms - last_control_ms) < CONTROL_PERIOD_MS) {
+            continue;
+        }
+        last_control_ms += CONTROL_PERIOD_MS;
+        if ((uint32_t)(now_ms - last_control_ms) >= CONTROL_PERIOD_MS) {
+            last_control_ms = now_ms;
+        }
+        dt = (float)(now_ms - previous_ms) * 0.001f;
+        previous_ms = now_ms;
+        dt = clampf(dt, 0.001f, 0.050f);
+
+        update_imu(dt);
+        if (!motor_feedback_update(now_ms, measured_wheel_speed) ||
+            !mecanum_forward(&chassis, measured_wheel_speed,
+                             &actual_vx_m_s, &actual_vy_m_s, &actual_wz_rad_s)) {
+            g_fault_code = FAULT_MOTOR_COMMAND;
+            return false;
+        }
+
+        feedback_remaining = target_distance_m - segment_distance_m;
+        if (feedback_remaining < 0.0f) {
+            feedback_remaining = 0.0f;
+        }
+        command_remaining = target_distance_m - commanded_distance_m;
+        if (command_remaining < 0.0f) {
+            command_remaining = 0.0f;
+        }
+        remaining = feedback_remaining < command_remaining ?
+                    feedback_remaining : command_remaining;
+        stopping_speed = sqrtf(2.0f * ROUTE_TRANSLATION_ACCEL_M_S2 * remaining);
+        desired_speed = stopping_speed < ROUTE_TRANSLATION_SPEED_M_S ?
+                        stopping_speed : ROUTE_TRANSLATION_SPEED_M_S;
+        max_delta = ROUTE_TRANSLATION_ACCEL_M_S2 * dt;
+        if (g_command_speed_m_s < desired_speed) {
+            g_command_speed_m_s += max_delta;
+            if (g_command_speed_m_s > desired_speed) {
+                g_command_speed_m_s = desired_speed;
+            }
+        } else {
+            g_command_speed_m_s -= max_delta;
+            if (g_command_speed_m_s < desired_speed) {
+                g_command_speed_m_s = desired_speed;
+            }
+        }
+
+        correction_limit_rad_s =
+            g_command_speed_m_s * HEADING_CORRECTION_SPEED_RATIO /
+            (CHASSIS_HALF_LENGTH_M + CHASSIS_HALF_WIDTH_M);
+        if (correction_limit_rad_s > HEADING_MAX_CORRECTION_RAD_S) {
+            correction_limit_rad_s = HEADING_MAX_CORRECTION_RAD_S;
+        }
+        g_heading_correction_rad_s = clampf(
+            -HEADING_KP * (g_yaw_rad - heading_target_rad) -
+                HEADING_KD * g_gyro_z_rad_s,
+            -correction_limit_rad_s,
+            correction_limit_rad_s);
+
+        if (!mecanum_inverse(&chassis,
+                             g_command_speed_m_s * vx_direction,
+                             g_command_speed_m_s * vy_direction,
+                             g_heading_correction_rad_s, wheel_speed)) {
+            g_fault_code = FAULT_KINEMATICS;
+            return false;
+        }
+        if (!motor_send_wheel_speeds(wheel_speed)) {
+            g_fault_code = FAULT_MOTOR_COMMAND;
+            return false;
+        }
+        actual_translation_speed_m_s =
+            actual_vx_m_s * vx_direction + actual_vy_m_s * vy_direction;
+        if (actual_translation_speed_m_s < 0.0f) {
+            actual_translation_speed_m_s = 0.0f;
+        }
+        segment_distance_m += actual_translation_speed_m_s * dt * DRIVE_DISTANCE_SCALE;
+        g_estimated_distance_m += actual_translation_speed_m_s * dt * DRIVE_DISTANCE_SCALE;
+        commanded_distance_m += g_command_speed_m_s * dt;
+        if ((uint32_t)(now_ms - last_log_ms) >= RUN_LOG_SAMPLE_PERIOD_MS) {
+            last_log_ms = now_ms;
+            log_route_sample(now_ms, measured_wheel_speed);
+        }
+    }
+    return motor_send_zero_all();
+}
+
+static bool run_relative_turn(float angle_rad)
+{
+    float wheel_speed[4] = {0.0f};
+    float turn_command_rad_s = 0.0f;
+    const float target_yaw_rad = g_yaw_rad + angle_rad;
+    uint32_t previous_ms = HAL_GetTick();
+    uint32_t last_control_ms = previous_ms;
+    uint32_t last_log_ms = previous_ms - RUN_LOG_SAMPLE_PERIOD_MS;
+    uint32_t settled_since_ms = 0U;
+    const uint32_t started_ms = previous_ms;
+    float measured_wheel_speed[4] = {0.0f};
+
+    g_command_speed_m_s = 0.0f;
+    g_heading_correction_rad_s = 0.0f;
+
+    for (;;) {
+        uint32_t now_ms = HAL_GetTick();
+        float dt;
+        float error_rad;
+        float desired_rad_s;
+        float max_delta_rad_s;
+
+        if ((uint32_t)(now_ms - started_ms) >= ROUTE_TURN_TIMEOUT_MS) {
+            g_fault_code = FAULT_TURN_TIMEOUT;
+            return false;
+        }
+        if ((uint32_t)(now_ms - last_control_ms) < CONTROL_PERIOD_MS) {
+            continue;
+        }
+        last_control_ms += CONTROL_PERIOD_MS;
+        if ((uint32_t)(now_ms - last_control_ms) >= CONTROL_PERIOD_MS) {
+            last_control_ms = now_ms;
+        }
+        dt = (float)(now_ms - previous_ms) * 0.001f;
+        previous_ms = now_ms;
+        dt = clampf(dt, 0.001f, 0.050f);
+
+        update_imu(dt);
+        if (!motor_feedback_update(now_ms, measured_wheel_speed)) {
+            g_fault_code = FAULT_MOTOR_COMMAND;
+            return false;
+        }
+        error_rad = target_yaw_rad - g_yaw_rad;
+        desired_rad_s = clampf(ROUTE_TURN_KP * error_rad -
+                                   ROUTE_TURN_KD * g_gyro_z_rad_s,
+                               -ROUTE_TURN_MAX_SPEED_RAD_S,
+                               ROUTE_TURN_MAX_SPEED_RAD_S);
+        max_delta_rad_s = ROUTE_TURN_ACCEL_RAD_S2 * dt;
+        turn_command_rad_s = clampf(desired_rad_s,
+                                    turn_command_rad_s - max_delta_rad_s,
+                                    turn_command_rad_s + max_delta_rad_s);
+        g_heading_correction_rad_s = turn_command_rad_s;
+
+        if (!mecanum_inverse(&chassis, 0.0f, 0.0f,
+                             turn_command_rad_s, wheel_speed)) {
+            g_fault_code = FAULT_KINEMATICS;
+            return false;
+        }
+        if (!motor_send_wheel_speeds(wheel_speed)) {
+            g_fault_code = FAULT_MOTOR_COMMAND;
+            return false;
+        }
+        if ((uint32_t)(now_ms - last_log_ms) >= RUN_LOG_SAMPLE_PERIOD_MS) {
+            last_log_ms = now_ms;
+            log_route_sample(now_ms, measured_wheel_speed);
+        }
+
+        if (fabsf(error_rad) <= ROUTE_TURN_TOLERANCE_RAD &&
+            fabsf(g_gyro_z_rad_s) <= ROUTE_TURN_RATE_TOLERANCE_RAD_S) {
+            if (settled_since_ms == 0U) {
+                settled_since_ms = now_ms;
+            } else if ((uint32_t)(now_ms - settled_since_ms) >=
+                       ROUTE_TURN_SETTLE_MS) {
+                return motor_send_zero_all();
+            }
+        } else {
+            settled_since_ms = 0U;
+        }
+    }
+}
+
+static bool run_front_center_orbit(float angle_rad, float center_distance_m)
+{
+    float wheel_speed[4] = {0.0f};
+    float measured_wheel_speed[4] = {0.0f};
+    float actual_vx_m_s = 0.0f;
+    float actual_vy_m_s = 0.0f;
+    float actual_wz_rad_s = 0.0f;
+    float turn_command_rad_s = 0.0f;
+    const float target_yaw_rad = g_yaw_rad + angle_rad;
+    uint32_t previous_ms = HAL_GetTick();
+    uint32_t last_control_ms = previous_ms;
+    uint32_t last_log_ms = previous_ms - RUN_LOG_SAMPLE_PERIOD_MS;
+    uint32_t settled_since_ms = 0U;
+    const uint32_t started_ms = previous_ms;
+
+    g_command_speed_m_s = 0.0f;
+    g_heading_correction_rad_s = 0.0f;
+
+    for (;;) {
+        uint32_t now_ms = HAL_GetTick();
+        float dt;
+        float error_rad;
+        float desired_rad_s;
+        float max_delta_rad_s;
+        float orbit_vy_m_s;
+
+        if ((uint32_t)(now_ms - started_ms) >= ROUTE_FRONT_CENTER_ORBIT_TIMEOUT_MS) {
+            g_fault_code = FAULT_TURN_TIMEOUT;
+            return false;
+        }
+        if ((uint32_t)(now_ms - last_control_ms) < CONTROL_PERIOD_MS) {
+            continue;
+        }
+        last_control_ms += CONTROL_PERIOD_MS;
+        if ((uint32_t)(now_ms - last_control_ms) >= CONTROL_PERIOD_MS) {
+            last_control_ms = now_ms;
+        }
+        dt = (float)(now_ms - previous_ms) * 0.001f;
+        previous_ms = now_ms;
+        dt = clampf(dt, 0.001f, 0.050f);
+
+        update_imu(dt);
+        if (!motor_feedback_update(now_ms, measured_wheel_speed) ||
+            !mecanum_forward(&chassis, measured_wheel_speed,
+                             &actual_vx_m_s, &actual_vy_m_s, &actual_wz_rad_s)) {
+            g_fault_code = FAULT_MOTOR_COMMAND;
+            return false;
+        }
+
+        error_rad = target_yaw_rad - g_yaw_rad;
+        desired_rad_s = clampf(ROUTE_TURN_KP * error_rad -
+                                   ROUTE_TURN_KD * g_gyro_z_rad_s,
+                               -ROUTE_TURN_MAX_SPEED_RAD_S,
+                               ROUTE_TURN_MAX_SPEED_RAD_S);
+        max_delta_rad_s = ROUTE_TURN_ACCEL_RAD_S2 * dt;
+        turn_command_rad_s = clampf(desired_rad_s,
+                                    turn_command_rad_s - max_delta_rad_s,
+                                    turn_command_rad_s + max_delta_rad_s);
+        orbit_vy_m_s = -center_distance_m * turn_command_rad_s;
+
+        g_command_speed_m_s = fabsf(orbit_vy_m_s);
+        g_heading_correction_rad_s = turn_command_rad_s;
+
+        if (!mecanum_inverse(&chassis, 0.0f, orbit_vy_m_s,
+                             turn_command_rad_s, wheel_speed)) {
+            g_fault_code = FAULT_KINEMATICS;
+            return false;
+        }
+        if (!motor_send_wheel_speeds(wheel_speed)) {
+            g_fault_code = FAULT_MOTOR_COMMAND;
+            return false;
+        }
+        g_estimated_distance_m +=
+            fabsf(actual_wz_rad_s) * center_distance_m * dt * DRIVE_DISTANCE_SCALE;
+        if ((uint32_t)(now_ms - last_log_ms) >= RUN_LOG_SAMPLE_PERIOD_MS) {
+            last_log_ms = now_ms;
+            log_route_sample(now_ms, measured_wheel_speed);
+        }
+
+        if (fabsf(error_rad) <= ROUTE_TURN_TOLERANCE_RAD &&
+            fabsf(g_gyro_z_rad_s) <= ROUTE_TURN_RATE_TOLERANCE_RAD_S) {
+            if (settled_since_ms == 0U) {
+                settled_since_ms = now_ms;
+            } else if ((uint32_t)(now_ms - settled_since_ms) >=
+                       ROUTE_TURN_SETTLE_MS) {
+                return motor_send_zero_all();
+            }
+        } else {
+            settled_since_ms = 0U;
+        }
+    }
+}
+
+int main(void)
+{
+    board_init();
+    run_log_reset();
+
+#if ROUTE_AUTO_RUN_ON_BOOT == 0U
+    wait_for_usb_run_command();
+#endif
+
+    g_run_state = RUN_BOOT;
+    if (!wait_for_can_startup()) {
+        enter_fault(FAULT_CAN_STARTUP);
+    }
+
+    g_run_state = RUN_IMU_INIT;
+    g_bmi088_init_error = BMI088_init();
+    if (g_bmi088_init_error != BMI088_NO_ERROR) {
+        enter_fault(FAULT_IMU_INIT);
+    }
+
+    g_run_state = RUN_GYRO_CALIBRATION;
+    if (!calibrate_gyro()) {
+        enter_fault(FAULT_IMU_MOVING);
+    }
+
+    g_run_state = RUN_MOTOR_ENABLE;
+    if (!enable_motors()) {
+        enter_fault(FAULT_MOTOR_ENABLE);
+    }
+    hold_zero(500U);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+    {
+        const uint32_t feedback_wait_started_ms = HAL_GetTick();
+        float primed_wheels[4] = {0.0f};
+
+        while (!motor_feedback_update(HAL_GetTick(), primed_wheels)) {
+            if ((uint32_t)(HAL_GetTick() - feedback_wait_started_ms) > 1000U) {
+                enter_fault(FAULT_MOTOR_COMMAND);
+            }
+            HAL_Delay(10U);
+        }
+    }
+
+    g_yaw_rad = 0.0f;
+    g_estimated_distance_m = 0.0f;
+    board_servo_set_angle_deg_index(0U, ROUTE_SERVO_INITIAL_ANGLE_DEG);
+    board_servo_set_angle_deg_index(1U, ROUTE_SERVO_INITIAL_ANGLE_DEG);
+    HAL_Delay(ROUTE_SERVO_SETTLE_MS);
+
+    g_run_state = RUN_STRAFE_RIGHT;
+    if (!run_translation(0.0f, ROUTE_RIGHT_STRAFE_SIGN,
+                         ROUTE_STRAFE_DISTANCE_M)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
+    g_run_state = RUN_FORWARD;
+    if (!run_translation(ROUTE_FORWARD_SIGN, 0.0f,
+                         ROUTE_FORWARD_DISTANCE_M)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
+    g_run_state = RUN_TURN_RIGHT;
+    if (!run_relative_turn(ROUTE_RIGHT_TURN_SIGN * ROUTE_TURN_ANGLE_RAD *
+                           ROUTE_GYRO_TURN_SCALE)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+
+    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
+    g_run_state = RUN_TURN_BACK;
+    if (!run_relative_turn(ROUTE_BACK_TURN_SIGN * ROUTE_HALF_TURN_ANGLE_RAD *
+                           ROUTE_GYRO_TURN_SCALE)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+
+    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
+    g_run_state = RUN_RETURN_FORWARD;
+    if (!run_translation(ROUTE_FORWARD_SIGN, 0.0f,
+                         ROUTE_AFTER_BACK_TURN_DISTANCE_M)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
+    g_run_state = RUN_TURN_LEFT;
+    if (!run_relative_turn(ROUTE_LEFT_TURN_SIGN * ROUTE_TURN_ANGLE_RAD *
+                           ROUTE_GYRO_TURN_SCALE)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+
+    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
+    g_run_state = RUN_FINAL_FORWARD;
+    if (!run_translation(ROUTE_FORWARD_SIGN, 0.0f,
+                         ROUTE_FINAL_FORWARD_DISTANCE_M)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
+    g_run_state = RUN_FINAL_TURN_RIGHT;
+    if (!run_relative_turn(ROUTE_RIGHT_TURN_SIGN * ROUTE_TURN_ANGLE_RAD *
+                           ROUTE_GYRO_TURN_SCALE)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+
+    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
+    g_run_state = RUN_AFTER_FINAL_STRAFE_RIGHT;
+    if (!run_translation(0.0f, ROUTE_RIGHT_STRAFE_SIGN,
+                         ROUTE_AFTER_FINAL_TURN_STRAFE_M)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
+    g_run_state = RUN_LEFT_BACK_DIAGONAL;
+    if (!run_translation(-ROUTE_FORWARD_SIGN * ROUTE_DIAGONAL_45_COMPONENT,
+                         -ROUTE_RIGHT_STRAFE_SIGN * ROUTE_DIAGONAL_45_COMPONENT,
+                         ROUTE_LEFT_BACK_DIAGONAL_M)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
+    g_run_state = RUN_LAST_TURN_RIGHT;
+    if (!run_relative_turn(ROUTE_RIGHT_TURN_SIGN * ROUTE_TURN_ANGLE_RAD *
+                           ROUTE_GYRO_TURN_SCALE)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
+    g_run_state = RUN_FRONT_CENTER_ORBIT;
+    if (!run_front_center_orbit(ROUTE_RIGHT_TURN_SIGN *
+                                    ROUTE_FRONT_CENTER_ORBIT_ANGLE_RAD *
+                                    ROUTE_GYRO_TURN_SCALE,
+                                ROUTE_FRONT_CENTER_ORBIT_RADIUS_M)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
+    g_run_state = RUN_SERVO_90;
+    board_servo_set_angle_deg_index(0U, SERVO_MG90S_ROUTE_ANGLE_DEG);
+    board_servo_set_angle_deg_index(1U, SERVO_MG90S_ROUTE_ANGLE_DEG);
+    HAL_Delay(ROUTE_SERVO_SETTLE_MS);
+
+    g_run_state = RUN_STOPPING;
+    hold_zero(1000U);
+    (void)motor_disable_all();
+    g_run_state = RUN_DONE;
+    {
+        static const float stopped[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        run_log_sample(HAL_GetTick(), (uint32_t)g_run_state, g_fault_code,
+                       g_gyro_z_rad_s, g_yaw_rad, 0.0f, 0.0f,
+                       g_estimated_distance_m, g_imu_temperature_c, stopped);
+    }
+    (void)run_log_save((uint32_t)g_run_state, g_fault_code);
+    run_log_dump_stored();
+
+    for (;;) {
+        (void)motor_send_zero_all();
+        HAL_Delay(1000U);
+    }
+}
+
+void Error_Handler(void)
+{
+    __disable_irq();
+    for (;;) {
+    }
+}

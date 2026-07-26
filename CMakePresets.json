@@ -1,0 +1,21 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "stm32-debug",
+      "displayName": "STM32H723 Debug",
+      "generator": "Ninja",
+      "binaryDir": "D:/DM_MC02_Gyro_Test1/build_vscode_arm",
+      "toolchainFile": "D:/DM_MC02_Gyro_Test1/arm-none-eabi-gcc.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "stm32-debug",
+      "configurePreset": "stm32-debug"
+    }
+  ]
+}

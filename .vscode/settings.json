@@ -1,0 +1,6 @@
+{
+  "cmake.useCMakePresets": "always",
+  "cmake.configurePreset": "stm32-debug",
+  "cmake.buildPreset": "stm32-debug",
+  "cmake.sourceDirectory": "D:/DM_MC02_Gyro_Test1"
+}

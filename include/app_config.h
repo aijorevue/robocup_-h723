@@ -1,0 +1,105 @@
+#ifndef TEST1_APP_CONFIG_H
+#define TEST1_APP_CONFIG_H
+
+/* Physical wheel mapping: ID1=FL, ID2=FR, ID3=RL, ID4=RR. */
+#define USER_VERIFY_MOTOR_FL_BASE_ID 1U
+#define USER_VERIFY_MOTOR_FR_BASE_ID 2U
+#define USER_VERIFY_MOTOR_RL_BASE_ID 3U
+#define USER_VERIFY_MOTOR_RR_BASE_ID 4U
+
+#define DM_VELOCITY_COMMAND_ID_OFFSET 0x200U
+#define FDCAN_KERNEL_CLOCK_HZ 80000000UL
+#define FDCAN_NOMINAL_BITRATE_HZ 1000000UL
+#define FDCAN_NOM_PRESCALER 1U
+#define FDCAN_NOM_SJW 20U
+#define FDCAN_NOM_SEG1 59U
+#define FDCAN_NOM_SEG2 20U
+
+/* Chassis parameters copied from the previous project; verify on the real car. */
+#define WHEEL_RADIUS_M 0.050f
+#define CHASSIS_HALF_LENGTH_M 0.180f
+#define CHASSIS_HALF_WIDTH_M 0.160f
+#define MOTOR_MAX_WHEEL_RAD_S 58.6431f
+/* Scales decoded DM feedback velocity to wheel-end rad/s; calibrated from route logs. */
+#define MOTOR_FEEDBACK_WHEEL_SPEED_SCALE 3.55f
+#define WHEEL_FL_SIGN 1.0f
+#define WHEEL_FR_SIGN -1.0f
+#define WHEEL_RL_SIGN 1.0f
+#define WHEEL_RR_SIGN -1.0f
+
+/* Autonomous route: strafe right 0.6 m, drive forward 4 m, turn right 90 deg,
+ * then turn 180 deg, drive forward 1.5 m, turn left 90 deg, drive forward 2.3 m,
+ * turn right 90 deg, strafe right 0.8 m, drive left-back 45 deg for 1 m,
+ * turn right 90 deg, orbit 270 deg around a point 0.3 m ahead, then stop. */
+#define CONTROL_PERIOD_MS 10U
+#define ROUTE_AUTO_RUN_ON_BOOT 1U
+#define ROUTE_POWER_ON_SETTLE_MS 1500U
+#define CAN_STARTUP_RETRY_TIMEOUT_MS 6000U
+#define CAN_STARTUP_RETRY_GAP_MS 50U
+#define ROUTE_STRAFE_DISTANCE_M 0.750f
+#define ROUTE_FORWARD_DISTANCE_M 4.000f
+#define ROUTE_AFTER_BACK_TURN_DISTANCE_M 1.500f
+#define ROUTE_FINAL_FORWARD_DISTANCE_M 2.300f
+#define ROUTE_AFTER_FINAL_TURN_STRAFE_M 0.950f
+#define ROUTE_LEFT_BACK_DIAGONAL_M 1.000f
+#define ROUTE_DIAGONAL_45_COMPONENT 0.7071068f
+#define ROUTE_FRONT_CENTER_ORBIT_RADIUS_M 0.300f
+#define ROUTE_FRONT_CENTER_ORBIT_ANGLE_RAD 4.7123890f
+#define ROUTE_FRONT_CENTER_ORBIT_TIMEOUT_MS 12000U
+#define ROUTE_FINAL_REVERSE_DISTANCE_M 0.500f
+#define ROUTE_SERVO_SETTLE_MS 700U
+#define ROUTE_SERVO_INITIAL_ANGLE_DEG 0.0f
+#define ROUTE_TRANSLATION_SPEED_M_S 1.800f
+#define ROUTE_TRANSLATION_ACCEL_M_S2 0.900f
+#define ROUTE_TRANSLATION_TIMEOUT_MS 15000U
+#define DRIVE_STOP_TOLERANCE_M 0.004f
+#define DRIVE_DISTANCE_SCALE 1.000f
+/* FS-i6S forward stick produces negative vx on the verified chassis. */
+#define ROUTE_FORWARD_SIGN -1.0f
+/* Standard mecanum coordinates use negative vy and wz for rightward motion. */
+#define ROUTE_RIGHT_STRAFE_SIGN 1.0f
+#define ROUTE_RIGHT_TURN_SIGN 1.0f
+#define ROUTE_LEFT_TURN_SIGN -1.0f
+#define ROUTE_BACK_TURN_SIGN 1.0f
+
+#define ROUTE_TURN_ANGLE_RAD 1.5707963f
+#define ROUTE_HALF_TURN_ANGLE_RAD 3.1415927f
+#define ROUTE_GYRO_TURN_SCALE 1.0056f
+#define ROUTE_TURN_MAX_SPEED_RAD_S 1.200f
+#define ROUTE_TURN_ACCEL_RAD_S2 1.800f
+#define ROUTE_TURN_KP 2.20f
+#define ROUTE_TURN_KD 0.20f
+#define ROUTE_TURN_TOLERANCE_RAD 0.020f
+#define ROUTE_TURN_RATE_TOLERANCE_RAD_S 0.040f
+#define ROUTE_TURN_SETTLE_MS 200U
+#define ROUTE_TURN_TIMEOUT_MS 6000U
+#define ROUTE_SEGMENT_SETTLE_MS 300U
+
+/* BMI088 yaw feedback parameters. */
+#define GYRO_CALIBRATION_SAMPLES 500U
+#define GYRO_CALIBRATION_PERIOD_MS 4U
+#define GYRO_STATIONARY_STDDEV_MAX_RAD_S 0.050f
+#define GYRO_Z_SIGN -1.0f
+#define HEADING_KP 2.70f
+#define HEADING_KD 0.15f
+#define HEADING_MAX_CORRECTION_RAD_S 0.35f
+#define HEADING_CORRECTION_SPEED_RATIO 0.50f
+
+#define MOTOR_TX_DRAIN_TIMEOUT_MS 200U
+
+/*
+ * MG90S PWM outputs on the DM-MC-Board02 expansion header:
+ * servo 0: PA0 / TIM2_CH1
+ * servo 1: PA2 / TIM2_CH3
+ * servo 2: PE9 / TIM1_CH1
+ * servo 3: PE13 / TIM1_CH3
+ */
+#define SERVO_PWM_CHANNEL_COUNT 4U
+#define SERVO_PWM_TIMER_HZ 1000000UL
+#define SERVO_PWM_PERIOD_US 20000U
+#define SERVO_MG90S_MIN_PULSE_US 500U
+#define SERVO_MG90S_MAX_PULSE_US 2500U
+#define SERVO_MG90S_MAX_ANGLE_DEG 180.0f
+#define SERVO_MG90S_ROUTE_ANGLE_DEG 95.0f
+
+#endif

@@ -1,0 +1,3 @@
+D:/小车底盘/test/test1/build/CMakeFiles/DM_MC02_Gyro_3m.elf.dir
+D:/小车底盘/test/test1/build/CMakeFiles/edit_cache.dir
+D:/小车底盘/test/test1/build/CMakeFiles/rebuild_cache.dir

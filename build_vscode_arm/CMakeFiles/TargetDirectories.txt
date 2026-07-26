@@ -1,0 +1,3 @@
+D:/DM_MC02_Gyro_Test1/build_vscode_arm/CMakeFiles/DM_MC02_Gyro_3m.elf.dir
+D:/DM_MC02_Gyro_Test1/build_vscode_arm/CMakeFiles/edit_cache.dir
+D:/DM_MC02_Gyro_Test1/build_vscode_arm/CMakeFiles/rebuild_cache.dir

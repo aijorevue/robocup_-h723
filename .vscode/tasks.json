@@ -1,0 +1,52 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "STM32: Configure gyro firmware",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--preset",
+        "stm32-debug"
+      ],
+      "options": {
+        "cwd": "D:/DM_MC02_Gyro_Test1"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "STM32: Build gyro firmware",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "--preset",
+        "stm32-debug"
+      ],
+      "options": {
+        "cwd": "D:/DM_MC02_Gyro_Test1"
+      },
+      "dependsOn": "STM32: Configure gyro firmware",
+      "problemMatcher": "$gcc",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "STM32: Build and warm GDB",
+      "type": "process",
+      "command": "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gdb.exe",
+      "args": [
+        "--batch",
+        "-ex",
+        "echo GDB ready\\n"
+      ],
+      "options": {
+        "cwd": "D:/DM_MC02_Gyro_Test1"
+      },
+      "dependsOn": "STM32: Build gyro firmware",
+      "problemMatcher": []
+    }
+  ]
+}
