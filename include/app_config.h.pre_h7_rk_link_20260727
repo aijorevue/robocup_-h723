@@ -36,13 +36,6 @@
 #define ROUTE_POWER_ON_SETTLE_MS 800U
 #define CAN_STARTUP_RETRY_TIMEOUT_MS 6000U
 #define CAN_STARTUP_RETRY_GAP_MS 50U
-/* Airborne integration mode: keep the route state machine running even if
- * motor CAN startup/feedback is late. Restore these to 1 before ground runs. */
-#define ROUTE_REQUIRE_CAN_STARTUP 1U
-#define ROUTE_REQUIRE_MOTOR_ENABLE 1U
-#define ROUTE_REQUIRE_MOTOR_FEEDBACK 1U
-#define ROUTE_REQUIRE_MOTOR_TX_SUCCESS 1U
-#define ROUTE_AIRBORNE_SIMULATE_YAW 0U
 #define ROUTE_STRAFE_DISTANCE_M 0.750f
 #define ROUTE_FORWARD_DISTANCE_M 4.000f
 #define ROUTE_AFTER_BACK_TURN_DISTANCE_M 1.500f
@@ -94,27 +87,6 @@
 #define ROUTE_TURN_SETTLE_MS 120U
 #define ROUTE_TURN_TIMEOUT_MS 6000U
 #define ROUTE_SEGMENT_SETTLE_MS 120U
-
-/* RK arm task points on the chassis route.
- * Task 1: after the first right 90 deg turn, run disc red/yellow ball catch.
- * Task 2: after the second right 90 deg turn, run three one-shot platform picks.
- *         The chassis shifts right 266.666 mm between the three checks.
- * Task 3: before the orbit, expand the arm and keep detecting red balls while
- *         the chassis is moving; stop/retract the arm when the orbit ends. */
-#define ROUTE_TASK1_DISC_CATCH_ENABLED 1U
-#define ROUTE_TASK1_RK_ARM_TASK "DISC_CATCH"
-#define ROUTE_TASK2_PLATFORM_PICK_ENABLED 1U
-#define ROUTE_TASK2_RK_ARM_TASK "PLATFORM_PICK"
-#define ROUTE_TASK2_PLATFORM_PICK_COUNT 3U
-#define ROUTE_TASK2_PLATFORM_SLOT_SPACING_M 0.266666f
-#define ROUTE_TASK3_COLUMN_CATCH_ENABLED 1U
-#define ROUTE_TASK3_RK_ARM_TASK "COLUMN_CATCH"
-
-#define RK_ARM_START_RETRY_MS 200U
-#define RK_ARM_PROBE_ACK_TIMEOUT_MS 1800U
-#define RK_ARM_ACK_TIMEOUT_MS 3000U
-#define RK_ARM_TASK_TIMEOUT_MS 35000U
-#define RK_ARM_REQUIRED 0U
 
 /* BMI088 yaw feedback parameters. */
 #define GYRO_CALIBRATION_SAMPLES 300U
