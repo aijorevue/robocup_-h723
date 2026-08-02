@@ -22,6 +22,7 @@ extern volatile uint32_t g_fdcan_bus_off_count;
 extern volatile uint32_t g_fdcan_abort_error_count;
 
 void board_init(void);
+void board_init_task_link_only(void);
 void board_uart1_write_only(const char *text);
 void board_uart1_write(const char *text);
 void board_usb_write(const char *text);

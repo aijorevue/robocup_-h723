@@ -288,6 +288,18 @@ void board_init(void)
     fdcan1_init();
 }
 
+void board_init_task_link_only(void)
+{
+    SCB_EnableICache();
+    SCB_EnableDCache();
+    HAL_Init();
+    system_clock_config();
+    uart1_init();
+    MX_USB_DEVICE_Init();
+    usb_device_started = true;
+    fdcan_abort_unresolved = false;
+}
+
 static uint32_t servo_angle_to_pulse_us(float angle_deg)
 {
     float normalized;

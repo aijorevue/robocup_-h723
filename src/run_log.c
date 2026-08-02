@@ -11,7 +11,7 @@
 #define RUN_LOG_FLASH_ADDRESS 0x080E0000UL
 #define RUN_LOG_FLASH_SECTOR_SIZE 0x20000UL
 #define RUN_LOG_MAGIC 0x32474F4CUL
-#define RUN_LOG_VERSION 1U
+#define RUN_LOG_VERSION 2U
 #define RUN_LOG_MAX_RECORDS 512U
 #define RUN_LOG_SLOT_COUNT 3U
 
@@ -29,6 +29,10 @@ typedef struct {
     float wheel_rad_s[4];
     uint32_t can_tx_errors;
     uint32_t can_bus_offs;
+    float cross_track_m;
+    float cross_track_command_m_s;
+    float actual_cross_speed_m_s;
+    uint32_t event;
 } run_log_record_t;
 
 typedef struct {
@@ -42,7 +46,7 @@ typedef struct {
     uint32_t reserved;
 } run_log_header_t;
 
-_Static_assert(sizeof(run_log_record_t) == 64U, "run log record must be 64 bytes");
+_Static_assert(sizeof(run_log_record_t) == 80U, "run log record must be 80 bytes");
 _Static_assert(sizeof(run_log_header_t) == 32U, "run log header must be 32 bytes");
 
 #define RUN_LOG_SLOT_SIZE (sizeof(run_log_header_t) + \
@@ -217,6 +221,7 @@ static int32_t scaled(float value, float factor)
 
 void run_log_reset(void)
 {
+    memset(records, 0, sizeof(records));
     record_count = 0U;
     saved = false;
 }
@@ -224,7 +229,9 @@ void run_log_reset(void)
 void run_log_sample(uint32_t timestamp_ms, uint32_t state, uint32_t fault,
                     float gyro_z_rad_s, float yaw_rad, float command_speed_m_s,
                     float heading_correction_rad_s, float distance_m,
-                    float temperature_c, const float wheel_rad_s[4])
+                    float temperature_c, const float wheel_rad_s[4],
+                    float cross_track_m, float cross_track_command_m_s,
+                    float actual_cross_speed_m_s, uint32_t event)
 {
     run_log_record_t *record;
 
@@ -245,6 +252,10 @@ void run_log_sample(uint32_t timestamp_ms, uint32_t state, uint32_t fault,
     memcpy(record->wheel_rad_s, wheel_rad_s, sizeof(record->wheel_rad_s));
     record->can_tx_errors = g_fdcan_tx_error_count;
     record->can_bus_offs = g_fdcan_bus_off_count;
+    record->cross_track_m = cross_track_m;
+    record->cross_track_command_m_s = cross_track_command_m_s;
+    record->actual_cross_speed_m_s = actual_cross_speed_m_s;
+    record->event = event;
     record_count++;
 }
 
@@ -255,6 +266,8 @@ bool run_log_save(uint32_t final_state, uint32_t fault)
     uint32_t sector_error = 0U;
     uint32_t slot = 0U;
     uint32_t slot_address;
+    size_t payload_length;
+    size_t programmed_length;
     bool ok;
 
     if (saved) {
@@ -285,8 +298,10 @@ bool run_log_save(uint32_t final_state, uint32_t fault)
     }
     slot_address = log_slot_address(slot);
     if (ok && record_count > 0U) {
+        payload_length = (size_t)record_count * sizeof(records[0]);
+        programmed_length = (payload_length + 31U) & ~(size_t)31U;
         ok = flash_program_words(slot_address + sizeof(header), records,
-                                 (size_t)record_count * sizeof(records[0]));
+                                 programmed_length);
     }
     if (ok) {
         ok = flash_program_words(slot_address, &header, sizeof(header));
@@ -312,22 +327,23 @@ void run_log_dump_stored(void)
     }
     stored = log_slot_records(slot);
     length = snprintf(line, sizeof(line),
-                      "LOG,BEGIN,slot=%lu,seq=%lu,count=%lu,state=%lu,fault=%lu,period_ms=%lu\r\n",
+                      "LOG,BEGIN,slot=%lu,seq=%lu,count=%lu,state=%lu,fault=%lu,period_ms=%lu,record_bytes=%lu\r\n",
                       (unsigned long)slot,
                       (unsigned long)header->reserved,
                       (unsigned long)header->record_count,
                       (unsigned long)header->final_state,
                       (unsigned long)header->fault,
-                      (unsigned long)header->sample_period_ms);
+                      (unsigned long)header->sample_period_ms,
+                      (unsigned long)sizeof(run_log_record_t));
     if (length > 0) {
         board_uart1_write(line);
     }
-    board_uart1_write("index,time_ms,state,fault,gyro_mrad_s,yaw_mrad,speed_mm_s,correction_mrad_s,distance_mm,temp_mC,fl_mrad_s,fr_mrad_s,rl_mrad_s,rr_mrad_s,can_tx_errors,can_bus_offs\r\n");
+    board_uart1_write("index,time_ms,state,fault,gyro_mrad_s,yaw_mrad,speed_mm_s,correction_mrad_s,distance_mm,temp_mC,fl_mrad_s,fr_mrad_s,rl_mrad_s,rr_mrad_s,can_tx_errors,can_bus_offs,cross_mm,cross_cmd_mm_s,cross_speed_mm_s,event\r\n");
     for (index = 0U; index < header->record_count; ++index) {
         const run_log_record_t *record = &stored[index];
         length = snprintf(
             line, sizeof(line),
-            "%lu,%lu,%lu,%lu,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%lu,%lu\r\n",
+            "%lu,%lu,%lu,%lu,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%lu,%lu,%ld,%ld,%ld,%lu\r\n",
             (unsigned long)record->index, (unsigned long)record->timestamp_ms,
             (unsigned long)record->state, (unsigned long)record->fault,
             (long)scaled(record->gyro_z_rad_s, 1000.0f),
@@ -341,7 +357,11 @@ void run_log_dump_stored(void)
             (long)scaled(record->wheel_rad_s[2], 1000.0f),
             (long)scaled(record->wheel_rad_s[3], 1000.0f),
             (unsigned long)record->can_tx_errors,
-            (unsigned long)record->can_bus_offs);
+            (unsigned long)record->can_bus_offs,
+            (long)scaled(record->cross_track_m, 1000.0f),
+            (long)scaled(record->cross_track_command_m_s, 1000.0f),
+            (long)scaled(record->actual_cross_speed_m_s, 1000.0f),
+            (unsigned long)record->event);
         if (length > 0) {
             board_uart1_write(line);
         }

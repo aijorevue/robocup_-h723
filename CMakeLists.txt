@@ -17,6 +17,7 @@ set(USB_MW_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/stm32/Middlewares/ST/STM32_USB
 add_executable(${CMAKE_PROJECT_NAME}.elf
     startup_stm32h723xx.s
     src/exit_run0_mode.c
+    src/route_controller.c
     src/main.c
     src/board.c
     src/mecanum.c
