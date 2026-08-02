@@ -23,6 +23,9 @@ add_executable(${CMAKE_PROJECT_NAME}.elf
     src/mecanum.c
     src/motor_output.c
     src/run_log.c
+    src/lcd_display.c
+    lcd/lcd.c
+    lcd/lcd_background.c
     usb_device/app/usb_device.c
     usb_device/app/usbd_cdc_if.c
     usb_device/app/usbd_desc.c
@@ -32,6 +35,8 @@ add_executable(${CMAKE_PROJECT_NAME}.elf
     vendor/dm_motor/dm_motor_protocol.c
     vendor/stm32/system_stm32h7xx.c
     ${HAL_DIR}/Src/stm32h7xx_hal.c
+    ${HAL_DIR}/Src/stm32h7xx_hal_adc.c
+    ${HAL_DIR}/Src/stm32h7xx_hal_adc_ex.c
     ${HAL_DIR}/Src/stm32h7xx_hal_cortex.c
     ${HAL_DIR}/Src/stm32h7xx_hal_fdcan.c
     ${HAL_DIR}/Src/stm32h7xx_hal_flash.c
@@ -64,6 +69,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME}.elf PRIVATE
 
 target_include_directories(${CMAKE_PROJECT_NAME}.elf PRIVATE
     include
+    lcd
     bmi088
     vendor/dm_motor
     ${USB_DEVICE_DIR}/app

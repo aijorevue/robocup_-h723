@@ -34,6 +34,10 @@
  * 90 deg, orbit 270 deg around a point 0.5 m ahead, and reverse 0.3 m. */
 #define CONTROL_PERIOD_MS 10U
 #define ROUTE_AUTO_RUN_ON_BOOT 1U
+/* Official examples expose PA15 as the user key and PA5/ADC1_INP19 as the
+ * LCD joystick ladder.  Either one can trigger the chassis start gate. */
+#define ROUTE_WAIT_USER_KEY_ON_BOOT 1U
+#define ROUTE_USER_KEY_DEBOUNCE_MS 100U
 #define ROUTE_POWER_ON_SETTLE_MS 400U
 /* Set to 1 only for an elevated bench test. Production firmware initializes
  * CAN, BMI088, chassis motors, MG90S outputs, and runs the complete route. */

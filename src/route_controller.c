@@ -1,6 +1,7 @@
 #include "app_config.h"
 #include "board.h"
 #include "BMI088driver.h"
+#include "lcd_display.h"
 #include "route_controller.h"
 #include "mecanum.h"
 #include "motor_output.h"
@@ -78,11 +79,43 @@ static float g_route_heading_target_rad;
 static volatile uint8_t g_rk_arm_link_ready;
 static uint8_t g_rk_arm_tasks_disabled_for_route;
 static uint8_t g_first_arm_station_reached;
+static uint8_t g_start_confirmed_from_fault;
 static uint32_t g_rk_pretask_last_sync_ms;
 static char g_rk_pretask_line[96];
 static uint32_t g_rk_pretask_line_len;
 
 static void service_rk_link_before_first_station(void);
+
+uint8_t route_controller_rk_link_ready(void)
+{
+    return g_rk_arm_link_ready;
+}
+
+#if ROUTE_WAIT_USER_KEY_ON_BOOT
+static void wait_for_user_start_key(void)
+{
+    uint32_t last_status_ms = HAL_GetTick() - 1000U;
+
+    g_run_state = RUN_WAIT_USB_RUN;
+    lcd_display_set_start_status("WAIT");
+    board_uart1_write("H7,START,WAIT_USER_KEY,code=1,PA15_OR_LCD_JOYSTICK\r\n");
+    for (;;) {
+        uint32_t now_ms = HAL_GetTick();
+
+        lcd_display_update();
+        if ((uint32_t)(now_ms - last_status_ms) >= 1000U) {
+            last_status_ms = now_ms;
+            board_uart1_write("H7,START,WAIT_USER_KEY\r\n");
+        }
+        if (board_user_start_pressed() != 0U) {
+            lcd_display_set_start_status("RUN");
+            board_uart1_write("H7,START,USER_KEY,code=1\r\n");
+            return;
+        }
+        HAL_Delay(10U);
+    }
+}
+#endif
 
 static const mecanum_config_t chassis = {
     .wheel_radius_m = WHEEL_RADIUS_M,
@@ -171,7 +204,7 @@ static void hold_zero(uint32_t duration_ms)
     }
 }
 
-static void enter_fault(uint32_t code)
+static void enter_fault_wait_restart(uint32_t code)
 {
     static const float stopped[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
@@ -187,10 +220,19 @@ static void enter_fault(uint32_t code)
                    RUN_LOG_EVENT_FAULT);
     (void)run_log_save((uint32_t)g_run_state, g_fault_code);
     run_log_dump_stored();
+    lcd_display_set_start_status("FAULT");
+    board_uart1_write("H7,FAULT,SAVED,WAIT_START_TO_RESET\r\n");
     for (;;) {
         (void)motor_send_zero_all();
         (void)motor_disable_all();
-        HAL_Delay(500U);
+        lcd_display_update();
+        if (board_user_start_pressed() != 0U) {
+            g_start_confirmed_from_fault = 1U;
+            lcd_display_set_start_status("RUN");
+            board_uart1_write("H7,FAULT,USER_KEY_RESTART\r\n");
+            return;
+        }
+        HAL_Delay(20U);
     }
 }
 
@@ -957,6 +999,8 @@ static bool settle_translation_cross_track(float along_x, float along_y,
             last_log_ms = now_ms;
             log_route_sample(now_ms, measured_wheel_speed);
         }
+        /* Self-throttled to 5 Hz, repaints a single value field per tick. */
+        lcd_display_update();
 
         if (fabsf(*cross_track_m) <= TRANSLATION_CROSS_TRACK_TOLERANCE_M &&
             fabsf(g_actual_cross_speed_m_s) <=
@@ -1163,6 +1207,8 @@ static bool run_translation_profile(float vx_direction, float vy_direction,
             last_log_ms = now_ms;
             log_route_sample(now_ms, measured_wheel_speed);
         }
+        /* Self-throttled to 5 Hz, repaints a single value field per tick. */
+        lcd_display_update();
     }
     return settle_translation_cross_track(along_x, along_y,
                                           heading_target_rad, heading_kp,
@@ -1255,6 +1301,8 @@ static bool run_relative_turn(float angle_rad)
             last_log_ms = now_ms;
             log_route_sample(now_ms, measured_wheel_speed);
         }
+        /* Self-throttled to 5 Hz, repaints a single value field per tick. */
+        lcd_display_update();
 
         if (fabsf(error_rad) <= ROUTE_TURN_TOLERANCE_RAD &&
             fabsf(g_gyro_z_rad_s) <= ROUTE_TURN_RATE_TOLERANCE_RAD_S) {
@@ -1360,6 +1408,8 @@ static bool run_front_center_orbit(float angle_rad, float center_distance_m)
             last_log_ms = now_ms;
             log_route_sample(now_ms, measured_wheel_speed);
         }
+        /* Self-throttled to 5 Hz, repaints a single value field per tick. */
+        lcd_display_update();
 
         if (fabsf(error_rad) <= ROUTE_TURN_TOLERANCE_RAD &&
             fabsf(g_gyro_z_rad_s) <= ROUTE_TURN_RATE_TOLERANCE_RAD_S) {
@@ -1442,13 +1492,41 @@ static void run_task_link_simulation(void)
 }
 #endif
 
+#define enter_fault(code)       \
+    do {                        \
+        enter_fault_wait_restart(code); \
+        goto route_start;       \
+    } while (0)
+
 void route_controller_run(void)
 {
 #if ROUTE_TASK_LINK_SIMULATION_ONLY
     board_init_task_link_only();
 #else
     board_init();
+    /* Panel + static labels are painted once here, outside the control loop. */
+    lcd_display_init();
 #endif
+
+route_start:
+#if ROUTE_WAIT_USER_KEY_ON_BOOT
+    if (g_start_confirmed_from_fault != 0U) {
+        g_start_confirmed_from_fault = 0U;
+        lcd_display_set_start_status("RUN");
+    } else {
+        wait_for_user_start_key();
+    }
+#endif
+    g_fault_code = FAULT_NONE;
+    g_rk_arm_tasks_disabled_for_route = 0U;
+    g_first_arm_station_reached = 0U;
+    g_rk_pretask_line_len = 0U;
+    g_command_speed_m_s = 0.0f;
+    g_heading_correction_rad_s = 0.0f;
+    g_estimated_distance_m = 0.0f;
+    g_cross_track_m = 0.0f;
+    g_cross_track_command_m_s = 0.0f;
+    g_actual_cross_speed_m_s = 0.0f;
     run_log_reset();
 
 #if ROUTE_TASK_LINK_SIMULATION_ONLY
@@ -1760,10 +1838,8 @@ void route_controller_run(void)
     (void)run_log_save((uint32_t)g_run_state, g_fault_code);
     run_log_dump_stored();
 
-    for (;;) {
-        (void)motor_send_zero_all();
-        HAL_Delay(1000U);
-    }
+    board_uart1_write("H7,ROUTE,DONE,WAIT_NEXT_START\r\n");
+    goto route_start;
 }
 
 void Error_Handler(void)
