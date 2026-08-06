@@ -22,6 +22,9 @@ add_executable(${CMAKE_PROJECT_NAME}.elf
     src/board.c
     src/mecanum.c
     src/motor_output.c
+    src/rc_override.c
+    src/rc_control.c
+    src/rc_protocol.c
     src/run_log.c
     src/lcd_display.c
     lcd/lcd.c
@@ -38,6 +41,8 @@ add_executable(${CMAKE_PROJECT_NAME}.elf
     ${HAL_DIR}/Src/stm32h7xx_hal_adc.c
     ${HAL_DIR}/Src/stm32h7xx_hal_adc_ex.c
     ${HAL_DIR}/Src/stm32h7xx_hal_cortex.c
+    ${HAL_DIR}/Src/stm32h7xx_hal_dma.c
+    ${HAL_DIR}/Src/stm32h7xx_hal_dma_ex.c
     ${HAL_DIR}/Src/stm32h7xx_hal_fdcan.c
     ${HAL_DIR}/Src/stm32h7xx_hal_flash.c
     ${HAL_DIR}/Src/stm32h7xx_hal_flash_ex.c

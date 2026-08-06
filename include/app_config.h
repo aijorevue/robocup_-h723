@@ -34,31 +34,29 @@
  * 90 deg, orbit 270 deg around a point 0.5 m ahead, and reverse 0.3 m. */
 #define CONTROL_PERIOD_MS 10U
 #define ROUTE_AUTO_RUN_ON_BOOT 1U
-/* Official examples expose PA15 as the user key and PA5/ADC1_INP19 as the
- * LCD joystick ladder.  Either one can trigger the chassis start gate. */
+/* PA5/ADC1_INP19 is the LCD joystick ladder.  Only UP/DOWN may start a
+ * route: UP selects RED and DOWN selects BLUE. */
 #define ROUTE_WAIT_USER_KEY_ON_BOOT 1U
 #define ROUTE_USER_KEY_DEBOUNCE_MS 100U
-#define ROUTE_POWER_ON_SETTLE_MS 400U
-/* Set to 1 only for an elevated bench test. Production firmware initializes
- * CAN, BMI088, chassis motors, MG90S outputs, and runs the complete route. */
-#define ROUTE_TASK_LINK_SIMULATION_ONLY 0U
-#define ROUTE_TASK_SIM_BOOT_DELAY_MS 3000U
-#define ROUTE_TASK_SIM_BETWEEN_STATIONS_MS 1000U
-#define ROUTE_TASK_SIM_COLUMN_ACTIVE_MS 8000U
+#define ROUTE_POWER_ON_SETTLE_MS 500U
 /* Start the chassis route immediately. RK synchronization runs in the
  * background until the first arm station is reached. */
 #define ROUTE_WAIT_RK_READY_ON_BOOT 0U
-#define RK_ARM_BOOT_READY_TIMEOUT_MS 5000U
+#define RK_ARM_BOOT_READY_TIMEOUT_MS 2500U
 #define RK_ARM_PRETASK_SYNC_PERIOD_MS 250U
-#define CAN_STARTUP_RETRY_TIMEOUT_MS 6000U
+#define CAN_STARTUP_RETRY_TIMEOUT_MS 5000U
 #define CAN_STARTUP_RETRY_GAP_MS 50U
 /* Airborne integration mode: keep the route state machine running even if
  * motor CAN startup/feedback is late. Restore these to 1 before ground runs. */
+
 #define ROUTE_REQUIRE_CAN_STARTUP 1U
+
 #define ROUTE_REQUIRE_MOTOR_ENABLE 1U
+
 #define ROUTE_REQUIRE_MOTOR_FEEDBACK 1U
+
 #define ROUTE_REQUIRE_MOTOR_TX_SUCCESS 1U
-#define ROUTE_AIRBORNE_SIMULATE_YAW 0U
+
 #define ROUTE_STRAFE_DISTANCE_M 0.800f
 #define ROUTE_FORWARD_DISTANCE_M 4.100f
 #define ROUTE_AFTER_DISC_REVERSE_DISTANCE_M 1.600f
@@ -76,23 +74,12 @@
 #define ROUTE_FINAL_REVERSE_DISTANCE_M 0.300f
 #define ROUTE_SERVO_SETTLE_MS 700U
 #define ROUTE_SERVO_INITIAL_ANGLE_DEG 0.0f
-#define ARM_SERVO_SWEEP_INDEX 0U
-#define ARM_SERVO_GRIPPER_INDEX 1U
-#define ARM_ACTION_SETTLE_MS 500U
-#define ARM_GRIP_SETTLE_MS 450U
-#define ARM_DISC_SWEEP_ANGLE_DEG 90.0f
-#define ARM_DISC_GRIP_ANGLE_DEG 90.0f
-#define ARM_PLATFORM_LEFT_ANGLE_DEG 55.0f
-#define ARM_PLATFORM_CENTER_ANGLE_DEG 90.0f
-#define ARM_PLATFORM_RIGHT_ANGLE_DEG 125.0f
-#define ARM_GRIP_OPEN_ANGLE_DEG 60.0f
-#define ARM_GRIP_CLOSE_ANGLE_DEG 120.0f
-#define ARM_COLUMN_SWEEP_ANGLE_DEG 90.0f
-#define ARM_COLUMN_GRIP_ANGLE_DEG 90.0f
-#define ROUTE_TRANSLATION_SPEED_M_S 2.600f
+
+
+#define ROUTE_TRANSLATION_SPEED_M_S 1.800f
 #define ROUTE_TRANSLATION_ACCEL_M_S2 2.000f
-#define ROUTE_LONG_FORWARD_SPEED_M_S 2.200f
-#define ROUTE_LONG_FORWARD_ACCEL_M_S2 1.600f
+#define ROUTE_LONG_FORWARD_SPEED_M_S 1.800f
+#define ROUTE_LONG_FORWARD_ACCEL_M_S2 2.000f
 #define ROUTE_TRANSLATION_TIMEOUT_MS 15000U
 #define DRIVE_STOP_TOLERANCE_M 0.004f
 #define DRIVE_DISTANCE_SCALE 1.000f
@@ -136,17 +123,29 @@
 #define RK_ARM_START_RETRY_MS 200U
 #define RK_ARM_PROBE_ACK_TIMEOUT_MS 1800U
 #define RK_ARM_ACK_TIMEOUT_MS 3000U
-#define RK_ARM_WAIT_FOREVER_FOR_ACK 1U
-#define RK_ARM_TASK_TIMEOUT_MS 0U
+#define RK_ARM_WAIT_FOREVER_FOR_ACK 0U
+#define RK_ARM_TASK_TIMEOUT_MS 20000U
 #define RK_ARM_STATUS_PERIOD_MS 1000U
 #define RK_ARM_STOP_TIMEOUT_MS 15000U
-#define RK_ARM_REQUIRED 1U
+#define RK_ARM_REQUIRED 0U
 
 /* BMI088 yaw feedback parameters. */
 #define GYRO_CALIBRATION_SAMPLES 300U
 #define GYRO_CALIBRATION_PERIOD_MS 3U
 #define GYRO_STATIONARY_STDDEV_MAX_RAD_S 0.050f
 #define GYRO_Z_SIGN -1.0f
+/* BMI088-to-chassis axis map.  Verify these four values from a ground-run log
+ * if the controller board is mounted in a different orientation. */
+#define IMU_ACCEL_BODY_X_INDEX 0U
+#define IMU_ACCEL_BODY_Y_INDEX 1U
+#define IMU_ACCEL_BODY_X_SIGN -1.0f
+#define IMU_ACCEL_BODY_Y_SIGN -1.0f
+#define IMU_ACCEL_FILTER_ALPHA 0.20f
+#define IMU_ACCEL_DEADBAND_M_S2 0.08f
+#define IMU_ACCEL_MAX_M_S2 4.00f
+#define IMU_VELOCITY_PREDICTION_WEIGHT 0.08f
+#define IMU_VELOCITY_MAX_ENCODER_DELTA_M_S 0.15f
+#define IMU_ZERO_VELOCITY_THRESHOLD_M_S 0.020f
 #define HEADING_KP 7.50f
 #define HEADING_KD 0.22f
 #define STRAFE_HEADING_KP 5.00f
@@ -165,8 +164,60 @@
 #define TRANSLATION_CROSS_SETTLE_MS 60U
 #define TRANSLATION_CROSS_SETTLE_TIMEOUT_MS 500U
 #define TRANSLATION_SETTLE_HEADING_MAX_CORRECTION_RAD_S 0.35f
+/* Encoder odometry closes the along-track position loop; BMI088 gyro yaw
+ * supplies the heading used to rotate wheel odometry into the route frame. */
+#define ODOM_ALONG_POSITION_KP 1.20f
+#define ODOM_ALONG_CORRECTION_MAX_M_S 0.25f
+#define ODOM_ALONG_SPEED_KP 0.35f
+#define ODOM_ALONG_SPEED_KI 0.80f
+#define ODOM_ALONG_SPEED_INTEGRAL_MAX_M_S 0.25f
+#define ODOM_ALONG_POSITION_TOLERANCE_M 0.008f
+#define ODOM_ALONG_SPEED_TOLERANCE_M_S 0.030f
+#define ODOM_ALONG_SETTLE_MS 60U
 
 #define MOTOR_TX_DRAIN_TIMEOUT_MS 200U
+
+/* FS-i6S receiver on P6 / UART5.  CH5 high takes over the chassis with RC;
+ * when CH5 goes low or the receiver is lost, control returns to the start gate. */
+#define ROUTE_RC_OVERRIDE_ENABLED 1U
+#define IBUS_OVER_P6 1
+#define SBUS_OVER_P6 2
+#ifndef RC_PROTOCOL_MODE
+#define RC_PROTOCOL_MODE SBUS_OVER_P6
+#endif
+#define RC_CH_VX_INDEX 1U
+#define RC_CH_VY_INDEX 3U
+#define RC_CH_WZ_INDEX 0U
+#define RC_CH_UNLOCK_INDEX 4U
+#define RC_CH_SPEED_INDEX 5U
+#define RC_VX_DIRECTION 1.0f
+#define RC_VY_DIRECTION 1.0f
+#define RC_WZ_DIRECTION 1.0f
+#define RC_CHANNEL_MIN_US 1000U
+#define RC_CHANNEL_CENTER_US 1500U
+#define RC_CHANNEL_MAX_US 2000U
+#define RC_STICK_DEADZONE_US 80U
+#define RC_ARM_CENTER_WINDOW_US 80U
+#define RC_UNLOCK_LOW_MAX_US 1200U
+#define RC_UNLOCK_HIGH_MIN_US 1800U
+#define RC_SPEED_LOW_MAX_US 1200U
+#define RC_SPEED_HIGH_MIN_US 1800U
+#define RC_SPEED_LOW_SCALE 0.35f
+#define RC_SPEED_MID_SCALE 0.65f
+#define RC_SPEED_HIGH_SCALE 1.00f
+#define RC_AXIS_EXPO 0.20f
+#define RC_TIMEOUT_MS 300U
+#define RC_OVERRIDE_ALLOW_HIGH_ON_BOOT 1U
+#define RC_OVERRIDE_RELEASE_CONFIRM_MS 600U
+#define RC_OVERRIDE_MAX_LINEAR_M_S 1.000f
+#define RC_OVERRIDE_MAX_ANGULAR_RAD_S 2.000f
+#define RC_OVERRIDE_WHEEL_RADIUS_M 0.050f
+#define RC_OVERRIDE_HALF_LENGTH_M 0.180f
+#define RC_OVERRIDE_HALF_WIDTH_M 0.160f
+#define RC_OVERRIDE_WHEEL_FL_SIGN 1.0f
+#define RC_OVERRIDE_WHEEL_FR_SIGN -1.0f
+#define RC_OVERRIDE_WHEEL_RL_SIGN 1.0f
+#define RC_OVERRIDE_WHEEL_RR_SIGN -1.0f
 
 /*
  * MG90S PWM outputs on the DM-MC-Board02 expansion header:

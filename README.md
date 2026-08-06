@@ -51,4 +51,20 @@ build\DM_MC02_Gyro_2m.hex
 build\DM_MC02_Gyro_2m.bin
 ```
 
+## Current chassis motion parameters
+参数	数值	配置宏
+平移最高速度	1.800 m/s	ROUTE_TRANSLATION_SPEED_M_S
+平移加速度	2.000 m/s^2	ROUTE_TRANSLATION_ACCEL_M_S2
+长直线前进最高速度	1.800 m/s	ROUTE_LONG_FORWARD_SPEED_M_S
+长直线前进加速度	2.000 m/s^2	ROUTE_LONG_FORWARD_ACCEL_M_S2
+转向最高角速度	2.200 rad/s	ROUTE_TURN_MAX_SPEED_RAD_S
+转向角加速度	3.800 rad/s^2	ROUTE_TURN_ACCEL_RAD_S2
+车头前方定心绕行最高角速度	1.000 rad/s	ROUTE_ORBIT_MAX_SPEED_RAD_S
+车头前方定心绕行角加速度	1.800 rad/s^2	ROUTE_ORBIT_ACCEL_RAD_S2
+直行航向 PID	KP=7.50, KD=0.22	HEADING_KP, HEADING_KD
+横移航向 PID	KP=5.00, KD=0.25	STRAFE_HEADING_KP, STRAFE_HEADING_KD
+转向航向 PD	KP=2.20, KD=0.20	ROUTE_TURN_KP, ROUTE_TURN_KD
+每段动作结束稳定等待时间	80 ms	ROUTE_SEGMENT_SETTLE_MS
+
+
 烧录前必须四轮架空、固定车体并准备动力急停。烧录本固件会覆盖当前遥控固件；测试结束后需要重新烧录原来的遥控版本。

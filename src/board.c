@@ -3,6 +3,7 @@
 #include "app_config.h"
 #include "lcd_pins.h"
 #include "main.h"
+#include "rc_protocol.h"
 #include "usb_device.h"
 #include "usbd_cdc_if.h"
 
@@ -15,16 +16,32 @@ SPI_HandleTypeDef hspi2;
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart1;
+UART_HandleTypeDef huart5;
 
 volatile uint32_t g_fdcan_tx_error_count;
 volatile uint32_t g_fdcan_bus_off_count;
 volatile uint32_t g_fdcan_abort_error_count;
+volatile uint32_t g_uart5_error_count;
+volatile uint32_t g_rc_fault_epoch;
 
 #define FDCAN_ABORT_TIMEOUT_MS 2U
 #define FDCAN_ABORT_MAX_POLLS 200000UL
 
 static bool fdcan_abort_unresolved;
 static bool usb_device_started;
+static uint32_t last_fdcan_recover_ms;
+static uint8_t uart5_rx_byte;
+static rc_parser_t rc_parser;
+static rc_frame_t latest_rc_frame;
+static volatile bool latest_rc_frame_available;
+static volatile bool rc_unsafe_event_pending;
+static volatile uint32_t latest_rc_frame_epoch;
+
+static void mark_rc_unsafe_event(void)
+{
+    g_rc_fault_epoch++;
+    rc_unsafe_event_pending = true;
+}
 
 static uint32_t apb_timer_clock_hz(uint32_t pclk_hz)
 {
@@ -281,31 +298,60 @@ float board_read_bus_voltage(void)
     return ((float)raw * 3.3f / 65535.0f) * 11.0f;
 }
 
-static uint8_t board_lcd_joystick_active(void)
+static board_field_t g_selected_field = BOARD_FIELD_UNKNOWN;
+
+static uint8_t board_lcd_joystick_selects_field(
+    board_lcd_joystick_direction_t direction)
+{
+    return direction == BOARD_LCD_JOYSTICK_UP ||
+           direction == BOARD_LCD_JOYSTICK_DOWN ? 1U : 0U;
+}
+
+board_lcd_joystick_direction_t board_lcd_joystick_direction(void)
 {
     uint32_t raw = adc1_read_channel_raw(ADC_CHANNEL_19);
 
     if (raw > 65535UL) {
-        return 0U;
+        return BOARD_LCD_JOYSTICK_NONE;
     }
     /* Official CtrBoard-H7_KEY thresholds are 12-bit.  This project keeps
      * ADC1 at 16-bit for VBUS, so scale those windows by 16. */
     if (raw < 3200UL) {
-        return 1U; /* middle press */
+        return BOARD_LCD_JOYSTICK_PRESS;
     }
     if (raw > 11200UL && raw < 16000UL) {
-        return 1U; /* right */
+        return BOARD_LCD_JOYSTICK_RIGHT;
     }
     if (raw > 24000UL && raw < 28800UL) {
-        return 1U; /* left */
+        return BOARD_LCD_JOYSTICK_LEFT;
     }
     if (raw > 35200UL && raw < 40000UL) {
-        return 1U; /* up */
+        return BOARD_LCD_JOYSTICK_UP;
     }
     if (raw > 44800UL && raw < 56000UL) {
-        return 1U; /* down */
+        return BOARD_LCD_JOYSTICK_DOWN;
     }
-    return 0U;
+    return BOARD_LCD_JOYSTICK_NONE;
+}
+
+board_field_t board_selected_field(void)
+{
+    return g_selected_field;
+}
+
+void board_clear_selected_field(void)
+{
+    g_selected_field = BOARD_FIELD_UNKNOWN;
+}
+
+static uint8_t board_lcd_joystick_active(void)
+{
+    return board_lcd_joystick_selects_field(board_lcd_joystick_direction());
+}
+
+uint8_t board_user_start_active(void)
+{
+    return board_lcd_joystick_active();
 }
 
 uint8_t board_user_start_pressed(void)
@@ -317,27 +363,29 @@ uint8_t board_user_start_pressed(void)
     } user_key_state_t;
     static user_key_state_t state = USER_KEY_IDLE;
     static uint32_t pressed_since_ms;
+    static board_lcd_joystick_direction_t pending_direction;
     uint32_t now_ms = HAL_GetTick();
-    uint8_t active = board_lcd_joystick_active();
-    GPIO_PinState pin = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15);
-
-    if (pin == GPIO_PIN_RESET) {
-        active = 1U;
-    }
+    uint8_t active = board_user_start_active();
 
     switch (state) {
     case USER_KEY_IDLE:
         if (active != 0U) {
             pressed_since_ms = now_ms;
+            pending_direction = board_lcd_joystick_direction();
             state = USER_KEY_DEBOUNCING;
         }
         break;
     case USER_KEY_DEBOUNCING:
-        if (active == 0U) {
+        if (active == 0U || board_lcd_joystick_direction() != pending_direction) {
             state = USER_KEY_IDLE;
         } else if ((uint32_t)(now_ms - pressed_since_ms) >=
                    ROUTE_USER_KEY_DEBOUNCE_MS) {
             state = USER_KEY_LATCHED;
+            if (pending_direction == BOARD_LCD_JOYSTICK_UP) {
+                g_selected_field = BOARD_FIELD_RED;
+            } else if (pending_direction == BOARD_LCD_JOYSTICK_DOWN) {
+                g_selected_field = BOARD_FIELD_BLUE;
+            }
             return 1U;
         }
         break;
@@ -368,6 +416,39 @@ static void uart1_init(void)
         HAL_UARTEx_SetTxFifoThreshold(&huart1, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK ||
         HAL_UARTEx_SetRxFifoThreshold(&huart1, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK ||
         HAL_UARTEx_DisableFifoMode(&huart1) != HAL_OK) {
+        Error_Handler();
+    }
+}
+
+static void uart5_init(void)
+{
+    huart5.Instance = UART5;
+#if RC_PROTOCOL_MODE == IBUS_OVER_P6
+    huart5.Init.BaudRate = 115200U;
+    huart5.Init.WordLength = UART_WORDLENGTH_8B;
+    huart5.Init.StopBits = UART_STOPBITS_1;
+    huart5.Init.Parity = UART_PARITY_NONE;
+    huart5.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_RXINVERT_INIT;
+    huart5.AdvancedInit.RxPinLevelInvert = UART_ADVFEATURE_RXINV_ENABLE;
+#else
+    huart5.Init.BaudRate = 100000U;
+    huart5.Init.WordLength = UART_WORDLENGTH_9B;
+    huart5.Init.StopBits = UART_STOPBITS_2;
+    huart5.Init.Parity = UART_PARITY_EVEN;
+    huart5.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_RXINVERT_INIT;
+    huart5.AdvancedInit.RxPinLevelInvert = UART_ADVFEATURE_RXINV_DISABLE;
+#endif
+    huart5.Init.Mode = UART_MODE_RX;
+    huart5.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    huart5.Init.OverSampling = UART_OVERSAMPLING_16;
+    huart5.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+    huart5.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+    if (HAL_UART_Init(&huart5) != HAL_OK ||
+        HAL_UARTEx_SetRxFifoThreshold(&huart5, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK ||
+        HAL_UARTEx_DisableFifoMode(&huart5) != HAL_OK) {
+        Error_Handler();
+    }
+    if (HAL_UART_Receive_IT(&huart5, &uart5_rx_byte, 1U) != HAL_OK) {
         Error_Handler();
     }
 }
@@ -500,23 +581,23 @@ void board_init(void)
     spi1_init();
     adc1_init();
     uart1_init();
+#if RC_PROTOCOL_MODE == IBUS_OVER_P6
+    rc_parser_init(&rc_parser, RC_PROTOCOL_IBUS,
+                   RC_PHYSICAL_CHANNEL_MIN_US, RC_PHYSICAL_CHANNEL_MAX_US);
+#else
+    rc_parser_init(&rc_parser, RC_PROTOCOL_SBUS,
+                   RC_PHYSICAL_CHANNEL_MIN_US, RC_PHYSICAL_CHANNEL_MAX_US);
+#endif
+    latest_rc_frame_available = false;
+    rc_unsafe_event_pending = false;
+    latest_rc_frame_epoch = 0U;
+    g_rc_fault_epoch = 0U;
+    uart5_init();
     servo_pwm_init();
     MX_USB_DEVICE_Init();
     usb_device_started = true;
     fdcan_abort_unresolved = false;
     fdcan1_init();
-}
-
-void board_init_task_link_only(void)
-{
-    SCB_EnableICache();
-    SCB_EnableDCache();
-    HAL_Init();
-    system_clock_config();
-    uart1_init();
-    MX_USB_DEVICE_Init();
-    usb_device_started = true;
-    fdcan_abort_unresolved = false;
 }
 
 static uint32_t servo_angle_to_pulse_us(float angle_deg)
@@ -636,23 +717,45 @@ void board_usb_write(const char *text)
 void HAL_UART_MspInit(UART_HandleTypeDef *uart)
 {
     GPIO_InitTypeDef gpio = {0};
+    RCC_PeriphCLKInitTypeDef clock = {0};
 
-    if (uart == NULL || uart->Instance != USART1) {
+    if (uart == NULL) {
         return;
     }
-    __HAL_RCC_USART1_CLK_ENABLE();
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    gpio.Pin = GPIO_PIN_9 | GPIO_PIN_10;
-    gpio.Mode = GPIO_MODE_AF_PP;
-    gpio.Pull = GPIO_NOPULL;
-    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-    gpio.Alternate = GPIO_AF7_USART1;
-    HAL_GPIO_Init(GPIOA, &gpio);
+    if (uart->Instance == USART1) {
+        __HAL_RCC_USART1_CLK_ENABLE();
+        __HAL_RCC_GPIOA_CLK_ENABLE();
+        gpio.Pin = GPIO_PIN_9 | GPIO_PIN_10;
+        gpio.Mode = GPIO_MODE_AF_PP;
+        gpio.Pull = GPIO_NOPULL;
+        gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+        gpio.Alternate = GPIO_AF7_USART1;
+        HAL_GPIO_Init(GPIOA, &gpio);
+        return;
+    }
+    if (uart->Instance == UART5) {
+        clock.PeriphClockSelection = RCC_PERIPHCLK_UART5;
+        clock.Usart234578ClockSelection = RCC_USART234578CLKSOURCE_D2PCLK1;
+        if (HAL_RCCEx_PeriphCLKConfig(&clock) != HAL_OK) {
+            Error_Handler();
+        }
+        __HAL_RCC_UART5_CLK_ENABLE();
+        __HAL_RCC_GPIOD_CLK_ENABLE();
+        gpio.Pin = GPIO_PIN_2;
+        gpio.Mode = GPIO_MODE_AF_PP;
+        gpio.Pull = GPIO_NOPULL;
+        gpio.Speed = GPIO_SPEED_FREQ_LOW;
+        gpio.Alternate = GPIO_AF8_UART5;
+        HAL_GPIO_Init(GPIOD, &gpio);
+        HAL_NVIC_SetPriority(UART5_IRQn, 5U, 0U);
+        HAL_NVIC_EnableIRQ(UART5_IRQn);
+    }
 }
 
 static bool fdcan_protocol_healthy(void)
 {
     FDCAN_ProtocolStatusTypeDef status = {0};
+    const uint32_t now_ms = HAL_GetTick();
 
     if (HAL_FDCAN_GetProtocolStatus(&hfdcan1, &status) != HAL_OK) {
         g_fdcan_tx_error_count++;
@@ -660,6 +763,12 @@ static bool fdcan_protocol_healthy(void)
     }
     if (status.BusOff != 0U) {
         g_fdcan_bus_off_count++;
+        if ((uint32_t)(now_ms - last_fdcan_recover_ms) >= 20U) {
+            last_fdcan_recover_ms = now_ms;
+            fdcan_abort_unresolved = false;
+            (void)HAL_FDCAN_Stop(&hfdcan1);
+            (void)HAL_FDCAN_Start(&hfdcan1);
+        }
         return false;
     }
     return true;
@@ -770,6 +879,97 @@ bool board_fdcan1_read_classic_std8(board_can_rx_frame_t *frame)
     }
     frame->standard_id = (uint16_t)header.Identifier;
     return true;
+}
+
+bool board_rc_snapshot(rc_frame_t *frame, rc_parser_stats_t *stats)
+{
+    uint32_t primask;
+    bool available;
+
+    if (frame == NULL || stats == NULL) {
+        return false;
+    }
+    primask = __get_PRIMASK();
+    __disable_irq();
+    available = latest_rc_frame_available;
+    *frame = latest_rc_frame;
+    *stats = rc_parser.stats;
+    if (primask == 0U) {
+        __enable_irq();
+    }
+    return available;
+}
+
+bool board_rc_take_unsafe_event(void)
+{
+    uint32_t primask = __get_PRIMASK();
+    bool pending;
+
+    __disable_irq();
+    pending = rc_unsafe_event_pending;
+    rc_unsafe_event_pending = false;
+    if (pending &&
+        (!latest_rc_frame_available || latest_rc_frame_epoch != g_rc_fault_epoch)) {
+        latest_rc_frame_available = false;
+        latest_rc_frame = (rc_frame_t){0};
+    }
+    if (primask == 0U) {
+        __enable_irq();
+    }
+    return pending;
+}
+
+static void uart5_restart_receive(void)
+{
+    if (HAL_UART_Receive_IT(&huart5, &uart5_rx_byte, 1U) != HAL_OK) {
+        g_uart5_error_count++;
+        (void)HAL_UART_AbortReceive(&huart5);
+        if (HAL_UART_Receive_IT(&huart5, &uart5_rx_byte, 1U) != HAL_OK) {
+            g_uart5_error_count++;
+        }
+    }
+}
+
+void UART5_IRQHandler(void)
+{
+    HAL_UART_IRQHandler(&huart5);
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *uart)
+{
+    if (uart != NULL && uart->Instance == UART5) {
+        rc_frame_t frame;
+        const rc_parse_result_t result =
+            rc_parser_feed(&rc_parser, uart5_rx_byte, HAL_GetTick(), &frame);
+        if (result == RC_PARSE_VALID_FRAME) {
+            const bool unlock_falling =
+                latest_rc_frame_available &&
+                latest_rc_frame.channels[RC_CH_UNLOCK_INDEX] > RC_UNLOCK_LOW_MAX_US &&
+                frame.channels[RC_CH_UNLOCK_INDEX] <= RC_UNLOCK_LOW_MAX_US;
+            latest_rc_frame = frame;
+            latest_rc_frame_available = true;
+            latest_rc_frame_epoch = g_rc_fault_epoch;
+            if (unlock_falling) {
+                mark_rc_unsafe_event();
+            }
+        } else if (result == RC_PARSE_RANGE_ERROR ||
+                   result == RC_PARSE_FRAME_LOST ||
+                   result == RC_PARSE_FAILSAFE) {
+            mark_rc_unsafe_event();
+        }
+        uart5_restart_receive();
+    }
+}
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *uart)
+{
+    if (uart != NULL && uart->Instance == UART5) {
+        g_uart5_error_count++;
+        rc_parser_reset_stream(&rc_parser);
+        mark_rc_unsafe_event();
+        (void)HAL_UART_AbortReceive(uart);
+        uart5_restart_receive();
+    }
 }
 
 void HAL_SPI_MspInit(SPI_HandleTypeDef *spi)

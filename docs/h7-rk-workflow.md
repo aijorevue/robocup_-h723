@@ -23,9 +23,11 @@ The production route has one H7 entry point, `route_controller_run()`. The old
 3. RK systemd waits until `/dev/video20` can deliver a real frame and until
    `/dev/ttyS9` and `/dev/ttyS0` exist. It then homes the arm (`ID1=480`,
    `ID2=10`, `ID6=500`, `ID7=1120`, `ID4=800`, `ID5=800`) and opens the camera.
-4. At the first arm station H7 stops the chassis and repeatedly sends
-   `ARM,DISC_CATCH,START` until RK acknowledges it. H7 resumes the route only
-   after RK returns DONE.
+4. At the first arm station H7 stops the chassis and sends
+   `ARM,DISC_CATCH,START` until RK acknowledges it. With the current
+   fail-open test configuration, a missing ACK bypasses the station after the
+   configured timeout and the chassis continues. If RK acknowledges the task,
+   H7 waits for DONE, with a 20 second task timeout.
 
 `ROUTE_TASK_LINK_SIMULATION_ONLY` in `include/app_config.h` must be `0` for the
 production route. Set it to `1` only for an elevated communication test.
@@ -42,9 +44,8 @@ camera processing running while H7 is disconnected or halted.
 - Completion: `RK,ARM,<TASK>,DONE,<REASON>`
 - Asynchronous stop: `ARM,COLUMN_CATCH,STOP`
 
-H7 retries START without a startup timeout until ACK. After ACK it keeps the
-chassis stopped and sends a STATUS query every second until DONE. There is no
-fixed grasp-duration timeout.
+H7 retries START for a bounded period. After ACK it keeps the chassis stopped
+and sends a STATUS query every second until DONE or the 20 second task timeout.
 If RK restarts and reports the task IDLE, H7 restarts that station from START.
 
 ## Route tasks
@@ -106,12 +107,27 @@ log records route state, fault code, yaw, distance, wheel feedback, cross-track
 correction, ARM start/done/stop events, and the final route-done event. A clean
 run ends with fault code 0 and `RUN_LOG_EVENT_ROUTE_DONE`.
 
+## Current diagnostic result
+
+The latest persisted H7 run log reached the first platform station:
+
+- `DISC_CATCH` was entered and recorded `ARM_BYPASS` because RK did not answer.
+- `PLATFORM_PICK` was also bypassed because the route had already disabled
+  arm tasks after the missing RK link.
+- The first `PLATFORM_SHIFT_LEFT` began, then the route ended with
+  `FAULT_MOTOR_COMMAND` at an estimated total distance of about 8.37 m.
+
+Therefore the latest stop is not an RK wait. It is in the first 0.35 m
+platform shift or its motor-command/feedback path.
+
 ## Failure behavior
 
 - No RK during the opening route: H7 continues to the first station while
-  sending SYNC, then remains stopped there and retries START until RK responds.
-- No task ACK: H7 remains safely stopped at that task point and keeps retrying.
-- Lost task DONE: H7 STATUS queries make RK resend the cached DONE.
+  sending SYNC.
+- No task ACK: the current fail-open test configuration logs a bypass and
+  continues the route.
+- Lost task DONE: H7 sends STATUS queries until the task timeout, then logs a
+  bypass and continues.
 - RK servo startup failure: the RK process exits instead of announcing READY;
   systemd restarts it and H7 continues waiting.
 - Ctrl+C, process exit, task timeout, and COLUMN STOP use the same home contract.

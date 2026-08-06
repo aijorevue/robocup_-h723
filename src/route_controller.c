@@ -5,6 +5,7 @@
 #include "route_controller.h"
 #include "mecanum.h"
 #include "motor_output.h"
+#include "rc_override.h"
 #include "run_log.h"
 #include "usbd_cdc_if.h"
 
@@ -13,54 +14,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-typedef enum {
-    RUN_BOOT = 0,
-    RUN_IMU_INIT,
-    RUN_GYRO_CALIBRATION,
-    RUN_MOTOR_ENABLE,
-
-    RUN_STRAFE_RIGHT,
-    RUN_STOPPING = 5,
-    RUN_DONE = 6,
-    RUN_FAULT = 7,
-    
-    //圆盘机任务
-    RUN_FORWARD = 8,
-    RUN_TURN_RIGHT = 9,
-
-    RUN_REVERSE_AFTER_DISC = 10,
-    RUN_SECOND_TURN_RIGHT = 11,
-    RUN_PLATFORM_APPROACH = 12,
-    RUN_ROUTE_RESERVED_13 = 13,
-    
-    //台柱任务
-    RUN_THIRD_TURN_RIGHT = 14,
-    RUN_WAIT_USB_RUN = 15,
-    RUN_PLATFORM_SHIFT_LEFT = 16,
-    RUN_DIAGONAL_AFTER_PLATFORM = 17,
-
-    //圆台任务
-    RUN_LAST_TURN_RIGHT = 18,
-    RUN_FRONT_CENTER_ORBIT = 19,
-    RUN_FINAL_REVERSE = 20,
-    RUN_SERVO_90 = 21,
-    RUN_ARM_DISC_CATCH = 22,
-    RUN_ARM_PLATFORM_PICK = 23,
-    RUN_ARM_COLUMN_CATCH = 24
-} run_state_t;
-
-enum {
-    FAULT_NONE = 0,
-    FAULT_IMU_INIT = 1,
-    FAULT_IMU_MOVING = 2,
-    FAULT_CAN_STARTUP = 3,
-    FAULT_MOTOR_ENABLE = 4,
-    FAULT_MOTOR_COMMAND = 5,
-    FAULT_KINEMATICS = 6,
-    FAULT_TURN_TIMEOUT = 7,
-    FAULT_ARM_TIMEOUT = 8
-};
 
 volatile run_state_t g_run_state = RUN_BOOT;
 volatile uint32_t g_fault_code = FAULT_NONE;
@@ -76,15 +29,44 @@ volatile float g_cross_track_m;
 volatile float g_cross_track_command_m_s;
 volatile float g_actual_cross_speed_m_s;
 static float g_route_heading_target_rad;
+static float g_accel_body_bias_m_s2[2];
+static float g_accel_body_filtered_m_s2[2];
 static volatile uint8_t g_rk_arm_link_ready;
 static uint8_t g_rk_arm_tasks_disabled_for_route;
 static uint8_t g_first_arm_station_reached;
 static uint8_t g_start_confirmed_from_fault;
+static uint8_t g_route_field_is_red;
+static uint8_t g_rk_reset_pending;
 static uint32_t g_rk_pretask_last_sync_ms;
 static char g_rk_pretask_line[96];
 static uint32_t g_rk_pretask_line_len;
-
 static void service_rk_link_before_first_station(void);
+static bool enable_motors(void);
+
+static void request_rk_arm_reset(void)
+{
+    g_rk_reset_pending = 1U;
+    g_rk_arm_link_ready = 0U;
+    g_first_arm_station_reached = 0U;
+    g_rk_pretask_line_len = 0U;
+    g_rk_pretask_last_sync_ms = HAL_GetTick() - RK_ARM_PRETASK_SYNC_PERIOD_MS;
+    board_uart1_write(g_route_field_is_red != 0U
+                          ? "H7,ARM,RESET_REQUESTED,FIELD=RED\r\n"
+                          : "H7,ARM,RESET_REQUESTED,FIELD=BLUE\r\n");
+    board_usb_write(g_route_field_is_red != 0U
+                        ? "ARM,SYNC,RESET,FIELD,RED\r\n"
+                        : "ARM,SYNC,RESET,FIELD,BLUE\r\n");
+}
+
+_Static_assert(IMU_ACCEL_BODY_X_INDEX < 3U,
+               "IMU body X axis index must be 0, 1, or 2");
+_Static_assert(IMU_ACCEL_BODY_Y_INDEX < 3U,
+               "IMU body Y axis index must be 0, 1, or 2");
+_Static_assert(IMU_ACCEL_BODY_X_INDEX != IMU_ACCEL_BODY_Y_INDEX,
+               "IMU body X and Y axes must use different sensor axes");
+_Static_assert(IMU_VELOCITY_PREDICTION_WEIGHT >= 0.0f &&
+                   IMU_VELOCITY_PREDICTION_WEIGHT <= 1.0f,
+               "IMU velocity prediction weight must be between 0 and 1");
 
 uint8_t route_controller_rk_link_ready(void)
 {
@@ -92,13 +74,33 @@ uint8_t route_controller_rk_link_ready(void)
 }
 
 #if ROUTE_WAIT_USER_KEY_ON_BOOT
+static void wait_for_user_start_key_release(const char *status)
+{
+    uint32_t last_status_ms = HAL_GetTick() - 1000U;
+
+    while (board_user_start_active() != 0U) {
+        const uint32_t now_ms = HAL_GetTick();
+
+        lcd_display_update();
+        if ((uint32_t)(now_ms - last_status_ms) >= 1000U) {
+            last_status_ms = now_ms;
+            board_uart1_write("H7,START,WAIT_KEY_RELEASE\r\n");
+        }
+        if (rc_override_service()) {
+            lcd_display_set_start_status(status);
+        }
+        HAL_Delay(10U);
+    }
+}
+
 static void wait_for_user_start_key(void)
 {
     uint32_t last_status_ms = HAL_GetTick() - 1000U;
 
     g_run_state = RUN_WAIT_USB_RUN;
     lcd_display_set_start_status("WAIT");
-    board_uart1_write("H7,START,WAIT_USER_KEY,code=1,PA15_OR_LCD_JOYSTICK\r\n");
+    board_uart1_write("H7,START,WAIT_FIELD,joystick=UP_RED_OR_DOWN_BLUE\r\n");
+    wait_for_user_start_key_release("WAIT");
     for (;;) {
         uint32_t now_ms = HAL_GetTick();
 
@@ -107,9 +109,26 @@ static void wait_for_user_start_key(void)
             last_status_ms = now_ms;
             board_uart1_write("H7,START,WAIT_USER_KEY\r\n");
         }
-        if (board_user_start_pressed() != 0U) {
+        if (rc_override_service()) {
+            lcd_display_set_start_status("WAIT");
+            continue;
+        }
+        if (board_user_start_pressed() != 0U &&
+            board_selected_field() != BOARD_FIELD_UNKNOWN) {
             lcd_display_set_start_status("RUN");
-            board_uart1_write("H7,START,USER_KEY,code=1\r\n");
+            lcd_display_refresh_input_status();
+            switch (board_selected_field()) {
+            case BOARD_FIELD_RED:
+                board_uart1_write("H7,START,USER_KEY,field=RED\r\n");
+                break;
+            case BOARD_FIELD_BLUE:
+                board_uart1_write("H7,START,USER_KEY,field=BLUE\r\n");
+                break;
+            case BOARD_FIELD_UNKNOWN:
+            default:
+                board_uart1_write("H7,START,USER_KEY,field=UNKNOWN\r\n");
+                break;
+            }
             return;
         }
         HAL_Delay(10U);
@@ -136,9 +155,30 @@ static float clampf(float value, float minimum, float maximum)
     return value;
 }
 
+static float mapped_body_accel(const float accel[3], uint32_t axis,
+                               float sign)
+{
+    return accel[axis] * sign;
+}
+
+static float filtered_linear_accel(float value)
+{
+    value = clampf(value, -IMU_ACCEL_MAX_M_S2, IMU_ACCEL_MAX_M_S2);
+    if (fabsf(value) <= IMU_ACCEL_DEADBAND_M_S2) {
+        return 0.0f;
+    }
+    return value > 0.0f ? value - IMU_ACCEL_DEADBAND_M_S2
+                        : value + IMU_ACCEL_DEADBAND_M_S2;
+}
+
 static bool route_motor_send_zero_all(void)
 {
     service_rk_link_before_first_station();
+    if (!rc_override_is_running() && rc_override_service()) {
+        request_rk_arm_reset();
+        g_fault_code = FAULT_RC_OVERRIDE;
+        return false;
+    }
     if (motor_send_zero_all()) {
         return true;
     }
@@ -151,16 +191,24 @@ static bool route_motor_send_zero_all(void)
 
 static bool keep_chassis_stopped_for_arm_task(void)
 {
-#if ROUTE_TASK_LINK_SIMULATION_ONLY
-    return true;
-#else
     return route_motor_send_zero_all();
-#endif
+}
+
+static void preserve_rc_or_set_motor_fault(void)
+{
+    if (g_fault_code != FAULT_RC_OVERRIDE) {
+        g_fault_code = FAULT_MOTOR_COMMAND;
+    }
 }
 
 static bool route_motor_send_wheel_speeds(const float wheel_rad_s[4])
 {
     service_rk_link_before_first_station();
+    if (!rc_override_is_running() && rc_override_service()) {
+        request_rk_arm_reset();
+        g_fault_code = FAULT_RC_OVERRIDE;
+        return false;
+    }
     if (motor_send_wheel_speeds(wheel_rad_s)) {
         return true;
     }
@@ -201,12 +249,14 @@ static void hold_zero(uint32_t duration_ms)
                 return;
             }
         }
+        HAL_Delay(1U);
     }
 }
 
 static void enter_fault_wait_restart(uint32_t code)
 {
     static const float stopped[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    uint8_t start_release_seen;
 
     g_fault_code = code;
     g_run_state = RUN_FAULT;
@@ -220,15 +270,29 @@ static void enter_fault_wait_restart(uint32_t code)
                    RUN_LOG_EVENT_FAULT);
     (void)run_log_save((uint32_t)g_run_state, g_fault_code);
     run_log_dump_stored();
+    request_rk_arm_reset();
     lcd_display_set_start_status("FAULT");
     board_uart1_write("H7,FAULT,SAVED,WAIT_START_TO_RESET\r\n");
+    board_clear_selected_field();
+    start_release_seen = board_user_start_active() == 0U ? 1U : 0U;
     for (;;) {
         (void)motor_send_zero_all();
         (void)motor_disable_all();
+        service_rk_link_before_first_station();
         lcd_display_update();
-        if (board_user_start_pressed() != 0U) {
+        if (rc_override_service()) {
+            g_start_confirmed_from_fault = 0U;
+            start_release_seen = 0U;
+            lcd_display_set_start_status("FAULT");
+            continue;
+        }
+        if (board_user_start_active() == 0U) {
+            start_release_seen = 1U;
+        }
+        if (start_release_seen != 0U && board_user_start_pressed() != 0U) {
             g_start_confirmed_from_fault = 1U;
             lcd_display_set_start_status("RUN");
+            lcd_display_refresh_input_status();
             board_uart1_write("H7,FAULT,USER_KEY_RESTART\r\n");
             return;
         }
@@ -243,6 +307,8 @@ static bool calibrate_gyro(void)
     float temperature = 0.0f;
     float sum = 0.0f;
     float sum_square = 0.0f;
+    float accel_x_sum = 0.0f;
+    float accel_y_sum = 0.0f;
     uint32_t sample;
 
     for (sample = 0U; sample < GYRO_CALIBRATION_SAMPLES; ++sample) {
@@ -251,12 +317,26 @@ static bool calibrate_gyro(void)
         z = gyro[2] * GYRO_Z_SIGN;
         sum += z;
         sum_square += z * z;
+        accel_x_sum += mapped_body_accel(
+            accel, IMU_ACCEL_BODY_X_INDEX, IMU_ACCEL_BODY_X_SIGN);
+        accel_y_sum += mapped_body_accel(
+            accel, IMU_ACCEL_BODY_Y_INDEX, IMU_ACCEL_BODY_Y_SIGN);
         g_imu_temperature_c = temperature;
         service_rk_link_before_first_station();
+        if (rc_override_service()) {
+            g_fault_code = FAULT_RC_OVERRIDE;
+            return false;
+        }
         HAL_Delay(GYRO_CALIBRATION_PERIOD_MS);
     }
 
     g_gyro_z_bias_rad_s = sum / (float)GYRO_CALIBRATION_SAMPLES;
+    g_accel_body_bias_m_s2[0] =
+        accel_x_sum / (float)GYRO_CALIBRATION_SAMPLES;
+    g_accel_body_bias_m_s2[1] =
+        accel_y_sum / (float)GYRO_CALIBRATION_SAMPLES;
+    g_accel_body_filtered_m_s2[0] = 0.0f;
+    g_accel_body_filtered_m_s2[1] = 0.0f;
     {
         float variance = sum_square / (float)GYRO_CALIBRATION_SAMPLES -
                          g_gyro_z_bias_rad_s * g_gyro_z_bias_rad_s;
@@ -288,11 +368,19 @@ static bool wait_for_can_startup(void)
     started_ms = HAL_GetTick();
     while ((uint32_t)(HAL_GetTick() - started_ms) < ROUTE_POWER_ON_SETTLE_MS) {
         service_rk_link_before_first_station();
+        if (rc_override_service()) {
+            g_fault_code = FAULT_RC_OVERRIDE;
+            return false;
+        }
         HAL_Delay(20U);
     }
     started_ms = HAL_GetTick();
     while ((uint32_t)(HAL_GetTick() - started_ms) < CAN_STARTUP_RETRY_TIMEOUT_MS) {
         service_rk_link_before_first_station();
+        if (rc_override_service()) {
+            g_fault_code = FAULT_RC_OVERRIDE;
+            return false;
+        }
         (void)board_fdcan1_abort_all_pending();
         if (motor_send_zero_all() &&
             board_fdcan1_wait_tx_fifo_free(8U, MOTOR_TX_DRAIN_TIMEOUT_MS)) {
@@ -381,6 +469,78 @@ static void update_imu(float dt)
     g_imu_temperature_c = temperature;
     g_gyro_z_rad_s = gyro[2] * GYRO_Z_SIGN - g_gyro_z_bias_rad_s;
     g_yaw_rad += g_gyro_z_rad_s * dt;
+    {
+        const float accel_body_x =
+            mapped_body_accel(accel, IMU_ACCEL_BODY_X_INDEX,
+                              IMU_ACCEL_BODY_X_SIGN) -
+            g_accel_body_bias_m_s2[0];
+        const float accel_body_y =
+            mapped_body_accel(accel, IMU_ACCEL_BODY_Y_INDEX,
+                              IMU_ACCEL_BODY_Y_SIGN) -
+            g_accel_body_bias_m_s2[1];
+
+        g_accel_body_filtered_m_s2[0] += IMU_ACCEL_FILTER_ALPHA *
+            (accel_body_x - g_accel_body_filtered_m_s2[0]);
+        g_accel_body_filtered_m_s2[1] += IMU_ACCEL_FILTER_ALPHA *
+            (accel_body_y - g_accel_body_filtered_m_s2[1]);
+    }
+}
+
+typedef struct {
+    float route_vx_m_s;
+    float route_vy_m_s;
+    bool initialized;
+} translation_velocity_observer_t;
+
+static void update_translation_velocity_observer(
+    translation_velocity_observer_t *observer,
+    float encoder_route_vx_m_s, float encoder_route_vy_m_s,
+    float heading_cos, float heading_sin, float dt)
+{
+    float accel_body_x;
+    float accel_body_y;
+    float accel_route_x;
+    float accel_route_y;
+    float predicted_vx;
+    float predicted_vy;
+    float innovation_vx;
+    float innovation_vy;
+
+    if (observer == NULL) {
+        return;
+    }
+    if (!observer->initialized) {
+        observer->route_vx_m_s = encoder_route_vx_m_s;
+        observer->route_vy_m_s = encoder_route_vy_m_s;
+        observer->initialized = true;
+        return;
+    }
+
+    accel_body_x = filtered_linear_accel(g_accel_body_filtered_m_s2[0]);
+    accel_body_y = filtered_linear_accel(g_accel_body_filtered_m_s2[1]);
+    accel_route_x = heading_cos * accel_body_x + heading_sin * accel_body_y;
+    accel_route_y = -heading_sin * accel_body_x + heading_cos * accel_body_y;
+    predicted_vx = observer->route_vx_m_s + accel_route_x * dt;
+    predicted_vy = observer->route_vy_m_s + accel_route_y * dt;
+    innovation_vx = clampf(
+        predicted_vx - encoder_route_vx_m_s,
+        -IMU_VELOCITY_MAX_ENCODER_DELTA_M_S,
+        IMU_VELOCITY_MAX_ENCODER_DELTA_M_S);
+    innovation_vy = clampf(
+        predicted_vy - encoder_route_vy_m_s,
+        -IMU_VELOCITY_MAX_ENCODER_DELTA_M_S,
+        IMU_VELOCITY_MAX_ENCODER_DELTA_M_S);
+    observer->route_vx_m_s = encoder_route_vx_m_s +
+        IMU_VELOCITY_PREDICTION_WEIGHT * innovation_vx;
+    observer->route_vy_m_s = encoder_route_vy_m_s +
+        IMU_VELOCITY_PREDICTION_WEIGHT * innovation_vy;
+
+    if (fabsf(encoder_route_vx_m_s) <= IMU_ZERO_VELOCITY_THRESHOLD_M_S &&
+        fabsf(encoder_route_vy_m_s) <= IMU_ZERO_VELOCITY_THRESHOLD_M_S &&
+        fabsf(g_command_speed_m_s) <= IMU_ZERO_VELOCITY_THRESHOLD_M_S) {
+        observer->route_vx_m_s = 0.0f;
+        observer->route_vy_m_s = 0.0f;
+    }
 }
 
 static void log_route_sample(uint32_t now_ms, const float wheel_speed[4])
@@ -404,7 +564,6 @@ static void log_route_event(uint32_t event)
                    g_cross_track_command_m_s, g_actual_cross_speed_m_s,
                    event);
 }
-
 static bool line_starts_with(const char *line, const char *prefix)
 {
     size_t index = 0U;
@@ -428,6 +587,16 @@ static bool line_starts_with(const char *line, const char *prefix)
 
 static void rk_arm_handle_line(const char *line)
 {
+    if (line_starts_with(line, "RK,ARM,RESET,DONE")) {
+        g_rk_reset_pending = 0U;
+        g_rk_arm_link_ready = 1U;
+        board_uart1_write_only("H7,ARM,RK_RESET_DONE\r\n");
+        return;
+    }
+    if (line_starts_with(line, "RK,ARM,RESET,ACK")) {
+        g_rk_arm_link_ready = 1U;
+        return;
+    }
     if (line_starts_with(line, "RK,ARM,READY")) {
         g_rk_arm_link_ready = 1U;
         board_uart1_write_only("H7,ARM,RK_READY\r\n");
@@ -446,11 +615,18 @@ static void service_rk_link_before_first_station(void)
     }
 
     now_ms = HAL_GetTick();
-    if (g_rk_arm_link_ready == 0U &&
-        (uint32_t)(now_ms - g_rk_pretask_last_sync_ms) >=
+    if ((uint32_t)(now_ms - g_rk_pretask_last_sync_ms) >=
             RK_ARM_PRETASK_SYNC_PERIOD_MS) {
         g_rk_pretask_last_sync_ms = now_ms;
-        board_usb_write("ARM,SYNC\r\n");
+        if (g_rk_reset_pending != 0U) {
+            board_usb_write(g_route_field_is_red != 0U
+                                ? "ARM,SYNC,RESET,FIELD,RED\r\n"
+                                : "ARM,SYNC,RESET,FIELD,BLUE\r\n");
+        } else {
+            board_usb_write(g_route_field_is_red != 0U
+                                ? "ARM,SYNC,FIELD,RED\r\n"
+                                : "ARM,SYNC,FIELD,BLUE\r\n");
+        }
     }
 
     read_len = CDC_Read_HS(rx, sizeof(rx));
@@ -492,7 +668,9 @@ static void wait_for_rk_ready_on_boot(void)
 
         if ((uint32_t)(now_ms - last_sync_ms) >= RK_ARM_START_RETRY_MS) {
             last_sync_ms = now_ms;
-            board_usb_write("ARM,SYNC\r\n");
+            board_usb_write(g_route_field_is_red != 0U
+                                ? "ARM,SYNC,FIELD,RED\r\n"
+                                : "ARM,SYNC,FIELD,BLUE\r\n");
         }
 
         for (i = 0U; i < read_len; ++i) {
@@ -544,6 +722,7 @@ static bool wait_for_rk_arm_task(const char *task)
     uint32_t last_send_ms = started_ms - RK_ARM_START_RETRY_MS;
     uint32_t last_status_ms = started_ms;
     uint32_t last_zero_ms = started_ms - CONTROL_PERIOD_MS;
+    const char *field_name = g_route_field_is_red != 0U ? "RED" : "BLUE";
 
     if (g_rk_arm_tasks_disabled_for_route != 0U) {
         (void)snprintf(log_line, sizeof(log_line),
@@ -553,7 +732,7 @@ static bool wait_for_rk_arm_task(const char *task)
     }
 
     (void)snprintf(start_command, sizeof(start_command),
-                   "ARM,%s,START\r\n", task);
+                   "ARM,%s,START,FIELD,%s\r\n", task, field_name);
     (void)snprintf(status_command, sizeof(status_command),
                    "ARM,%s,STATUS\r\n", task);
     (void)snprintf(ack_prefix, sizeof(ack_prefix),
@@ -580,7 +759,7 @@ static bool wait_for_rk_arm_task(const char *task)
                 g_rk_arm_tasks_disabled_for_route = 1U;
                 board_uart1_write_only("H7,ARM,ROUTE_ARM_TASKS_DISABLED\r\n");
             }
-#if RK_ARM_REQUIRED || ROUTE_TASK_LINK_SIMULATION_ONLY
+#if RK_ARM_REQUIRED
             g_fault_code = FAULT_ARM_TIMEOUT;
             return false;
 #else
@@ -601,7 +780,7 @@ static bool wait_for_rk_arm_task(const char *task)
         if ((uint32_t)(now_ms - last_zero_ms) >= CONTROL_PERIOD_MS) {
             last_zero_ms = now_ms;
             if (!keep_chassis_stopped_for_arm_task()) {
-                g_fault_code = FAULT_MOTOR_COMMAND;
+                preserve_rc_or_set_motor_fault();
                 return false;
             }
         }
@@ -664,6 +843,7 @@ static bool wait_for_rk_arm_task(const char *task)
                 board_uart1_write("H7,ERR,ARM_LINE_TOO_LONG\r\n");
             }
         }
+        HAL_Delay(1U);
     }
 }
 
@@ -681,6 +861,7 @@ static bool start_rk_arm_task(const char *task)
                               RK_ARM_PROBE_ACK_TIMEOUT_MS;
     uint32_t last_send_ms = started_ms - RK_ARM_START_RETRY_MS;
     uint32_t last_zero_ms = started_ms - CONTROL_PERIOD_MS;
+    const char *field_name = g_route_field_is_red != 0U ? "RED" : "BLUE";
 
     if (g_rk_arm_tasks_disabled_for_route != 0U) {
         (void)snprintf(log_line, sizeof(log_line),
@@ -690,7 +871,7 @@ static bool start_rk_arm_task(const char *task)
     }
 
     (void)snprintf(start_command, sizeof(start_command),
-                   "ARM,%s,START\r\n", task);
+                   "ARM,%s,START,FIELD,%s\r\n", task, field_name);
     (void)snprintf(ack_prefix, sizeof(ack_prefix),
                    "RK,ARM,%s,ACK", task);
     (void)snprintf(log_line, sizeof(log_line), "H7,ARM,%s,START_ASYNC\r\n", task);
@@ -706,7 +887,7 @@ static bool start_rk_arm_task(const char *task)
             (void)snprintf(log_line, sizeof(log_line),
                            "H7,ARM,%s,BYPASS_NO_RK_ASYNC\r\n", task);
             board_uart1_write(log_line);
-#if RK_ARM_REQUIRED || ROUTE_TASK_LINK_SIMULATION_ONLY
+#if RK_ARM_REQUIRED
             g_fault_code = FAULT_ARM_TIMEOUT;
             return false;
 #else
@@ -717,7 +898,7 @@ static bool start_rk_arm_task(const char *task)
         if ((uint32_t)(now_ms - last_zero_ms) >= CONTROL_PERIOD_MS) {
             last_zero_ms = now_ms;
             if (!keep_chassis_stopped_for_arm_task()) {
-                g_fault_code = FAULT_MOTOR_COMMAND;
+                preserve_rc_or_set_motor_fault();
                 return false;
             }
         }
@@ -759,6 +940,7 @@ static bool start_rk_arm_task(const char *task)
                 board_uart1_write("H7,ERR,ARM_LINE_TOO_LONG\r\n");
             }
         }
+        HAL_Delay(1U);
     }
 }
 
@@ -790,7 +972,7 @@ static bool stop_rk_arm_task(const char *task)
             (void)snprintf(log_line, sizeof(log_line),
                            "H7,ARM,%s,STOP_TIMEOUT\r\n", task);
             board_uart1_write(log_line);
-#if RK_ARM_REQUIRED || ROUTE_TASK_LINK_SIMULATION_ONLY
+#if RK_ARM_REQUIRED
             g_fault_code = FAULT_ARM_TIMEOUT;
             return false;
 #else
@@ -800,7 +982,7 @@ static bool stop_rk_arm_task(const char *task)
         if ((uint32_t)(now_ms - last_zero_ms) >= CONTROL_PERIOD_MS) {
             last_zero_ms = now_ms;
             if (!keep_chassis_stopped_for_arm_task()) {
-                g_fault_code = FAULT_MOTOR_COMMAND;
+                preserve_rc_or_set_motor_fault();
                 return false;
             }
         }
@@ -838,46 +1020,8 @@ static bool stop_rk_arm_task(const char *task)
                 board_uart1_write("H7,ERR,ARM_LINE_TOO_LONG\r\n");
             }
         }
+        HAL_Delay(1U);
     }
-}
-
-static void arm_set_pair(float sweep_angle_deg, float gripper_angle_deg,
-                         uint32_t settle_ms)
-{
-    board_servo_set_angle_deg_index(ARM_SERVO_SWEEP_INDEX, sweep_angle_deg);
-    board_servo_set_angle_deg_index(ARM_SERVO_GRIPPER_INDEX, gripper_angle_deg);
-    HAL_Delay(settle_ms);
-    board_servo_disable_index(ARM_SERVO_SWEEP_INDEX);
-    board_servo_disable_index(ARM_SERVO_GRIPPER_INDEX);
-}
-
-static void __attribute__((unused)) arm_disc_catch(void)
-{
-    arm_set_pair(ARM_DISC_SWEEP_ANGLE_DEG, ARM_DISC_GRIP_ANGLE_DEG,
-                 ARM_ACTION_SETTLE_MS);
-}
-
-static void __attribute__((unused)) arm_platform_pick(void)
-{
-    static const float platform_angles[3] = {
-        ARM_PLATFORM_LEFT_ANGLE_DEG,
-        ARM_PLATFORM_CENTER_ANGLE_DEG,
-        ARM_PLATFORM_RIGHT_ANGLE_DEG
-    };
-    uint32_t index;
-
-    for (index = 0U; index < 3U; ++index) {
-        arm_set_pair(platform_angles[index], ARM_GRIP_OPEN_ANGLE_DEG,
-                     ARM_ACTION_SETTLE_MS);
-        arm_set_pair(platform_angles[index], ARM_GRIP_CLOSE_ANGLE_DEG,
-                     ARM_GRIP_SETTLE_MS);
-    }
-}
-
-static void __attribute__((unused)) arm_column_catch(void)
-{
-    arm_set_pair(ARM_COLUMN_SWEEP_ANGLE_DEG, ARM_COLUMN_GRIP_ANGLE_DEG,
-                 ARM_ACTION_SETTLE_MS);
 }
 
 static bool settle_translation_cross_track(float along_x, float along_y,
@@ -888,6 +1032,7 @@ static bool settle_translation_cross_track(float along_x, float along_y,
 {
     float wheel_speed[4] = {0.0f};
     float measured_wheel_speed[4] = {0.0f};
+    translation_velocity_observer_t velocity_observer = {0};
     const float cross_x = -along_y;
     const float cross_y = along_x;
     uint32_t previous_ms = HAL_GetTick();
@@ -929,6 +1074,7 @@ static bool settle_translation_cross_track(float along_x, float along_y,
             return route_motor_send_zero_all();
         }
         if ((uint32_t)(now_ms - last_control_ms) < CONTROL_PERIOD_MS) {
+            HAL_Delay(1U);
             continue;
         }
         last_control_ms += CONTROL_PERIOD_MS;
@@ -959,8 +1105,12 @@ static bool settle_translation_cross_track(float along_x, float along_y,
             heading_cos * actual_vx_m_s + heading_sin * actual_vy_m_s;
         actual_route_vy_m_s =
             -heading_sin * actual_vx_m_s + heading_cos * actual_vy_m_s;
+        update_translation_velocity_observer(
+            &velocity_observer, actual_route_vx_m_s, actual_route_vy_m_s,
+            heading_cos, heading_sin, dt);
         g_actual_cross_speed_m_s =
-            actual_route_vx_m_s * cross_x + actual_route_vy_m_s * cross_y;
+            velocity_observer.route_vx_m_s * cross_x +
+            velocity_observer.route_vy_m_s * cross_y;
         *cross_track_m +=
             g_actual_cross_speed_m_s * dt * DRIVE_DISTANCE_SCALE;
         g_cross_track_m = *cross_track_m;
@@ -1026,11 +1176,14 @@ static bool run_translation_profile(float vx_direction, float vy_direction,
 {
     float wheel_speed[4] = {0.0f};
     float measured_wheel_speed[4] = {0.0f};
+    translation_velocity_observer_t velocity_observer = {0};
     float actual_vx_m_s = 0.0f;
     float actual_vy_m_s = 0.0f;
     float actual_wz_rad_s = 0.0f;
     float segment_distance_m = 0.0f;
     float commanded_distance_m = 0.0f;
+    float profile_speed_m_s = 0.0f;
+    float along_speed_integral_m_s = 0.0f;
     float cross_track_m = 0.0f;
     const float direction_norm = sqrtf(vx_direction * vx_direction +
                                        vy_direction * vy_direction);
@@ -1046,6 +1199,7 @@ static bool run_translation_profile(float vx_direction, float vy_direction,
     uint32_t last_control_ms = previous_ms;
     uint32_t last_log_ms = previous_ms - RUN_LOG_SAMPLE_PERIOD_MS;
     const uint32_t started_ms = previous_ms;
+    uint32_t settled_since_ms = 0U;
 
     if (direction_norm < 0.001f || maximum_speed_m_s <= 0.0f ||
         acceleration_m_s2 <= 0.0f) {
@@ -1063,8 +1217,7 @@ static bool run_translation_profile(float vx_direction, float vy_direction,
     g_cross_track_command_m_s = 0.0f;
     g_actual_cross_speed_m_s = 0.0f;
 
-    while (segment_distance_m < target_distance_m - DRIVE_STOP_TOLERANCE_M &&
-           commanded_distance_m < target_distance_m - DRIVE_STOP_TOLERANCE_M) {
+    for (;;) {
         uint32_t now_ms = HAL_GetTick();
         float dt;
         float feedback_remaining;
@@ -1073,6 +1226,10 @@ static bool run_translation_profile(float vx_direction, float vy_direction,
         float stopping_speed;
         float desired_speed;
         float max_delta;
+        float along_position_error_m;
+        float along_speed_reference_m_s;
+        float along_speed_error_m_s;
+        float along_speed_command_m_s;
         float correction_limit_rad_s;
         float actual_translation_speed_m_s;
         float actual_cross_speed_m_s;
@@ -1092,6 +1249,7 @@ static bool run_translation_profile(float vx_direction, float vy_direction,
             return false;
         }
         if ((uint32_t)(now_ms - last_control_ms) < CONTROL_PERIOD_MS) {
+            HAL_Delay(1U);
             continue;
         }
         last_control_ms += CONTROL_PERIOD_MS;
@@ -1122,10 +1280,19 @@ static bool run_translation_profile(float vx_direction, float vy_direction,
             heading_cos * actual_vx_m_s + heading_sin * actual_vy_m_s;
         actual_route_vy_m_s =
             -heading_sin * actual_vx_m_s + heading_cos * actual_vy_m_s;
+        update_translation_velocity_observer(
+            &velocity_observer, actual_route_vx_m_s, actual_route_vy_m_s,
+            heading_cos, heading_sin, dt);
         actual_translation_speed_m_s =
-            actual_route_vx_m_s * along_x + actual_route_vy_m_s * along_y;
+            velocity_observer.route_vx_m_s * along_x +
+            velocity_observer.route_vy_m_s * along_y;
         actual_cross_speed_m_s =
-            actual_route_vx_m_s * cross_x + actual_route_vy_m_s * cross_y;
+            velocity_observer.route_vx_m_s * cross_x +
+            velocity_observer.route_vy_m_s * cross_y;
+        segment_distance_m +=
+            actual_translation_speed_m_s * dt * DRIVE_DISTANCE_SCALE;
+        g_estimated_distance_m +=
+            fabsf(actual_translation_speed_m_s) * dt * DRIVE_DISTANCE_SCALE;
         cross_track_m += actual_cross_speed_m_s * dt * DRIVE_DISTANCE_SCALE;
         g_cross_track_m = cross_track_m;
         g_actual_cross_speed_m_s = actual_cross_speed_m_s;
@@ -1144,20 +1311,47 @@ static bool run_translation_profile(float vx_direction, float vy_direction,
         desired_speed = stopping_speed < maximum_speed_m_s ?
                         stopping_speed : maximum_speed_m_s;
         max_delta = acceleration_m_s2 * dt;
-        if (g_command_speed_m_s < desired_speed) {
-            g_command_speed_m_s += max_delta;
-            if (g_command_speed_m_s > desired_speed) {
-                g_command_speed_m_s = desired_speed;
+        if (profile_speed_m_s < desired_speed) {
+            profile_speed_m_s += max_delta;
+            if (profile_speed_m_s > desired_speed) {
+                profile_speed_m_s = desired_speed;
             }
         } else {
-            g_command_speed_m_s -= max_delta;
-            if (g_command_speed_m_s < desired_speed) {
-                g_command_speed_m_s = desired_speed;
+            profile_speed_m_s -= max_delta;
+            if (profile_speed_m_s < desired_speed) {
+                profile_speed_m_s = desired_speed;
             }
         }
+        commanded_distance_m += profile_speed_m_s * dt;
+        if (commanded_distance_m > target_distance_m) {
+            commanded_distance_m = target_distance_m;
+        }
+
+        along_position_error_m = commanded_distance_m - segment_distance_m;
+        along_speed_reference_m_s = profile_speed_m_s + clampf(
+            ODOM_ALONG_POSITION_KP * along_position_error_m,
+            -ODOM_ALONG_CORRECTION_MAX_M_S,
+            ODOM_ALONG_CORRECTION_MAX_M_S);
+        along_speed_reference_m_s = clampf(
+            along_speed_reference_m_s,
+            -ODOM_ALONG_CORRECTION_MAX_M_S, maximum_speed_m_s);
+
+        along_speed_error_m_s =
+            along_speed_reference_m_s - actual_translation_speed_m_s;
+        along_speed_integral_m_s = clampf(
+            along_speed_integral_m_s +
+                ODOM_ALONG_SPEED_KI * along_speed_error_m_s * dt,
+            -ODOM_ALONG_SPEED_INTEGRAL_MAX_M_S,
+            ODOM_ALONG_SPEED_INTEGRAL_MAX_M_S);
+        along_speed_command_m_s = clampf(
+            along_speed_reference_m_s +
+                ODOM_ALONG_SPEED_KP * along_speed_error_m_s +
+                along_speed_integral_m_s,
+            -ODOM_ALONG_CORRECTION_MAX_M_S, maximum_speed_m_s);
+        g_command_speed_m_s = along_speed_command_m_s;
 
         correction_limit_rad_s =
-            g_command_speed_m_s * HEADING_CORRECTION_SPEED_RATIO /
+            fabsf(along_speed_command_m_s) * HEADING_CORRECTION_SPEED_RATIO /
             (CHASSIS_HALF_LENGTH_M + CHASSIS_HALF_WIDTH_M);
         if (correction_limit_rad_s > HEADING_MAX_CORRECTION_RAD_S) {
             correction_limit_rad_s = HEADING_MAX_CORRECTION_RAD_S;
@@ -1175,9 +1369,11 @@ static bool run_translation_profile(float vx_direction, float vy_direction,
             TRANSLATION_CROSS_TRACK_MAX_M_S);
         g_cross_track_command_m_s = cross_track_command_m_s;
         command_route_vx_m_s =
-            g_command_speed_m_s * along_x + cross_track_command_m_s * cross_x;
+            along_speed_command_m_s * along_x +
+            cross_track_command_m_s * cross_x;
         command_route_vy_m_s =
-            g_command_speed_m_s * along_y + cross_track_command_m_s * cross_y;
+            along_speed_command_m_s * along_y +
+            cross_track_command_m_s * cross_y;
 
         /* Convert the fixed-frame command back to the current body frame. */
         command_body_vx_m_s =
@@ -1197,19 +1393,28 @@ static bool run_translation_profile(float vx_direction, float vy_direction,
             g_fault_code = FAULT_MOTOR_COMMAND;
             return false;
         }
-        if (actual_translation_speed_m_s < 0.0f) {
-            actual_translation_speed_m_s = 0.0f;
-        }
-        segment_distance_m += actual_translation_speed_m_s * dt * DRIVE_DISTANCE_SCALE;
-        g_estimated_distance_m += actual_translation_speed_m_s * dt * DRIVE_DISTANCE_SCALE;
-        commanded_distance_m += g_command_speed_m_s * dt;
         if ((uint32_t)(now_ms - last_log_ms) >= RUN_LOG_SAMPLE_PERIOD_MS) {
             last_log_ms = now_ms;
             log_route_sample(now_ms, measured_wheel_speed);
         }
         /* Self-throttled to 5 Hz, repaints a single value field per tick. */
         lcd_display_update();
+
+        if (fabsf(target_distance_m - segment_distance_m) <=
+                ODOM_ALONG_POSITION_TOLERANCE_M &&
+            fabsf(actual_translation_speed_m_s) <=
+                ODOM_ALONG_SPEED_TOLERANCE_M_S) {
+            if (settled_since_ms == 0U) {
+                settled_since_ms = now_ms;
+            } else if ((uint32_t)(now_ms - settled_since_ms) >=
+                       ODOM_ALONG_SETTLE_MS) {
+                break;
+            }
+        } else {
+            settled_since_ms = 0U;
+        }
     }
+    g_command_speed_m_s = 0.0f;
     return settle_translation_cross_track(along_x, along_y,
                                           heading_target_rad, heading_kp,
                                           heading_kd, &cross_track_m);
@@ -1256,6 +1461,7 @@ static bool run_relative_turn(float angle_rad)
             return false;
         }
         if ((uint32_t)(now_ms - last_control_ms) < CONTROL_PERIOD_MS) {
+            HAL_Delay(1U);
             continue;
         }
         last_control_ms += CONTROL_PERIOD_MS;
@@ -1291,12 +1497,7 @@ static bool run_relative_turn(float angle_rad)
             g_fault_code = FAULT_MOTOR_COMMAND;
             return false;
         }
-#if ROUTE_AIRBORNE_SIMULATE_YAW
-        route_yaw_rad += turn_command_rad_s * dt;
-        g_yaw_rad = route_yaw_rad;
-#else
         route_yaw_rad = g_yaw_rad;
-#endif
         if ((uint32_t)(now_ms - last_log_ms) >= RUN_LOG_SAMPLE_PERIOD_MS) {
             last_log_ms = now_ms;
             log_route_sample(now_ms, measured_wheel_speed);
@@ -1354,6 +1555,7 @@ static bool run_front_center_orbit(float angle_rad, float center_distance_m)
             return false;
         }
         if ((uint32_t)(now_ms - last_control_ms) < CONTROL_PERIOD_MS) {
+            HAL_Delay(1U);
             continue;
         }
         last_control_ms += CONTROL_PERIOD_MS;
@@ -1395,13 +1597,7 @@ static bool run_front_center_orbit(float angle_rad, float center_distance_m)
             g_fault_code = FAULT_MOTOR_COMMAND;
             return false;
         }
-#if ROUTE_AIRBORNE_SIMULATE_YAW
-        route_yaw_rad += turn_command_rad_s * dt;
-        g_yaw_rad = route_yaw_rad;
-        actual_wz_rad_s = turn_command_rad_s;
-#else
         route_yaw_rad = g_yaw_rad;
-#endif
         g_estimated_distance_m +=
             fabsf(actual_wz_rad_s) * center_distance_m * dt * DRIVE_DISTANCE_SCALE;
         if ((uint32_t)(now_ms - last_log_ms) >= RUN_LOG_SAMPLE_PERIOD_MS) {
@@ -1425,101 +1621,38 @@ static bool run_front_center_orbit(float angle_rad, float center_distance_m)
     }
 }
 
-#if ROUTE_TASK_LINK_SIMULATION_ONLY
-static void task_link_simulation_halt(uint32_t fault_code)
+void route_controller_init(void)
 {
-    g_fault_code = fault_code;
-    g_run_state = fault_code == FAULT_NONE ? RUN_DONE : RUN_FAULT;
-    log_route_event(fault_code == FAULT_NONE ? RUN_LOG_EVENT_ROUTE_DONE
-                                             : RUN_LOG_EVENT_FAULT);
-    (void)run_log_save((uint32_t)g_run_state, g_fault_code);
-    run_log_dump_stored();
-    board_uart1_write(fault_code == FAULT_NONE
-                          ? "H7,SIM,COMPLETE\r\n"
-                          : "H7,SIM,HALTED_ON_ERROR\r\n");
-
-    for (;;) {
-        HAL_Delay(1000U);
-    }
-}
-
-static void run_task_link_simulation(void)
-{
-    uint32_t platform_index;
-
-    board_uart1_write("H7,SIM,TASK_LINK_ONLY\r\n");
-    HAL_Delay(ROUTE_TASK_SIM_BOOT_DELAY_MS);
-
-    while (g_rk_arm_link_ready == 0U) {
-        wait_for_rk_ready_on_boot();
-    }
-    board_uart1_write("H7,SIM,BEGIN_TASK_SEQUENCE\r\n");
-
-    g_run_state = RUN_ARM_DISC_CATCH;
-    log_route_event(RUN_LOG_EVENT_ARM_START);
-    if (!wait_for_rk_arm_task(ROUTE_TASK1_RK_ARM_TASK)) {
-        task_link_simulation_halt(FAULT_ARM_TIMEOUT);
-    }
-    log_route_event(RUN_LOG_EVENT_ARM_DONE);
-    HAL_Delay(ROUTE_TASK_SIM_BETWEEN_STATIONS_MS);
-
-    for (platform_index = 0U;
-         platform_index < ROUTE_TASK2_PLATFORM_PICK_COUNT;
-         ++platform_index) {
-        g_run_state = RUN_ARM_PLATFORM_PICK;
-        log_route_event(RUN_LOG_EVENT_ARM_START);
-        if (!wait_for_rk_arm_task(ROUTE_TASK2_RK_ARM_TASK)) {
-            task_link_simulation_halt(FAULT_ARM_TIMEOUT);
-        }
-        log_route_event(RUN_LOG_EVENT_ARM_DONE);
-        HAL_Delay(ROUTE_TASK_SIM_BETWEEN_STATIONS_MS);
-    }
-
-    g_run_state = RUN_ARM_COLUMN_CATCH;
-    log_route_event(RUN_LOG_EVENT_ARM_START);
-    if (!start_rk_arm_task(ROUTE_TASK3_RK_ARM_TASK)) {
-        task_link_simulation_halt(FAULT_ARM_TIMEOUT);
-    }
-    log_route_event(RUN_LOG_EVENT_ARM_DONE);
-    HAL_Delay(ROUTE_TASK_SIM_COLUMN_ACTIVE_MS);
-
-    log_route_event(RUN_LOG_EVENT_ARM_STOP);
-    if (!stop_rk_arm_task(ROUTE_TASK3_RK_ARM_TASK)) {
-        task_link_simulation_halt(FAULT_ARM_TIMEOUT);
-    }
-    log_route_event(RUN_LOG_EVENT_ARM_STOP_DONE);
-    task_link_simulation_halt(FAULT_NONE);
-}
-#endif
-
-#define enter_fault(code)       \
-    do {                        \
-        enter_fault_wait_restart(code); \
-        goto route_start;       \
-    } while (0)
-
-void route_controller_run(void)
-{
-#if ROUTE_TASK_LINK_SIMULATION_ONLY
-    board_init_task_link_only();
-#else
     board_init();
-    /* Panel + static labels are painted once here, outside the control loop. */
     lcd_display_init();
-#endif
+    rc_override_init();
+}
 
-route_start:
+void route_controller_wait_for_start(void)
+{
 #if ROUTE_WAIT_USER_KEY_ON_BOOT
     if (g_start_confirmed_from_fault != 0U) {
         g_start_confirmed_from_fault = 0U;
         lcd_display_set_start_status("RUN");
     } else {
+        board_clear_selected_field();
         wait_for_user_start_key();
     }
 #endif
+}
+
+void route_controller_set_field(uint8_t is_red)
+{
+    g_route_field_is_red = is_red != 0U ? 1U : 0U;
+}
+
+void route_controller_reset_run_context(void)
+{
     g_fault_code = FAULT_NONE;
     g_rk_arm_tasks_disabled_for_route = 0U;
     g_first_arm_station_reached = 0U;
+    g_rk_arm_link_ready = 0U;
+    g_rk_reset_pending = 0U;
     g_rk_pretask_line_len = 0U;
     g_command_speed_m_s = 0.0f;
     g_heading_correction_rad_s = 0.0f;
@@ -1528,319 +1661,131 @@ route_start:
     g_cross_track_command_m_s = 0.0f;
     g_actual_cross_speed_m_s = 0.0f;
     run_log_reset();
+    request_rk_arm_reset();
+}
 
-#if ROUTE_TASK_LINK_SIMULATION_ONLY
-    run_task_link_simulation();
-#endif
-
-#if ROUTE_AUTO_RUN_ON_BOOT == 0U
-    wait_for_usb_run_command();
-#endif
-
-#if ROUTE_WAIT_RK_READY_ON_BOOT
-    while (g_rk_arm_link_ready == 0U) {
-        wait_for_rk_ready_on_boot();
-    }
-#endif
-
+void route_controller_begin_pretask_sync(void)
+{
     g_rk_pretask_last_sync_ms = HAL_GetTick() - RK_ARM_PRETASK_SYNC_PERIOD_MS;
-    board_uart1_write("H7,ARM,PRETASK_SYNC_ACTIVE\r\n");
+    board_uart1_write(g_route_field_is_red != 0U
+                          ? "H7,ARM,PRETASK_SYNC_ACTIVE,FIELD=RED\r\n"
+                          : "H7,ARM,PRETASK_SYNC_ACTIVE,FIELD=BLUE\r\n");
+}
 
-    g_run_state = RUN_BOOT;
-    if (!wait_for_can_startup()) {
-#if ROUTE_REQUIRE_CAN_STARTUP
-        enter_fault(FAULT_CAN_STARTUP);
-#else
-        board_uart1_write("H7,WARN,CAN_STARTUP_BYPASS\r\n");
-        g_fault_code = FAULT_NONE;
-#endif
-    }
+void route_controller_mark_first_arm_station(void)
+{
+    g_first_arm_station_reached = 1U;
+    board_uart1_write("H7,ARM,PRETASK_SYNC_STOP_AT_DISC\r\n");
+}
 
-    g_run_state = RUN_IMU_INIT;
-    g_bmi088_init_error = BMI088_init();
-    if (g_bmi088_init_error != BMI088_NO_ERROR) {
-        enter_fault(FAULT_IMU_INIT);
-    }
+void route_controller_request_rk_reset(void)
+{
+    request_rk_arm_reset();
+}
 
-    g_run_state = RUN_GYRO_CALIBRATION;
-    if (!calibrate_gyro()) {
-        enter_fault(FAULT_IMU_MOVING);
-    }
+void route_controller_service_rk_link(void)
+{
+    service_rk_link_before_first_station();
+}
 
-    g_run_state = RUN_MOTOR_ENABLE;
-    if (!enable_motors()) {
-#if ROUTE_REQUIRE_MOTOR_ENABLE
-        enter_fault(FAULT_MOTOR_ENABLE);
-#else
-        board_uart1_write("H7,WARN,MOTOR_ENABLE_BYPASS\r\n");
-        g_fault_code = FAULT_NONE;
-#endif
-    }
-    hold_zero(250U);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-#if ROUTE_REQUIRE_MOTOR_FEEDBACK
-    {
-        const uint32_t feedback_wait_started_ms = HAL_GetTick();
-        float primed_wheels[4] = {0.0f};
-
-        while (!motor_feedback_update(HAL_GetTick(), primed_wheels)) {
-            if ((uint32_t)(HAL_GetTick() - feedback_wait_started_ms) > 1000U) {
-                enter_fault(FAULT_MOTOR_COMMAND);
-            }
-            HAL_Delay(10U);
-        }
-    }
-#else
-    {
-        const uint32_t feedback_wait_started_ms = HAL_GetTick();
-        float primed_wheels[4] = {0.0f};
-
-        while (!motor_feedback_update(HAL_GetTick(), primed_wheels)) {
-            if ((uint32_t)(HAL_GetTick() - feedback_wait_started_ms) > 200U) {
-                board_uart1_write("H7,WARN,MOTOR_FEEDBACK_BYPASS\r\n");
-                break;
-            }
-            HAL_Delay(10U);
-        }
-    }
-#endif
-
+void route_controller_reset_pose(void)
+{
     g_yaw_rad = 0.0f;
     g_route_heading_target_rad = 0.0f;
     g_estimated_distance_m = 0.0f;
-
-    g_run_state = RUN_STRAFE_RIGHT;
-    if (!run_translation(0.0f, ROUTE_RIGHT_STRAFE_SIGN,
-                         ROUTE_STRAFE_DISTANCE_M)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-    }
-    if (!run_relative_turn(0.0f)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT : g_fault_code);
-    }
-    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-    g_run_state = RUN_FORWARD;
-    if (!run_translation_profile(ROUTE_FORWARD_SIGN, 0.0f,
-                                 ROUTE_FORWARD_DISTANCE_M,
-                                 ROUTE_LONG_FORWARD_SPEED_M_S,
-                                 ROUTE_LONG_FORWARD_ACCEL_M_S2)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-    }
-    if (!run_relative_turn(0.0f)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT : g_fault_code);
-    }
-    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-    g_run_state = RUN_TURN_RIGHT;
-    if (!run_relative_turn(ROUTE_RIGHT_TURN_SIGN * ROUTE_TURN_ANGLE_RAD *
-                           ROUTE_GYRO_TURN_SCALE)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-    }
-
-    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-#if ROUTE_TASK1_DISC_CATCH_ENABLED
-    g_first_arm_station_reached = 1U;
-    board_uart1_write("H7,ARM,PRETASK_SYNC_STOP_AT_DISC\r\n");
-    g_run_state = RUN_ARM_DISC_CATCH;
-    log_route_event(RUN_LOG_EVENT_ARM_START);
-    if (!wait_for_rk_arm_task(ROUTE_TASK1_RK_ARM_TASK)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
-    }
-    log_route_event(g_rk_arm_tasks_disabled_for_route != 0U
-                        ? RUN_LOG_EVENT_ARM_BYPASS
-                        : RUN_LOG_EVENT_ARM_DONE);
-#endif
-
-    g_run_state = RUN_REVERSE_AFTER_DISC;
-    if (!run_translation(-ROUTE_FORWARD_SIGN, 0.0f,
-                         ROUTE_AFTER_DISC_REVERSE_DISTANCE_M)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-    }
-    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-    g_run_state = RUN_SECOND_TURN_RIGHT;
-    if (!run_relative_turn(ROUTE_RIGHT_TURN_SIGN * ROUTE_TURN_ANGLE_RAD *
-                           ROUTE_GYRO_TURN_SCALE)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-    }
-
-    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-    g_run_state = RUN_PLATFORM_APPROACH;
-    if (!run_translation(ROUTE_FORWARD_SIGN, 0.0f,
-                         ROUTE_PLATFORM_APPROACH_DISTANCE_M)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-    }
-    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-    g_run_state = RUN_THIRD_TURN_RIGHT;
-    if (!run_relative_turn(ROUTE_RIGHT_TURN_SIGN * ROUTE_TURN_ANGLE_RAD *
-                           ROUTE_GYRO_TURN_SCALE)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-    }
-
-    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-#if ROUTE_TASK2_PLATFORM_PICK_ENABLED
-    {
-        uint32_t platform_index;
-
-        for (platform_index = 0U;
-             platform_index < ROUTE_TASK2_PLATFORM_PICK_COUNT;
-            ++platform_index) {
-            g_run_state = RUN_ARM_PLATFORM_PICK;
-            log_route_event(RUN_LOG_EVENT_ARM_START);
-            if (!wait_for_rk_arm_task(ROUTE_TASK2_RK_ARM_TASK)) {
-                enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
-            }
-            log_route_event(g_rk_arm_tasks_disabled_for_route != 0U
-                                ? RUN_LOG_EVENT_ARM_BYPASS
-                                : RUN_LOG_EVENT_ARM_DONE);
-            if (platform_index + 1U < ROUTE_TASK2_PLATFORM_PICK_COUNT) {
-                const float shift_distance_m =
-                    platform_index == 0U
-                        ? ROUTE_TASK2_PLATFORM_FIRST_SHIFT_M
-                        : ROUTE_TASK2_PLATFORM_SECOND_SHIFT_M;
-
-                hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-                if (g_run_state == RUN_FAULT) {
-                    enter_fault(g_fault_code);
-                }
-                g_run_state = RUN_PLATFORM_SHIFT_LEFT;
-                if (!run_translation(0.0f, -ROUTE_RIGHT_STRAFE_SIGN,
-                                     shift_distance_m)) {
-                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-                }
-                hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-                if (g_run_state == RUN_FAULT) {
-                    enter_fault(g_fault_code);
-                }
-            }
-        }
-    }
-#endif
-
-    g_run_state = RUN_DIAGONAL_AFTER_PLATFORM;
-    if (!run_translation(
-            -ROUTE_FORWARD_SIGN * ROUTE_AFTER_PLATFORM_REVERSE_COMPONENT_M,
-            -ROUTE_RIGHT_STRAFE_SIGN * ROUTE_AFTER_PLATFORM_LEFT_COMPONENT_M,
-            ROUTE_AFTER_PLATFORM_DIAGONAL_DISTANCE_M)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-    }
-    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-    g_run_state = RUN_LAST_TURN_RIGHT;
-    if (!run_relative_turn(ROUTE_RIGHT_TURN_SIGN * ROUTE_TURN_ANGLE_RAD *
-                           ROUTE_GYRO_TURN_SCALE)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-    }
-    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-    {
-        bool orbit_arm_started = false;
-
-#if ROUTE_TASK3_COLUMN_CATCH_ENABLED
-        g_run_state = RUN_ARM_COLUMN_CATCH;
-        log_route_event(RUN_LOG_EVENT_ARM_START);
-        orbit_arm_started = start_rk_arm_task(ROUTE_TASK3_RK_ARM_TASK);
-        log_route_event(orbit_arm_started ? RUN_LOG_EVENT_ARM_DONE
-                                          : RUN_LOG_EVENT_ARM_BYPASS);
-#endif
-
-    g_run_state = RUN_FRONT_CENTER_ORBIT;
-    if (!run_front_center_orbit(ROUTE_RIGHT_TURN_SIGN *
-                                    ROUTE_FRONT_CENTER_ORBIT_ANGLE_RAD *
-                                    ROUTE_GYRO_TURN_SCALE,
-                                ROUTE_FRONT_CENTER_ORBIT_RADIUS_M)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-    }
-    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-    g_run_state = RUN_FINAL_REVERSE;
-    if (!run_translation(-ROUTE_FORWARD_SIGN, 0.0f,
-                         ROUTE_FINAL_REVERSE_DISTANCE_M)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-    }
-    hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-#if ROUTE_TASK3_COLUMN_CATCH_ENABLED
-        if (orbit_arm_started) {
-            g_run_state = RUN_ARM_COLUMN_CATCH;
-            log_route_event(RUN_LOG_EVENT_ARM_STOP);
-            if (!stop_rk_arm_task(ROUTE_TASK3_RK_ARM_TASK)) {
-                enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
-            }
-            log_route_event(RUN_LOG_EVENT_ARM_STOP_DONE);
-        }
-#else
-        (void)orbit_arm_started;
-#endif
-    }
-
-    g_run_state = RUN_SERVO_90;
-    board_servo_set_angle_deg_index(0U, SERVO_MG90S_ROUTE_ANGLE_DEG);
-    board_servo_set_angle_deg_index(1U, SERVO_MG90S_ROUTE_ANGLE_DEG);
-    HAL_Delay(ROUTE_SERVO_SETTLE_MS);
-    board_servo_set_angle_deg_index(0U, ROUTE_SERVO_INITIAL_ANGLE_DEG);
-    board_servo_set_angle_deg_index(1U, ROUTE_SERVO_INITIAL_ANGLE_DEG);
-    HAL_Delay(ROUTE_SERVO_SETTLE_MS);
-    board_servo_disable_index(0U);
-    board_servo_disable_index(1U);
-
-    g_run_state = RUN_STOPPING;
-    hold_zero(1000U);
-    (void)motor_disable_all();
-    g_run_state = RUN_DONE;
-    {
-        static const float stopped[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-        run_log_sample(HAL_GetTick(), (uint32_t)g_run_state, g_fault_code,
-                       g_gyro_z_rad_s, g_yaw_rad, 0.0f, 0.0f,
-                       g_estimated_distance_m, g_imu_temperature_c, stopped,
-                       g_cross_track_m, g_cross_track_command_m_s,
-                       g_actual_cross_speed_m_s, RUN_LOG_EVENT_ROUTE_DONE);
-    }
-    (void)run_log_save((uint32_t)g_run_state, g_fault_code);
-    run_log_dump_stored();
-
-    board_uart1_write("H7,ROUTE,DONE,WAIT_NEXT_START\r\n");
-    goto route_start;
 }
+
+uint8_t route_controller_arm_tasks_disabled(void)
+{
+    return g_rk_arm_tasks_disabled_for_route;
+}
+
+bool route_controller_wait_for_can_startup(void)
+{
+    return wait_for_can_startup();
+}
+
+bool route_controller_calibrate_gyro(void)
+{
+    return calibrate_gyro();
+}
+
+bool route_controller_enable_motors(void)
+{
+    return enable_motors();
+}
+
+void route_controller_hold_zero(uint32_t duration_ms)
+{
+    hold_zero(duration_ms);
+}
+
+void route_controller_enter_fault_wait_restart(uint32_t code)
+{
+    enter_fault_wait_restart(code);
+}
+
+void route_controller_log_event(uint32_t event)
+{
+    log_route_event(event);
+}
+
+bool route_controller_run_translation_profile(float vx_direction,
+                                               float vy_direction,
+                                               float target_distance_m,
+                                               float maximum_speed_m_s,
+                                               float acceleration_m_s2)
+{
+    return run_translation_profile(vx_direction, vy_direction,
+                                   target_distance_m, maximum_speed_m_s,
+                                   acceleration_m_s2);
+}
+
+bool route_controller_run_translation(float vx_direction, float vy_direction,
+                                      float target_distance_m)
+{
+    return run_translation(vx_direction, vy_direction, target_distance_m);
+}
+
+bool route_controller_run_relative_turn(float angle_rad)
+{
+    return run_relative_turn(angle_rad);
+}
+
+bool route_controller_run_front_center_orbit(float angle_rad,
+                                             float center_distance_m)
+{
+    return run_front_center_orbit(angle_rad, center_distance_m);
+}
+
+bool route_controller_wait_for_rk_arm_task(const char *task)
+{
+    return wait_for_rk_arm_task(task);
+}
+
+bool route_controller_start_rk_arm_task(const char *task)
+{
+    return start_rk_arm_task(task);
+}
+
+bool route_controller_stop_rk_arm_task(const char *task)
+{
+    return stop_rk_arm_task(task);
+}
+
+#if ROUTE_AUTO_RUN_ON_BOOT == 0U
+void route_controller_wait_for_usb_run_command(void)
+{
+    wait_for_usb_run_command();
+}
+#endif
+
+#if ROUTE_WAIT_RK_READY_ON_BOOT
+void route_controller_wait_for_rk_ready_on_boot(void)
+{
+    wait_for_rk_ready_on_boot();
+}
+#endif
 
 void Error_Handler(void)
 {

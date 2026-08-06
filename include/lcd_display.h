@@ -9,5 +9,6 @@ void lcd_display_init(void);
  * the small value fields, never the whole frame. */
 void lcd_display_update(void);
 void lcd_display_set_start_status(const char *status);
+void lcd_display_refresh_input_status(void);
 
 #endif
