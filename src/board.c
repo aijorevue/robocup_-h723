@@ -942,19 +942,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *uart)
         const rc_parse_result_t result =
             rc_parser_feed(&rc_parser, uart5_rx_byte, HAL_GetTick(), &frame);
         if (result == RC_PARSE_VALID_FRAME) {
-            const bool unlock_falling =
-                latest_rc_frame_available &&
-                latest_rc_frame.channels[RC_CH_UNLOCK_INDEX] > RC_UNLOCK_LOW_MAX_US &&
-                frame.channels[RC_CH_UNLOCK_INDEX] <= RC_UNLOCK_LOW_MAX_US;
             latest_rc_frame = frame;
             latest_rc_frame_available = true;
             latest_rc_frame_epoch = g_rc_fault_epoch;
-            if (unlock_falling) {
-                mark_rc_unsafe_event();
-            }
-        } else if (result == RC_PARSE_RANGE_ERROR ||
-                   result == RC_PARSE_FRAME_LOST ||
-                   result == RC_PARSE_FAILSAFE) {
+        } else if (result == RC_PARSE_RANGE_ERROR) {
             mark_rc_unsafe_event();
         }
         uart5_restart_receive();

@@ -16,13 +16,30 @@ static route_field_profile_t route_field_profile(board_field_t field)
 {
     route_field_profile_t profile;
 
-    profile.is_red = field == BOARD_FIELD_RED ? 1U : 0U;
-    profile.strafe_sign = profile.is_red != 0U
-                              ? -ROUTE_RIGHT_STRAFE_SIGN
-                              : ROUTE_RIGHT_STRAFE_SIGN;
-    profile.turn_sign = profile.is_red != 0U
-                            ? ROUTE_LEFT_TURN_SIGN
-                            : ROUTE_RIGHT_TURN_SIGN;
+    if(field==BOARD_FIELD_RED){
+        profile.is_red=1U;
+    }
+    else{
+        profile.is_red=0U;
+    }
+
+
+     if (profile.is_red != 0U)
+    {
+        profile.strafe_sign = -ROUTE_RIGHT_STRAFE_SIGN;
+    }
+    else
+    {
+        profile.strafe_sign = ROUTE_RIGHT_STRAFE_SIGN;
+    }
+    if (profile.is_red != 0U)
+    {
+        profile.turn_sign = ROUTE_LEFT_TURN_SIGN;
+    }
+    else
+    {
+        profile.turn_sign = ROUTE_RIGHT_TURN_SIGN;
+    }
     return profile;
 }
 
@@ -74,6 +91,7 @@ route_start:
 #endif
 
     route_controller_begin_pretask_sync();
+    (void)route_controller_wait_for_rk_reset_before_route();
 
     g_run_state = RUN_BOOT;
     if (!route_controller_wait_for_can_startup()) {
@@ -109,7 +127,7 @@ route_start:
         g_fault_code = FAULT_NONE;
 #endif
     }
-    route_controller_hold_zero(250U);
+    route_controller_hold_zero(200U);
     if (g_run_state == RUN_FAULT) {
         enter_fault(g_fault_code);
     }
@@ -123,7 +141,10 @@ route_start:
             if ((uint32_t)(HAL_GetTick() - feedback_wait_started_ms) > 1000U) {
                 enter_fault(FAULT_MOTOR_COMMAND);
             }
-            HAL_Delay(10U);
+            route_controller_hold_zero(CONTROL_PERIOD_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
         }
     }
 #else
@@ -136,17 +157,38 @@ route_start:
                 board_uart1_write("H7,WARN,MOTOR_FEEDBACK_BYPASS\r\n");
                 break;
             }
-            HAL_Delay(10U);
+            route_controller_hold_zero(CONTROL_PERIOD_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
         }
     }
 #endif
 
     route_controller_reset_pose();
 
+#if ROUTE_DISC_ARC_ENTRY_ENABLED
+    /*
+     * Replace the old strafe -> forward -> in-place turn sequence with one
+     * continuous cubic entry.  The field profile mirrors both the side
+     * of the obstacle and the final station heading.
+     */
+    g_run_state = RUN_DISC_ARC_ENTRY;
+    if (!route_controller_run_disc_arc_entry(field_profile.strafe_sign,
+                                             field_profile.turn_sign)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+#else
     g_run_state = field_profile.is_red != 0U ? RUN_STRAFE_LEFT :
                                                RUN_STRAFE_RIGHT;
-    if (!route_controller_run_translation(0.0f, field_profile.strafe_sign,
-                                          ROUTE_STRAFE_DISTANCE_M)) {
+    if (!route_controller_run_translation_profile(
+            0.0f, field_profile.strafe_sign, ROUTE_STRAFE_DISTANCE_M,
+            ROUTE_INITIAL_STRAFE_SPEED_M_S,
+            ROUTE_INITIAL_STRAFE_ACCEL_M_S2)) {
         enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
     }
     if (!route_controller_run_relative_turn(0.0f)) {
@@ -181,15 +223,29 @@ route_start:
     if (g_run_state == RUN_FAULT) {
         enter_fault(g_fault_code);
     }
+#endif
+
+    /* Stop background sync from consuming WHITE_LINE replies, then use the
+     * field strip to remove the remaining arc endpoint and yaw error. */
+    route_controller_mark_first_arm_station();
+#if ROUTE_DISC_VISUAL_ALIGN_ENABLED
+    g_run_state = RUN_DISC_VISUAL_ALIGN;
+    if (!route_controller_run_disc_visual_alignment()) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+#endif
 
 #if ROUTE_TASK1_DISC_CATCH_ENABLED
-    route_controller_mark_first_arm_station();
     g_run_state = RUN_ARM_DISC_CATCH;
     route_controller_log_event(RUN_LOG_EVENT_ARM_START);
     if (!route_controller_wait_for_rk_arm_task(ROUTE_TASK1_RK_ARM_TASK)) {
         enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
     }
-    route_controller_log_event(route_controller_arm_tasks_disabled() != 0U
+    route_controller_log_event(route_controller_last_arm_task_bypassed() != 0U
                                    ? RUN_LOG_EVENT_ARM_BYPASS
                                    : RUN_LOG_EVENT_ARM_DONE);
 #endif
@@ -250,7 +306,7 @@ route_start:
             if (!route_controller_wait_for_rk_arm_task(ROUTE_TASK2_RK_ARM_TASK)) {
                 enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
             }
-            route_controller_log_event(route_controller_arm_tasks_disabled() != 0U
+            route_controller_log_event(route_controller_last_arm_task_bypassed() != 0U
                                            ? RUN_LOG_EVENT_ARM_BYPASS
                                            : RUN_LOG_EVENT_ARM_DONE);
             if (platform_index + 1U < ROUTE_TASK2_PLATFORM_PICK_COUNT) {
@@ -311,8 +367,11 @@ route_start:
         route_controller_log_event(RUN_LOG_EVENT_ARM_START);
         orbit_arm_started = route_controller_start_rk_arm_task(
             ROUTE_TASK3_RK_ARM_TASK);
+        if (!orbit_arm_started && g_fault_code != FAULT_NONE) {
+            enter_fault(g_fault_code);
+        }
         route_controller_log_event(orbit_arm_started
-                                       ? RUN_LOG_EVENT_ARM_DONE
+                                       ? RUN_LOG_EVENT_ARM_ACK
                                        : RUN_LOG_EVENT_ARM_BYPASS);
 #endif
 
@@ -355,16 +414,28 @@ route_start:
     g_run_state = RUN_SERVO_90;
     board_servo_set_angle_deg_index(0U, SERVO_MG90S_ROUTE_ANGLE_DEG);
     board_servo_set_angle_deg_index(1U, SERVO_MG90S_ROUTE_ANGLE_DEG);
-    HAL_Delay(ROUTE_SERVO_SETTLE_MS);
+    route_controller_hold_zero(ROUTE_SERVO_OPEN_HOLD_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
     board_servo_set_angle_deg_index(0U, ROUTE_SERVO_INITIAL_ANGLE_DEG);
     board_servo_set_angle_deg_index(1U, ROUTE_SERVO_INITIAL_ANGLE_DEG);
-    HAL_Delay(ROUTE_SERVO_SETTLE_MS);
+    route_controller_hold_zero(ROUTE_SERVO_RETURN_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
     board_servo_disable_index(0U);
     board_servo_disable_index(1U);
 
     g_run_state = RUN_STOPPING;
     route_controller_hold_zero(1000U);
-    (void)motor_disable_all();
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+    if (!motor_disable_all() ||
+        !board_fdcan1_wait_tx_fifo_free(8U, MOTOR_TX_DRAIN_TIMEOUT_MS)) {
+        enter_fault(FAULT_MOTOR_COMMAND);
+    }
     g_run_state = RUN_DONE;
     {
         static const float stopped[4] = {0.0f, 0.0f, 0.0f, 0.0f};

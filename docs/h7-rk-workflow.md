@@ -1,137 +1,165 @@
 # H7/RK Production Workflow
 
-## Code ownership
+## Ownership and entry points
 
-- H7 route parameters and production switches: `include/app_config.h`
-- H7 route, motion sequencing, and RK handshake: `src/route_controller.c`
+- H7 field selection and route sequence: `src/main.c`
+- H7 motion control and RK protocol: `src/route_controller.c`
+- H7 route parameters: `include/app_config.h`
 - H7 persistent run log: `src/run_log.c` and `include/run_log.h`
-- RK station protocol and arm state machines:
+- RK serial protocol: `/home/cat/ros2_ws/ros2_test1/ros2_test1/chassis_link.py`
+- RK station and vision state machines:
   `/home/cat/ros2_ws/ros2_test1/ros2_test1/target_vision.py`
-- RK production launch profile:
+- RK launch profiles:
   `/home/cat/ros2_ws/ros2_test1/ros2_test1/launch_common.py`
+- Unified RK launcher: `/home/cat/ros2_ws/start_target_vision.sh`
 - RK boot service: `robocup-chassis-arm.service`
 
-The production route has one H7 entry point, `route_controller_run()`. The old
-`extend.c`/`extend.h` route names are no longer part of the build.
+The normal RK command starts the linked profile:
 
-## Boot contract
+```bash
+RED_SQUARE_EXECUTE=true /home/cat/ros2_ws/start_target_vision.sh
+```
 
-1. H7 initializes CAN and BMI088, calibrates yaw, enables the motors, and
-   starts the production route without waiting for RK to finish booting.
-2. Before the first arm station, H7 sends `ARM,SYNC` every 250 ms while its
-   normal motion control continues. RK may answer `RK,ARM,READY` at any time.
-3. RK systemd waits until `/dev/video20` can deliver a real frame and until
-   `/dev/ttyS9` and `/dev/ttyS0` exist. It then homes the arm (`ID1=480`,
-   `ID2=10`, `ID6=500`, `ID7=1120`, `ID4=800`, `ID5=800`) and opens the camera.
-4. At the first arm station H7 stops the chassis and sends
-   `ARM,DISC_CATCH,START` until RK acknowledges it. With the current
-   fail-open test configuration, a missing ACK bypasses the station after the
-   configured timeout and the chassis continues. If RK acknowledges the task,
-   H7 waits for DONE, with a 20 second task timeout.
+Use `VISION_PROFILE=standalone` only for manual vision/arm testing without H7.
 
-`ROUTE_TASK_LINK_SIMULATION_ONLY` in `include/app_config.h` must be `0` for the
-production route. Set it to `1` only for an elevated communication test.
+## Boot and start contract
 
-## Station protocol
+1. RK systemd waits for the camera to provide a real frame. The launch script
+   also waits for `/dev/ttyS9` (85 kg bus) and `/dev/ttyS0` (ZP bus).
+2. RK homes the arm to `ID1=480`, `ID2=10`, `ID6=500`, `ID7=1120`,
+   splitter `ID4=800`, and catcher `ID5=800` before announcing READY.
+3. H7 waits at the start gate. LCD joystick UP selects RED; DOWN selects BLUE.
+4. H7 starts CAN/BMI088 initialization and the route without blocking on RK.
+   Before the first arm station it sends `ARM,SYNC,RESET,FIELD,<FIELD>` every
+   250 ms. Motion control continues while RK homes or finishes booting.
+5. At an arm station H7 commands zero wheel speed before sending START.
 
-Commands are newline-terminated ASCII over H7 USB CDC.
-RK uses the udev symlink `/dev/h7_chassis`; the nonblocking serial setup keeps
-camera processing running while H7 is disconnected or halted.
+The H7 standalone policy is fail-open only before RK accepts a task. If no RK
+ACK arrives, that station is bypassed and the next station probes RK again.
+Once RK has acknowledged a task, a task timeout, remote ERR, or failed COLUMN
+STOP is a fault because the arm may no longer be safe for chassis motion.
 
-- Start: `ARM,<TASK>,START`
-- Start acknowledgement: `RK,ARM,<TASK>,ACK`
-- Liveness query: `ARM,<TASK>,STATUS`
-- Completion: `RK,ARM,<TASK>,DONE,<REASON>`
-- Asynchronous stop: `ARM,COLUMN_CATCH,STOP`
+## Protocol version 2
 
-H7 retries START for a bounded period. After ACK it keeps the chassis stopped
-and sends a STATUS query every second until DONE or the 20 second task timeout.
-If RK restarts and reports the task IDLE, H7 restarts that station from START.
+The link is newline-terminated ASCII over H7 USB CDC. RK opens the stable udev
+name `/dev/h7_chassis`. Every task transaction has a non-zero 32-bit sequence
+number so delayed replies from one `PLATFORM_PICK` cannot complete the next.
 
-## Route tasks
+```text
+H7 -> RK  ARM,<TASK>,START,SEQ,<N>,FIELD,<RED|BLUE>
+RK -> H7  RK,ARM,<TASK>,ACK,SEQ,<N>,FIELD,<RED|BLUE>
+H7 -> RK  ARM,<TASK>,STATUS,SEQ,<N>
+RK -> H7  RK,ARM,<TASK>,DONE,SEQ,<N>,REASON,<REASON>,FIELD,<FIELD>
+RK -> H7  RK,ARM,<TASK>,ERR,SEQ,<N>,REASON,<REASON>,FIELD,<FIELD>
+H7 -> RK  ARM,COLUMN_CATCH,STOP,SEQ,<N>
+```
 
-- `DISC_CATCH`: after the first 90 degree right turn. RK expands to
-  `ID1=600, ID2=350`, opens catcher ID5 to `1100`, descends to `ID1=520`,
-  pulses ID7 for red or yellow balls, and sets splitter ID4 to `1600` for a
-  yellow ball or `800` for a red ball before the ID7 pulse. After two seconds
-  without a valid ball, RK returns ID5 to `800`, homes the arm, and only then
-  returns DONE so H7 can leave the station.
-- `PLATFORM_PICK`: H7 sends three separate tasks and waits for each DONE before
-  the next left shift. Each task performs at most one red square, ring, or QR
-  grasp. A two-second no-target timeout applies only while searching/centering.
-- `COLUMN_CATCH`: RK expands and descends as above, but only red balls trigger
-  ID7. Splitter ID4 is held at `800` throughout this task. It runs during the
-  orbit and final reverse, then homes and returns DONE when H7 sends STOP.
+RK returns `BUSY,SEQ,<N>,REASON,STARTUP` while startup is incomplete and
+`BUSY,SEQ,<N>,REASON,RESET` while homing. H7 keeps the chassis stopped and
+allows up to `RK_ARM_BUSY_TIMEOUT_MS` for that state.
 
-## Production route
+Duplicate handling is idempotent:
 
-1. Both controllers power on. RK homes the arm, opens `/dev/video20`, and
-   announces READY. H7 remains stationary until READY is received.
-2. H7 initializes CAN and BMI088, calibrates the gyro, and enables all four
-   chassis motors.
-3. Strafe right 0.8 m while holding absolute heading 0 degrees, then correct
-   the heading to 0 degrees in place.
-4. Drive forward 4.1 m while holding 0 degrees. This long segment uses a
-   2.2 m/s speed limit and 1.6 m/s2 acceleration limit. Correct to 0 degrees
-   again at the end.
-5. Turn right to approximately 90 degrees, stop, run `DISC_CATCH`, and wait
-   for RK DONE.
-6. Reverse 1.6 m while holding approximately 90 degrees, turn right to
-   approximately 180 degrees, then drive forward 1.6 m.
-7. Turn right to approximately 270 degrees and run the first `PLATFORM_PICK`.
-8. Strafe left 0.35 m and run the second `PLATFORM_PICK`; strafe left another
-   0.35 m and run the third `PLATFORM_PICK`.
-9. Move diagonally by combining 0.9 m reverse and 0.1 m left, then turn right
-   to a cumulative heading of approximately 360 degrees.
-10. Start `COLUMN_CATCH` asynchronously. Orbit right through 270 degrees around
-    a point 0.5 m in front of the chassis, then reverse 0.3 m while RK keeps
-    detecting red balls.
-11. Send `COLUMN_CATCH,STOP`; RK homes the arm and returns DONE.
-12. Move both H7 MG90S outputs to 95 degrees, return them to 0 degrees, and
-    disable PWM.
-13. Stop and disable the chassis motors, then save and print the run log.
+- Repeated START for the active sequence returns the same ACK.
+- Repeated START or STATUS for a completed sequence replays its DONE or ERR.
+- A response with another sequence is ignored by H7.
+- Reconnecting RK clears a partial serial line but preserves the active or
+  last-completed transaction so H7 STATUS can recover it.
 
-General translation uses a 2.6 m/s speed limit and 2.0 m/s2 acceleration
-limit. Turns use a 2.2 rad/s speed limit and 3.8 rad/s2 acceleration limit.
+## Field behavior
 
-## Expected logs
+The distance magnitudes are shared; direction and target color are mirrored.
 
-The RK log must show, in order, successful startup-home servo writes, camera
-open, and stable vision FPS. When H7 is connected it must then show `CHASSIS
-LINK open /dev/h7_chassis`, `CHASSIS RX`, station START, and matching station
-DONE lines. `CHASSIS LINK waiting for /dev/h7_chassis` is expected while H7 is
-powered off or halted.
+| Behavior | BLUE field | RED field |
+| --- | --- | --- |
+| Initial strafe | Right 0.8 m | Left 0.8 m |
+| Route turns | Right | Left |
+| Platform shifts | Left 0.35 m twice | Right 0.35 m twice |
+| DISC target | Blue or yellow ball | Red or yellow ball |
+| PLATFORM target | Blue block/ring/QR | Red block/ring/QR |
+| COLUMN target | Blue ball | Red ball |
+| Final orbit | Right 270 degrees | Left 270 degrees |
 
-The H7 UART log records every USB command and response. The persistent flash
-log records route state, fault code, yaw, distance, wheel feedback, cross-track
-correction, ARM start/done/stop events, and the final route-done event. A clean
-run ends with fault code 0 and `RUN_LOG_EVENT_ROUTE_DONE`.
+Both red and blue detectors run every detection cycle. Field selection filters
+which detections may trigger a task; it does not merely recolor the display.
 
-## Current diagnostic result
+## Route sequence
 
-The latest persisted H7 run log reached the first platform station:
+1. Select field with the LCD joystick and release it.
+2. Strafe 0.8 m toward the selected field side and correct yaw to 0 degrees.
+3. Drive forward 4.1 m and correct yaw again.
+4. Turn 90 degrees toward the selected field side.
+5. Run `DISC_CATCH` and wait for DONE or an offline bypass.
+6. Reverse 1.6 m, turn another 90 degrees, and drive forward 1.6 m.
+7. Turn another 90 degrees and run the first `PLATFORM_PICK`.
+8. Shift 0.35 m toward the platform direction and run the second pick.
+9. Shift another 0.35 m and run the third pick.
+10. Move diagonally using 0.9 m reverse plus 0.1 m mirrored lateral motion.
+11. Turn another 90 degrees and start `COLUMN_CATCH` asynchronously.
+12. Orbit 270 degrees around a point 0.5 m ahead, then reverse 0.3 m.
+13. Send COLUMN STOP and wait until RK has homed the arm.
+14. Move both H7 MG90S outputs to 95 degrees, return to 0 degrees, disable
+    PWM, stop the motors, and save the run log.
 
-- `DISC_CATCH` was entered and recorded `ARM_BYPASS` because RK did not answer.
-- `PLATFORM_PICK` was also bypassed because the route had already disabled
-  arm tasks after the missing RK link.
-- The first `PLATFORM_SHIFT_LEFT` began, then the route ended with
-  `FAULT_MOTOR_COMMAND` at an estimated total distance of about 8.37 m.
+Current limits are 1.8 m/s and 2.0 m/s^2 for translation, 2.2 rad/s and
+3.8 rad/s^2 for turns, and 1.0 rad/s for the orbit.
 
-Therefore the latest stop is not an RK wait. It is in the first 0.35 m
-platform shift or its motor-command/feedback path.
+## RC takeover continuity
 
-## Failure behavior
+- CH5 high owns the chassis from any route, arm-wait, fault-wait, or final
+  servo-settle state.
+- A parser, UART, lost-frame, or failsafe event does not by itself inject a
+  zero-speed command. During a short interruption H7 replays the last valid
+  chassis command and reports `source=HOLD` in the RC status log.
+- A fresh CH5-low frame stops immediately and releases ownership after the
+  configured confirmation interval. Sustained signal loss also stops and
+  releases ownership after its bounded timeout.
+- H7 continuously drains DM motor feedback while holding zero, enabling,
+  disabling, and driving under RC. This prevents the FDCAN RX FIFO from
+  filling while the autonomous odometry loop is paused.
+- If a CAN zero, enable, drive, or disable transaction fails, H7 keeps motor
+  ownership and retries the safe transition instead of reporting a false
+  release.
 
-- No RK during the opening route: H7 continues to the first station while
-  sending SYNC.
-- No task ACK: the current fail-open test configuration logs a bypass and
-  continues the route.
-- Lost task DONE: H7 sends STATUS queries until the task timeout, then logs a
-  bypass and continues.
-- RK servo startup failure: the RK process exits instead of announcing READY;
-  systemd restarts it and H7 continues waiting.
-- Ctrl+C, process exit, task timeout, and COLUMN STOP use the same home contract.
+## Task behavior
 
-RK writes the combined vision/protocol log to
-`/home/cat/ros2_ws/chassis_arm_link.log`. Logrotate keeps five compressed
-history files and rotates each log at 5 MiB.
+- `DISC_CATCH`: move to `ID1=600`, `ID2=350`, catcher `ID5=1100`, then
+  descend to `ID1=520`. A yellow ball sets splitter ID4 to 1600; a field-color
+  ball sets it to 800. ID7 pulses once per newly observed ball. Two seconds
+  without a valid ball homes the arm and completes the task.
+- `PLATFORM_PICK`: each transaction performs at most one field-color block,
+  ring, or QR grasp. Two seconds without a fresh target homes the arm and
+  completes that transaction with `NO_TARGET_TIMEOUT`.
+- `COLUMN_CATCH`: splitter ID4 stays at 800. ID7 pulses once per newly observed
+  field-color ball while the chassis orbits. The task ends only after H7 STOP
+  and a successful home command.
+
+## Log interpretation
+
+H7 UART logs include the task and `SEQ=<N>` on START, ACK, DONE, bypass, ERR,
+and timeout records. The persistent run log uses:
+
+- `RUN_LOG_EVENT_ARM_START`: station entered
+- `RUN_LOG_EVENT_ARM_ACK`: asynchronous COLUMN task accepted
+- `RUN_LOG_EVENT_ARM_DONE`: synchronous station completed
+- `RUN_LOG_EVENT_ARM_BYPASS`: RK did not accept that station
+- `RUN_LOG_EVENT_ARM_STOP_DONE`: COLUMN task homed successfully
+
+RK writes protocol and vision output to
+`/home/cat/ros2_ws/chassis_arm_link.log`. A normal transaction contains the
+same task name and sequence in RX, ACK, and DONE. `FAULT_ARM_TIMEOUT` means an
+accepted task or STOP did not finish in time. `FAULT_ARM_REMOTE` means RK
+explicitly reported a servo, homing, startup-command, or control failure.
+
+## Verification before a ground run
+
+1. Keep the chassis lifted and leave servo power available with an emergency
+   stop reachable.
+2. Run RK protocol unit tests and build the ROS package.
+3. Build H7 and confirm there are no compiler errors.
+4. Start RK with `RED_SQUARE_EXECUTE=false` for a protocol-only test.
+5. Select RED, then BLUE, and confirm H7 logs opposite strafe/turn states and
+   RK logs matching field target policies.
+6. Repeat three `PLATFORM_PICK` transactions and confirm their sequence numbers
+   are different and each DONE matches only its own sequence.
+7. Only then enable servo writes and perform the complete ground route.

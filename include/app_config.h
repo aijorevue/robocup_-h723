@@ -27,7 +27,8 @@
 #define WHEEL_RL_SIGN 1.0f
 #define WHEEL_RR_SIGN -1.0f
 
-/* Autonomous route: strafe right 0.8 m, drive forward 4.1 m, turn right 90 deg,
+/* Autonomous route: arc toward field side 0.9 m while driving forward 4.05 m
+ * and turning 90 deg,
  * run the disc task, reverse 1.6 m, turn right 90 deg, drive forward 1.6 m,
  * turn right 90 deg, run three platform picks with two 0.35 m left shifts,
  * move diagonally with 0.9 m reverse and 0.1 m left components, turn right
@@ -44,6 +45,7 @@
 #define ROUTE_WAIT_RK_READY_ON_BOOT 0U
 #define RK_ARM_BOOT_READY_TIMEOUT_MS 2500U
 #define RK_ARM_PRETASK_SYNC_PERIOD_MS 250U
+#define RK_ARM_RESET_BEFORE_ROUTE_TIMEOUT_MS 3500U
 #define CAN_STARTUP_RETRY_TIMEOUT_MS 5000U
 #define CAN_STARTUP_RETRY_GAP_MS 50U
 /* Airborne integration mode: keep the route state machine running even if
@@ -57,8 +59,54 @@
 
 #define ROUTE_REQUIRE_MOTOR_TX_SUCCESS 1U
 
-#define ROUTE_STRAFE_DISTANCE_M 0.800f
-#define ROUTE_FORWARD_DISTANCE_M 4.100f
+#define ROUTE_STRAFE_DISTANCE_M 0.900f
+#define ROUTE_FORWARD_DISTANCE_M 4.050f
+#define ROUTE_DISC_ARC_ENTRY_ENABLED 1U
+/* Cubic entry shaped like the field sketch: acquire most of the lateral
+ * offset early, then run almost straight into the disc marker.  The final
+ * endpoint remains ROUTE_FORWARD_DISTANCE_M / ROUTE_STRAFE_DISTANCE_M. */
+#define ROUTE_DISC_ARC_CONTROL1_FORWARD_M 0.150f
+#define ROUTE_DISC_ARC_CONTROL1_LATERAL_M 0.120f
+#define ROUTE_DISC_ARC_CONTROL2_FORWARD_M 0.550f
+#define ROUTE_DISC_ARC_CONTROL2_LATERAL_M 0.900f
+#define ROUTE_DISC_ARC_MAX_SPEED_M_S 1.500f
+#define ROUTE_DISC_ARC_ACCEL_M_S2 1.400f
+#define ROUTE_DISC_ARC_TIMEOUT_MS 9000U
+#define ROUTE_DISC_ARC_ENDPOINT_CAPTURE_U 0.850f
+#define ROUTE_DISC_ARC_ENDPOINT_KP 1.20f
+#define ROUTE_DISC_ARC_ENDPOINT_MAX_SPEED_M_S 0.450f
+#define ROUTE_DISC_ARC_ENDPOINT_MIN_SPEED_M_S 0.120f
+#define ROUTE_DISC_ARC_ENDPOINT_TOLERANCE_M 0.030f
+#define ROUTE_DISC_ARC_DONE_DISTANCE_TOLERANCE_M 0.080f
+#define ROUTE_DISC_ARC_DONE_FORWARD_TOLERANCE_M 0.030f
+#define ROUTE_DISC_ARC_DONE_FORWARD_OVERSHOOT_TOLERANCE_M 0.050f
+#define ROUTE_DISC_ARC_DONE_PROGRESS_MIN 0.980f
+#define ROUTE_DISC_ARC_DONE_SPEED_TOLERANCE_M_S 0.080f
+#define ROUTE_DISC_ARC_DONE_HEADING_TOLERANCE_RAD 0.060f
+#define ROUTE_DISC_ARC_ODOM_FORWARD_SCALE 0.880f
+#define ROUTE_DISC_ARC_ODOM_LATERAL_SCALE 1.450f
+#define ROUTE_DISC_ARC_PREP_PERIOD_MS 300U
+#define ROUTE_DISC_PREP_HIGH_ID1_TICK 500
+#define ROUTE_DISC_PREP_HIGH_ID2_TICK 600
+/* Camera reference measured at the desired DISC station pose, 800x600. */
+#define ROUTE_DISC_VISUAL_ALIGN_ENABLED 1U
+#define ROUTE_DISC_VISUAL_ALIGN_REQUIRED 0U
+#define ROUTE_DISC_LINE_FRAME_WIDTH 800
+#define ROUTE_DISC_LINE_FRAME_HEIGHT 600
+#define ROUTE_DISC_LINE_REFERENCE_Y10 3619
+#define ROUTE_DISC_LINE_REFERENCE_A100 0
+#define ROUTE_DISC_LINE_Y_TOLERANCE_PX 8.0f
+#define ROUTE_DISC_LINE_ANGLE_TOLERANCE_DEG 0.6f
+#define ROUTE_DISC_LINE_TRANSLATION_KP_M_S_PER_PX 0.0040f
+#define ROUTE_DISC_LINE_TURN_KP_RAD_S_PER_DEG 0.040f
+#define ROUTE_DISC_LINE_TURN_KD 0.08f
+#define ROUTE_DISC_LINE_MAX_TRANSLATION_M_S 0.20f
+#define ROUTE_DISC_LINE_MIN_TRANSLATION_M_S 0.05f
+#define ROUTE_DISC_LINE_MAX_TURN_RAD_S 0.35f
+#define ROUTE_DISC_LINE_QUERY_PERIOD_MS 80U
+#define ROUTE_DISC_LINE_STALE_MS 350U
+#define ROUTE_DISC_LINE_TIMEOUT_MS 4500U
+#define ROUTE_DISC_LINE_STABLE_SAMPLES 4U
 #define ROUTE_AFTER_DISC_REVERSE_DISTANCE_M 1.600f
 #define ROUTE_PLATFORM_APPROACH_DISTANCE_M 1.600f
 #define ROUTE_AFTER_PLATFORM_REVERSE_COMPONENT_M 0.900f
@@ -72,14 +120,17 @@
 #define ROUTE_ORBIT_KP 1.80f
 #define ROUTE_ORBIT_KD 0.25f
 #define ROUTE_FINAL_REVERSE_DISTANCE_M 0.300f
-#define ROUTE_SERVO_SETTLE_MS 700U
+#define ROUTE_SERVO_OPEN_HOLD_MS 2000U
+#define ROUTE_SERVO_RETURN_SETTLE_MS 700U
 #define ROUTE_SERVO_INITIAL_ANGLE_DEG 0.0f
 
 
-#define ROUTE_TRANSLATION_SPEED_M_S 1.800f
-#define ROUTE_TRANSLATION_ACCEL_M_S2 2.000f
-#define ROUTE_LONG_FORWARD_SPEED_M_S 1.800f
-#define ROUTE_LONG_FORWARD_ACCEL_M_S2 2.000f
+#define ROUTE_TRANSLATION_SPEED_M_S 1.500f
+#define ROUTE_TRANSLATION_ACCEL_M_S2 1.400f
+#define ROUTE_INITIAL_STRAFE_SPEED_M_S 1.500f
+#define ROUTE_INITIAL_STRAFE_ACCEL_M_S2 1.400f
+#define ROUTE_LONG_FORWARD_SPEED_M_S 1.500f
+#define ROUTE_LONG_FORWARD_ACCEL_M_S2 1.400f
 #define ROUTE_TRANSLATION_TIMEOUT_MS 15000U
 #define DRIVE_STOP_TOLERANCE_M 0.004f
 #define DRIVE_DISTANCE_SCALE 1.000f
@@ -104,12 +155,9 @@
 #define ROUTE_TURN_TIMEOUT_MS 6000U
 #define ROUTE_SEGMENT_SETTLE_MS 80U
 
-/* RK arm task points on the chassis route.
- * Task 1: after the first right 90 deg turn, run disc red/yellow ball catch.
- * Task 2: after the second right 90 deg turn, run three one-shot platform picks.
- *         The chassis shifts left 350 mm between each pick.
- * Task 3: before the orbit, expand the arm and keep detecting red balls while
- *         the chassis is moving; stop/retract after the final reverse. */
+/* RK arm task points. Directions and target colors mirror with the field:
+ * BLUE uses right turns, left platform shifts, and blue/yellow or blue targets;
+ * RED uses left turns, right platform shifts, and red/yellow or red targets. */
 #define ROUTE_TASK1_DISC_CATCH_ENABLED 1U
 #define ROUTE_TASK1_RK_ARM_TASK "DISC_CATCH"
 #define ROUTE_TASK2_PLATFORM_PICK_ENABLED 1U
@@ -123,6 +171,7 @@
 #define RK_ARM_START_RETRY_MS 200U
 #define RK_ARM_PROBE_ACK_TIMEOUT_MS 1800U
 #define RK_ARM_ACK_TIMEOUT_MS 3000U
+#define RK_ARM_BUSY_TIMEOUT_MS 12000U
 #define RK_ARM_WAIT_FOREVER_FOR_ACK 0U
 #define RK_ARM_TASK_TIMEOUT_MS 20000U
 #define RK_ARM_STATUS_PERIOD_MS 1000U
@@ -146,16 +195,16 @@
 #define IMU_VELOCITY_PREDICTION_WEIGHT 0.08f
 #define IMU_VELOCITY_MAX_ENCODER_DELTA_M_S 0.15f
 #define IMU_ZERO_VELOCITY_THRESHOLD_M_S 0.020f
-#define HEADING_KP 7.50f
-#define HEADING_KD 0.22f
+#define HEADING_KP 9.00f
+#define HEADING_KD 0.30f
 #define STRAFE_HEADING_KP 5.00f
 #define STRAFE_HEADING_KD 0.25f
 #define HEADING_MAX_CORRECTION_RAD_S 0.70f
-#define HEADING_CORRECTION_SPEED_RATIO 0.50f
+#define HEADING_CORRECTION_SPEED_RATIO 0.65f
 /* Keep each translation on its original world-frame line.  Heading control
  * alone can straighten the chassis after it has already drifted sideways. */
-#define TRANSLATION_CROSS_TRACK_KP 1.80f
-#define TRANSLATION_CROSS_TRACK_KD 0.15f
+#define TRANSLATION_CROSS_TRACK_KP 2.40f
+#define TRANSLATION_CROSS_TRACK_KD 0.22f
 #define TRANSLATION_CROSS_TRACK_MAX_M_S 0.30f
 #define TRANSLATION_FIELD_ORIENT_MAX_ERROR_RAD 0.12f
 #define TRANSLATION_CROSS_TRACK_SETTLE_MAX_M_S 0.18f
@@ -209,6 +258,9 @@
 #define RC_TIMEOUT_MS 300U
 #define RC_OVERRIDE_ALLOW_HIGH_ON_BOOT 1U
 #define RC_OVERRIDE_RELEASE_CONFIRM_MS 600U
+/* A short RC/UART dropout is tolerated by replaying the last valid command.
+ * A longer outage releases ownership and returns to the LCD start gate. */
+#define RC_OVERRIDE_SIGNAL_LOSS_RELEASE_MS 1200U
 #define RC_OVERRIDE_MAX_LINEAR_M_S 1.000f
 #define RC_OVERRIDE_MAX_ANGULAR_RAD_S 2.000f
 #define RC_OVERRIDE_WHEEL_RADIUS_M 0.050f
@@ -218,6 +270,10 @@
 #define RC_OVERRIDE_WHEEL_FR_SIGN -1.0f
 #define RC_OVERRIDE_WHEEL_RL_SIGN 1.0f
 #define RC_OVERRIDE_WHEEL_RR_SIGN -1.0f
+
+/* Fault handling already sends a zero and disables the motors on entry.
+ * Reassert the safe state at a bounded rate while waiting for restart. */
+#define ROUTE_FAULT_SAFE_REFRESH_MS 250U
 
 /*
  * MG90S PWM outputs on the DM-MC-Board02 expansion header:
@@ -232,6 +288,6 @@
 #define SERVO_MG90S_MIN_PULSE_US 500U
 #define SERVO_MG90S_MAX_PULSE_US 2500U
 #define SERVO_MG90S_MAX_ANGLE_DEG 180.0f
-#define SERVO_MG90S_ROUTE_ANGLE_DEG 95.0f
+#define SERVO_MG90S_ROUTE_ANGLE_DEG 90.0f
 
 #endif

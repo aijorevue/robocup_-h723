@@ -75,6 +75,15 @@ static void feedback_from_frame(uint32_t now_ms, const board_can_rx_frame_t *fra
     feedback_seen[motor_id - 1U] = true;
 }
 
+void motor_feedback_drain(uint32_t now_ms)
+{
+    board_can_rx_frame_t frame = {0};
+
+    while (board_fdcan1_read_classic_std8(&frame)) {
+        feedback_from_frame(now_ms, &frame);
+    }
+}
+
 static bool send_special_batch(int (*packer)(uint8_t out[8]), uint16_t id_offset)
 {
     uint8_t payload[4][8];
@@ -97,6 +106,7 @@ static bool send_special_to_all(int (*packer)(uint8_t out[8]))
 
     /* Primary: base ID only (must succeed). Matches ROS2/new protocol. */
     for (round = 0U; round < MOTOR_SPECIAL_RETRY_COUNT; ++round) {
+        motor_feedback_drain(HAL_GetTick());
         if (!send_special_batch(packer, 0U)) {
             return false;
         }
@@ -104,9 +114,11 @@ static bool send_special_to_all(int (*packer)(uint8_t out[8]))
     }
     /* Secondary: base+0x200 best-effort for old SDK enable path. */
     for (round = 0U; round < MOTOR_SPECIAL_COMPAT_RETRY_COUNT; ++round) {
+        motor_feedback_drain(HAL_GetTick());
         (void)send_special_batch(packer, DM_CAN_MODE_VEL_OFFSET);
         HAL_Delay(MOTOR_SPECIAL_RETRY_GAP_MS);
     }
+    motor_feedback_drain(HAL_GetTick());
     return true;
 }
 
@@ -157,12 +169,9 @@ bool motor_disable_all(void)
 
 bool motor_feedback_update(uint32_t now_ms, float wheel_rad_s[4])
 {
-    board_can_rx_frame_t frame = {0};
     uint32_t i;
 
-    while (board_fdcan1_read_classic_std8(&frame)) {
-        feedback_from_frame(now_ms, &frame);
-    }
+    motor_feedback_drain(now_ms);
     if (wheel_rad_s != NULL) {
         for (i = 0U; i < 4U; ++i) {
             wheel_rad_s[i] = latest_wheel_rad_s[i];

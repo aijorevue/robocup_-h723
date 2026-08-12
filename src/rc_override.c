@@ -19,6 +19,7 @@
 static rc_control_state_t control_state;
 static rc_parser_stats_t stats_debug;
 static chassis_command_t command_debug;
+static chassis_command_t last_drive_command;
 static rc_frame_t latest_frame_debug;
 static bool have_frame_debug;
 static bool override_running;
@@ -29,6 +30,7 @@ static bool motor_disable_pending;
 static uint32_t last_disable_attempt_ms;
 static uint32_t last_idle_status_ms;
 static uint32_t last_enable_attempt_ms;
+static uint32_t last_input_event_log_ms;
 
 static const rc_control_config_t control_config = {
     .vx_channel = RC_CH_VX_INDEX,
@@ -71,13 +73,24 @@ static const mecanum_config_t rc_chassis = {
     }
 };
 
+_Static_assert(RC_OVERRIDE_SIGNAL_LOSS_RELEASE_MS >= RC_TIMEOUT_MS,
+               "RC signal-loss release must not precede frame timeout");
+_Static_assert(RC_OVERRIDE_RELEASE_CONFIRM_MS > 0U,
+               "RC release confirmation must be non-zero");
+
 static bool wait_for_all_tx(void)
 {
     return board_fdcan1_wait_tx_fifo_free(8U, MOTOR_TX_DRAIN_TIMEOUT_MS);
 }
 
+static void drain_motor_feedback(void)
+{
+    motor_feedback_drain(HAL_GetTick());
+}
+
 static bool send_safety_zero_checked(void)
 {
+    drain_motor_feedback();
     if (!motor_send_zero_all() || !wait_for_all_tx()) {
         rc_control_force_safe(&control_state);
         command_debug = (chassis_command_t){0};
@@ -91,9 +104,16 @@ static bool enable_motors_for_arm(void)
     motor_enable_pending = true;
     motor_disable_pending = false;
 
-    if (!motor_clear_errors_all() || !wait_for_all_tx() ||
-        !motor_enable_all() || !wait_for_all_tx() ||
-        !motor_send_zero_all() || !wait_for_all_tx()) {
+    drain_motor_feedback();
+    if (!motor_clear_errors_all() || !wait_for_all_tx()) {
+        return false;
+    }
+    drain_motor_feedback();
+    if (!motor_enable_all() || !wait_for_all_tx()) {
+        return false;
+    }
+    drain_motor_feedback();
+    if (!motor_send_zero_all() || !wait_for_all_tx()) {
         return false;
     }
 
@@ -115,6 +135,7 @@ static bool zero_then_disable_once(uint32_t now_ms)
     if (disable_ok) {
         disable_ok = wait_for_all_tx();
     }
+    drain_motor_feedback();
 
     motor_enable_pending = false;
     if (zero_ok && disable_ok) {
@@ -148,22 +169,14 @@ static void enter_fault_safe(uint32_t now_ms)
 #endif
 }
 
-static void maintain_safe_state(uint32_t now_ms)
+static bool send_drive_command(const chassis_command_t *command)
 {
-    if (!owns_motors) {
-        return;
-    }
-    if (motors_enabled || motor_enable_pending || motor_disable_pending) {
-        if (!motor_disable_pending ||
-            (uint32_t)(now_ms - last_disable_attempt_ms) >=
-                RC_MOTOR_DISABLE_RETRY_MS) {
-            (void)zero_then_disable_once(now_ms);
-        } else {
-            (void)send_safety_zero_checked();
-        }
-    } else {
-        (void)send_safety_zero_checked();
-    }
+    float wheel_speed[MECANUM_WHEEL_COUNT] = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    return command != NULL &&
+           mecanum_inverse(&rc_chassis, command->vx_m_s, command->vy_m_s,
+                           command->wz_rad_s, wheel_speed) &&
+           motor_send_wheel_speeds(wheel_speed);
 }
 
 static chassis_command_t update_command(uint32_t now_ms)
@@ -174,16 +187,15 @@ static chassis_command_t update_command(uint32_t now_ms)
     latest_frame_debug = frame;
     have_frame_debug = have_frame;
     if (board_rc_take_unsafe_event()) {
-        /* Receiver faults may stop motors only after RC has taken ownership.
-         * Autonomous route code owns them at every other time. */
-        if (!owns_motors) {
-            rc_control_force_safe(&control_state);
-            command_debug = (chassis_command_t){0};
-            return command_debug;
+        /* A parser/UART event invalidates the current sample, but it is not
+         * itself a motor-stop request.  The valid-frame timeout below gives
+         * the stream time to recover and the bounded loss policy handles a
+         * genuinely disconnected receiver. */
+        const uint32_t event_now_ms = HAL_GetTick();
+        if ((uint32_t)(event_now_ms - last_input_event_log_ms) >= 1000U) {
+            last_input_event_log_ms = event_now_ms;
+            board_uart1_write_only("H7,RC,INPUT_EVENT,IGNORED_FOR_CONTINUITY\r\n");
         }
-        enter_fault_safe(now_ms);
-        command_debug = (chassis_command_t){0};
-        return command_debug;
     }
     command_debug = rc_control_update(
         &control_state, &control_config, have_frame ? &frame : 0,
@@ -193,14 +205,22 @@ static chassis_command_t update_command(uint32_t now_ms)
 
 static void log_active_status(void)
 {
-    char line[176];
+    const chassis_command_t *effective_command = &command_debug;
+    const char *command_source = "LIVE";
+    char line[384];
+
+    if (!command_debug.armed && last_drive_command.armed) {
+        effective_command = &last_drive_command;
+        command_source = "HOLD";
+    }
 
     if (have_frame_debug && latest_frame_debug.channel_count >= 6U) {
-        const int32_t vx_mm_s = (int32_t)(command_debug.vx_m_s * 1000.0f);
-        const int32_t vy_mm_s = (int32_t)(command_debug.vy_m_s * 1000.0f);
-        const int32_t wz_mrad_s = (int32_t)(command_debug.wz_rad_s * 1000.0f);
+        const int32_t vx_mm_s = (int32_t)(effective_command->vx_m_s * 1000.0f);
+        const int32_t vy_mm_s = (int32_t)(effective_command->vy_m_s * 1000.0f);
+        const int32_t wz_mrad_s = (int32_t)(effective_command->wz_rad_s * 1000.0f);
         (void)snprintf(line, sizeof(line),
-                       "H7,RC,ACTIVE,ch1=%u,ch2=%u,ch3=%u,ch4=%u,ch5=%u,ch6=%u,vx_mm=%ld,vy_mm=%ld,wz_mrad=%ld,valid=%lu,uart_err=%lu\r\n",
+                       "H7,RC,ACTIVE,source=%s,ch1=%u,ch2=%u,ch3=%u,ch4=%u,ch5=%u,ch6=%u,vx_mm=%ld,vy_mm=%ld,wz_mrad=%ld,valid=%lu,lost=%lu,failsafe=%lu,range=%lu,uart_err=%lu,can_tx=%lu\r\n",
+                       command_source,
                        latest_frame_debug.channels[0],
                        latest_frame_debug.channels[1],
                        latest_frame_debug.channels[2],
@@ -211,13 +231,22 @@ static void log_active_status(void)
                        (long)vy_mm_s,
                        (long)wz_mrad_s,
                        (unsigned long)stats_debug.valid_frame_count,
-                       (unsigned long)g_uart5_error_count);
+                       (unsigned long)stats_debug.lost_frame_count,
+                       (unsigned long)stats_debug.failsafe_frame_count,
+                       (unsigned long)stats_debug.range_error_count,
+                       (unsigned long)g_uart5_error_count,
+                       (unsigned long)g_fdcan_tx_error_count);
         board_uart1_write(line);
     } else {
         (void)snprintf(line, sizeof(line),
-                       "H7,RC,ACTIVE,no_frame,valid=%lu,uart_err=%lu\r\n",
+                       "H7,RC,ACTIVE,source=%s,no_frame,valid=%lu,lost=%lu,failsafe=%lu,range=%lu,uart_err=%lu,can_tx=%lu\r\n",
+                       command_source,
                        (unsigned long)stats_debug.valid_frame_count,
-                       (unsigned long)g_uart5_error_count);
+                       (unsigned long)stats_debug.lost_frame_count,
+                       (unsigned long)stats_debug.failsafe_frame_count,
+                       (unsigned long)stats_debug.range_error_count,
+                       (unsigned long)g_uart5_error_count,
+                       (unsigned long)g_fdcan_tx_error_count);
         board_uart1_write(line);
     }
 }
@@ -230,6 +259,7 @@ void rc_override_init(void)
 #endif
     stats_debug = (rc_parser_stats_t){0};
     command_debug = (chassis_command_t){0};
+    last_drive_command = (chassis_command_t){0};
     latest_frame_debug = (rc_frame_t){0};
     have_frame_debug = false;
     override_running = false;
@@ -240,6 +270,7 @@ void rc_override_init(void)
     last_disable_attempt_ms = HAL_GetTick();
     last_enable_attempt_ms = HAL_GetTick() - RC_MOTOR_ENABLE_RETRY_MS;
     last_idle_status_ms = HAL_GetTick() - 1000U;
+    last_input_event_log_ms = HAL_GetTick() - 1000U;
 }
 
 bool rc_override_is_running(void)
@@ -250,8 +281,10 @@ bool rc_override_is_running(void)
 bool rc_override_service(void)
 {
 #if ROUTE_RC_OVERRIDE_ENABLED
+    float measured_wheel_speed[MECANUM_WHEEL_COUNT] = {0.0f, 0.0f, 0.0f, 0.0f};
     uint32_t last_control_ms;
     uint32_t released_since_ms = 0U;
+    uint32_t signal_lost_since_ms = 0U;
     uint32_t last_status_ms;
 
     command_debug = update_command(HAL_GetTick());
@@ -315,31 +348,78 @@ bool rc_override_service(void)
             last_control_ms = now_ms;
         }
 
+        /* RC control does not close a chassis feedback loop, but every motor
+         * still replies on CAN.  Drain those frames so the 16-element RX FIFO
+         * cannot overflow during a long manual takeover. */
+        (void)motor_feedback_update(now_ms, measured_wheel_speed);
+
         command_debug = update_command(now_ms);
         if (!command_debug.armed) {
-            if (released_since_ms == 0U) {
-                released_since_ms = now_ms;
-            } else if ((uint32_t)(now_ms - released_since_ms) >=
-                       RC_OVERRIDE_RELEASE_CONFIRM_MS) {
-                (void)zero_then_disable_once(now_ms);
-                rc_control_force_safe(&control_state);
-#if RC_OVERRIDE_ALLOW_HIGH_ON_BOOT
-                control_state.saw_unlock_low = true;
-#endif
-                command_debug = (chassis_command_t){0};
-                override_running = false;
-                owns_motors = false;
-                motors_enabled = false;
-                motor_enable_pending = false;
-                motor_disable_pending = false;
-                board_uart1_write("H7,RC,RELEASED,WAIT_USER_KEY\r\n");
-                return true;
+            const bool fresh_frame =
+                have_frame_debug && stats_debug.valid_frame_count != 0U &&
+                (uint32_t)(now_ms - stats_debug.last_valid_ms) < RC_TIMEOUT_MS;
+            const bool release_requested =
+                fresh_frame &&
+                latest_frame_debug.channel_count > RC_CH_UNLOCK_INDEX &&
+                latest_frame_debug.channels[RC_CH_UNLOCK_INDEX] <
+                    RC_UNLOCK_HIGH_MIN_US;
+            bool signal_loss_release = false;
+
+            if (fresh_frame) {
+                signal_lost_since_ms = 0U;
+            } else if (signal_lost_since_ms == 0U) {
+                signal_lost_since_ms = now_ms;
+            } else if ((uint32_t)(now_ms - signal_lost_since_ms) >=
+                       RC_OVERRIDE_SIGNAL_LOSS_RELEASE_MS) {
+                signal_loss_release = true;
             }
-            maintain_safe_state(now_ms);
+
+            if (release_requested || signal_loss_release) {
+                if (released_since_ms == 0U) {
+                    released_since_ms = now_ms;
+                    if (motors_enabled && !send_safety_zero_checked()) {
+                        board_uart1_write("H7,RC,RELEASE_ZERO_FAIL\r\n");
+                    }
+                } else if ((uint32_t)(now_ms - released_since_ms) >=
+                           RC_OVERRIDE_RELEASE_CONFIRM_MS &&
+                           (!motor_disable_pending ||
+                            (uint32_t)(now_ms - last_disable_attempt_ms) >=
+                                RC_MOTOR_DISABLE_RETRY_MS)) {
+                    if (!zero_then_disable_once(now_ms)) {
+                        board_uart1_write("H7,RC,RELEASE_RETRY\r\n");
+                        continue;
+                    }
+                    rc_control_force_safe(&control_state);
+#if RC_OVERRIDE_ALLOW_HIGH_ON_BOOT
+                    control_state.saw_unlock_low = true;
+#endif
+                    command_debug = (chassis_command_t){0};
+                    last_drive_command = (chassis_command_t){0};
+                    override_running = false;
+                    owns_motors = false;
+                    motors_enabled = false;
+                    motor_enable_pending = false;
+                    motor_disable_pending = false;
+                    board_uart1_write(signal_loss_release
+                                          ? "H7,RC,RELEASED,SIGNAL_LOST,WAIT_USER_KEY\r\n"
+                                          : "H7,RC,RELEASED,CH5_LOW,WAIT_USER_KEY\r\n");
+                    return true;
+                }
+                continue;
+            }
+
+            if (motors_enabled && last_drive_command.armed &&
+                !send_drive_command(&last_drive_command)) {
+                board_uart1_write("H7,RC,MOTOR_COMMAND_FAIL\r\n");
+                enter_fault_safe(now_ms);
+                last_enable_attempt_ms = now_ms - RC_MOTOR_ENABLE_RETRY_MS;
+            }
             continue;
         }
 
         released_since_ms = 0U;
+        signal_lost_since_ms = 0U;
+        last_drive_command = command_debug;
         if (!motors_enabled) {
             if ((uint32_t)(now_ms - last_enable_attempt_ms) >=
                 RC_MOTOR_ENABLE_RETRY_MS) {
@@ -351,17 +431,11 @@ bool rc_override_service(void)
             }
             continue;
         }
-        {
-            float wheel_speed[MECANUM_WHEEL_COUNT] = {0.0f, 0.0f, 0.0f, 0.0f};
-            if (!mecanum_inverse(&rc_chassis, command_debug.vx_m_s,
-                                 command_debug.vy_m_s,
-                                 command_debug.wz_rad_s, wheel_speed) ||
-                !motor_send_wheel_speeds(wheel_speed)) {
-                board_uart1_write("H7,RC,MOTOR_COMMAND_FAIL\r\n");
-                enter_fault_safe(now_ms);
-                last_enable_attempt_ms = now_ms - RC_MOTOR_ENABLE_RETRY_MS;
-                continue;
-            }
+        if (!send_drive_command(&command_debug)) {
+            board_uart1_write("H7,RC,MOTOR_COMMAND_FAIL\r\n");
+            enter_fault_safe(now_ms);
+            last_enable_attempt_ms = now_ms - RC_MOTOR_ENABLE_RETRY_MS;
+            continue;
         }
     }
 #else

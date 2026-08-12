@@ -38,6 +38,9 @@ typedef enum {
     RUN_THIRD_TURN_LEFT = 29,
     RUN_PLATFORM_SHIFT_RIGHT = 30,
     RUN_LAST_TURN_LEFT = 31
+    ,
+    RUN_DISC_ARC_ENTRY = 32,
+    RUN_DISC_VISUAL_ALIGN = 33
 } run_state_t;
 
 enum {
@@ -50,7 +53,8 @@ enum {
     FAULT_KINEMATICS = 6,
     FAULT_TURN_TIMEOUT = 7,
     FAULT_ARM_TIMEOUT = 8,
-    FAULT_RC_OVERRIDE = 9
+    FAULT_RC_OVERRIDE = 9,
+    FAULT_ARM_REMOTE = 10
 };
 
 extern volatile run_state_t g_run_state;
@@ -71,11 +75,12 @@ void route_controller_wait_for_start(void);
 void route_controller_set_field(uint8_t is_red);
 void route_controller_reset_run_context(void);
 void route_controller_begin_pretask_sync(void);
+bool route_controller_wait_for_rk_reset_before_route(void);
 void route_controller_mark_first_arm_station(void);
 void route_controller_request_rk_reset(void);
 void route_controller_service_rk_link(void);
 void route_controller_reset_pose(void);
-uint8_t route_controller_arm_tasks_disabled(void);
+uint8_t route_controller_last_arm_task_bypassed(void);
 uint8_t route_controller_rk_link_ready(void);
 
 bool route_controller_wait_for_can_startup(void);
@@ -93,6 +98,9 @@ bool route_controller_run_translation_profile(float vx_direction,
 bool route_controller_run_translation(float vx_direction,
                                       float vy_direction,
                                       float target_distance_m);
+bool route_controller_run_disc_arc_entry(float lateral_sign,
+                                         float turn_sign);
+bool route_controller_run_disc_visual_alignment(void);
 bool route_controller_run_relative_turn(float angle_rad);
 bool route_controller_run_front_center_orbit(float angle_rad,
                                              float center_distance_m);

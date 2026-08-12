@@ -1,40 +1,62 @@
-# DM-MC02 BMI088 两米直行测试
+# H7 麦克纳姆底盘与 RK 机械臂联动工程
 
-本工程用于 STM32H723VGT6/DM-MC02、四台 DM-S2325-1EC + DM3520-1EC。它不读取遥控器，上电后使用板载 BMI088 陀螺仪保持航向，并按速度指令积分运行约 2m。
+本工程运行在 STM32H723VGT6 / DM-MC02 上，负责四轮麦克纳姆底盘、BMI088、LCD、FS-i6S 遥控器、两路 MG90S，以及通过 USB CDC 与 RK3588S 机械臂视觉程序联动。
 
-## 运行流程
+## 代码入口
 
-1. 上电立即发送零速和失能，不会直接起步。
-2. 初始化 BMI088，并在车体静止时采集约 2 秒陀螺仪零偏。
-3. 校准完成后自动清错、使能四个电机，无需按键。
-4. 以梯形速度曲线前进，BMI088 Z 轴闭环修正偏航。
-5. 指令里程达到 2m 后持续零速 1 秒并失能，动作只执行一次。
-6. 每次重新上电或复位都会重新校准并自动执行一次。
+- `src/main.c`：红/蓝场路线状态机与三个机械臂任务点。
+- `src/route_controller.c`：编码器里程计、BMI088 航向闭环、平移/转向/绕行控制和 H7-RK 协议。
+- `src/rc_override.c`：CH5 使能后的遥控器接管与退出。
+- `src/rc_protocol.c`、`src/rc_control.c`：SBUS/iBUS 解码、通道检查、死区和速度档位。
+- `src/motor_output.c`：四个达妙电机的 CAN 命令和反馈。
+- `src/board.c`：时钟、GPIO、ADC、UART、FDCAN、PWM 和 USB 等板级驱动。
+- `src/lcd_display.c`：电压、场地、航向、里程、RK 和启动状态显示。
+- `src/run_log.c`：行车记录采样、Flash 保存和串口导出。
+- `include/app_config.h`：路线距离、速度、PID、超时和硬件映射参数。
 
-## 默认硬件参数
+H7-RK 协议与联调步骤见 `docs/h7-rk-workflow.md`。
 
-- CAN：FDCAN1，PD0/PD1，Classic CAN，1 Mbit/s。
-- 电机基础 ID：FL/FR/RL/RR = `1/2/3/4`。
-- BMI088：SPI2，PB13=SCK、PC1=MOSI、PC2=MISO、PC0=ACC_CS、PC3=GYRO_CS。
-- 巡航速度：0.35m/s；加速度：0.35m/s²。
-- 自动前进方向使用与 FS-i6S 前推摇杆一致的负 `vx`；轮位为 ID1左前、ID2右前、ID3左后、ID4右后。
-- BMI088 Z轴方向已按实测右偏修正；航向补偿限制为当前前进速度的50%，避免一侧轮速被压入死区。
+## 启动与控制权
 
-所有可调参数都在 `include/app_config.h`。
+1. 上电初始化 LCD、USB、FDCAN、UART 和 PWM，等待 LCD 摇杆选择场地。
+2. 摇杆向上选择红场，向下选择蓝场；显示立即更新，释放后开始路线。
+3. 自动路线运行期间，CH5 拉高可在任意阶段由遥控器接管底盘。
+4. RC 短暂丢帧时继续发送最后一条有效指令；持续丢失或 CH5 关闭后，零速、失能并回到 LCD 启动门。
+5. 路线故障后仍可用 RC 接管；退出 RC 后可重新选择场地启动完整路线。
 
-## 重要限制
+## 自动路线
 
-陀螺仪只能保持方向，不能单独准确测量 2m 位移。本版距离来自“命令速度 × 时间”的积分，因此轮径、轮胎打滑、电机速度误差都会影响最终距离。第一次必须低速架空检查轮序和方向，然后在空旷场地测量实际距离。
+红场与蓝场使用相同距离，横移、转向、平台位移和绕行方向互为镜像：
 
-若设定 2m、实际只走了 `L` 米，将：
+1. 向场地侧横移 `0.8 m`，回正航向。
+2. 前进 `4.1 m`，再次回正。
+3. 向场地侧转 `90 deg`，执行 `DISC_CATCH`。
+4. 后退 `1.6 m`，再转 `90 deg`，前进 `1.6 m`。
+5. 再转 `90 deg`，执行三次 `PLATFORM_PICK`，两次横移均为 `0.35 m`。
+6. 后退 `0.9 m` 并横移 `0.1 m`，合成斜行。
+7. 再转 `90 deg`，异步启动 `COLUMN_CATCH`。
+8. 以车头前方 `0.5 m` 为圆心绕行 `270 deg`，再后退 `0.3 m`。
+9. 停止 `COLUMN_CATCH`，两路 MG90S 转到 `95 deg` 后回零并关闭 PWM。
+10. 底盘零速、失能，保存并输出行车日志，然后回到启动门。
 
-```text
-DRIVE_DISTANCE_SCALE_new = DRIVE_DISTANCE_SCALE_old * L / 2.0
-```
+## 当前控制参数
 
-例如实际走 1.86m，参数从 `1.000` 改为 `0.930`。想获得更高精度，应进一步启用四个 3520 的 CAN 位置/速度反馈，用轮端里程闭环代替时间积分。
+| 参数 | 数值 | 配置宏 |
+| --- | ---: | --- |
+| 平移最高速度 | `1.800 m/s` | `ROUTE_TRANSLATION_SPEED_M_S` |
+| 平移加速度 | `2.000 m/s^2` | `ROUTE_TRANSLATION_ACCEL_M_S2` |
+| 长直线最高速度 | `1.800 m/s` | `ROUTE_LONG_FORWARD_SPEED_M_S` |
+| 长直线加速度 | `2.000 m/s^2` | `ROUTE_LONG_FORWARD_ACCEL_M_S2` |
+| 转向最高角速度 | `2.200 rad/s` | `ROUTE_TURN_MAX_SPEED_RAD_S` |
+| 转向角加速度 | `3.800 rad/s^2` | `ROUTE_TURN_ACCEL_RAD_S2` |
+| 绕行最高角速度 | `1.000 rad/s` | `ROUTE_ORBIT_MAX_SPEED_RAD_S` |
+| 绕行角加速度 | `1.800 rad/s^2` | `ROUTE_ORBIT_ACCEL_RAD_S2` |
+| 直行航向 PD | `KP=7.50, KD=0.22` | `HEADING_KP`, `HEADING_KD` |
+| 横移航向 PD | `KP=5.00, KD=0.25` | `STRAFE_HEADING_KP`, `STRAFE_HEADING_KD` |
+| 转向 PD | `KP=2.20, KD=0.20` | `ROUTE_TURN_KP`, `ROUTE_TURN_KD` |
+| 路段稳定时间 | `80 ms` | `ROUTE_SEGMENT_SETTLE_MS` |
 
-如果开启航向修正后偏得更严重，把 `GYRO_Z_SIGN` 从 `1.0f` 改为 `-1.0f`。轮子方向不对则修正 `WHEEL_FL/FR/RL/RR_SIGN`，不要直接落地高速测试。
+平移距离由四轮编码器反馈构成的里程计闭环控制，BMI088 陀螺仪积分 yaw 并参与航向/转角闭环；加速度计仅以较低权重修正速度观测，不单独积分位置。
 
 ## 构建
 
@@ -43,28 +65,12 @@ cd D:\小车底盘\test\test1
 .\build.ps1 -Clean -Configuration Release
 ```
 
-输出文件位于：
+输出：
 
 ```text
-build\DM_MC02_Gyro_2m.elf
-build\DM_MC02_Gyro_2m.hex
-build\DM_MC02_Gyro_2m.bin
+build\DM_MC02_Gyro_3m.elf
+build\DM_MC02_Gyro_3m.hex
+build\DM_MC02_Gyro_3m.bin
 ```
 
-## Current chassis motion parameters
-参数	数值	配置宏
-平移最高速度	1.800 m/s	ROUTE_TRANSLATION_SPEED_M_S
-平移加速度	2.000 m/s^2	ROUTE_TRANSLATION_ACCEL_M_S2
-长直线前进最高速度	1.800 m/s	ROUTE_LONG_FORWARD_SPEED_M_S
-长直线前进加速度	2.000 m/s^2	ROUTE_LONG_FORWARD_ACCEL_M_S2
-转向最高角速度	2.200 rad/s	ROUTE_TURN_MAX_SPEED_RAD_S
-转向角加速度	3.800 rad/s^2	ROUTE_TURN_ACCEL_RAD_S2
-车头前方定心绕行最高角速度	1.000 rad/s	ROUTE_ORBIT_MAX_SPEED_RAD_S
-车头前方定心绕行角加速度	1.800 rad/s^2	ROUTE_ORBIT_ACCEL_RAD_S2
-直行航向 PID	KP=7.50, KD=0.22	HEADING_KP, HEADING_KD
-横移航向 PID	KP=5.00, KD=0.25	STRAFE_HEADING_KP, STRAFE_HEADING_KD
-转向航向 PD	KP=2.20, KD=0.20	ROUTE_TURN_KP, ROUTE_TURN_KD
-每段动作结束稳定等待时间	80 ms	ROUTE_SEGMENT_SETTLE_MS
-
-
-烧录前必须四轮架空、固定车体并准备动力急停。烧录本固件会覆盖当前遥控固件；测试结束后需要重新烧录原来的遥控版本。
+构建不会自动烧录。实车烧录前必须架空四轮、固定车体并准备动力急停。

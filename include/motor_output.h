@@ -9,6 +9,7 @@ bool motor_send_zero_all(void);
 bool motor_clear_errors_all(void);
 bool motor_enable_all(void);
 bool motor_disable_all(void);
+void motor_feedback_drain(uint32_t now_ms);
 bool motor_feedback_update(uint32_t now_ms, float wheel_rad_s[4]);
 
 #endif
