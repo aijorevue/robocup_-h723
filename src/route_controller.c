@@ -1694,22 +1694,10 @@ static float smoothstep01(float value)
     return u * u * (3.0f - 2.0f * u);
 }
 
-static void send_disc_arc_prep_high(void)
-{
-    char command[96];
-    const char *field_name = g_route_field_is_red != 0U ? "RED" : "BLUE";
-
-    (void)snprintf(command, sizeof(command),
-                   "ARM,DISC_CATCH,PREP_HIGH,FIELD,%s,ID1,%d,ID2,%d\r\n",
-                   field_name, ROUTE_DISC_PREP_HIGH_ID1_TICK,
-                   ROUTE_DISC_PREP_HIGH_ID2_TICK);
-    board_usb_write(command);
-}
-
 bool route_controller_wait_for_disc_prep_high(void)
 {
     const uint32_t started_ms = HAL_GetTick();
-    uint32_t last_send_ms = started_ms - ROUTE_DISC_ARC_PREP_PERIOD_MS;
+    uint32_t last_send_ms = started_ms - ROUTE_DISC_PREP_RETRY_PERIOD_MS;
     char line[96];
     uint32_t line_len = 0U;
     const char *field_name = g_route_field_is_red != 0U ? "RED" : "BLUE";
@@ -1789,7 +1777,6 @@ static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
     uint32_t previous_ms = HAL_GetTick();
     uint32_t last_control_ms = previous_ms;
     uint32_t last_log_ms = previous_ms - RUN_LOG_SAMPLE_PERIOD_MS;
-    uint32_t last_prep_ms = previous_ms - ROUTE_DISC_ARC_PREP_PERIOD_MS;
     const uint32_t started_ms = previous_ms;
     uint32_t settled_since_ms = 0U;
 
@@ -1806,8 +1793,6 @@ static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
     g_cross_track_m = 0.0f;
     g_cross_track_command_m_s = 0.0f;
     g_actual_cross_speed_m_s = 0.0f;
-    send_disc_arc_prep_high();
-
     for (;;) {
         uint32_t now_ms = HAL_GetTick();
         float dt;
@@ -1878,12 +1863,6 @@ static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
         if ((uint32_t)(now_ms - last_control_ms) >= CONTROL_PERIOD_MS) {
             last_control_ms = now_ms;
         }
-        if ((uint32_t)(now_ms - last_prep_ms) >=
-            ROUTE_DISC_ARC_PREP_PERIOD_MS) {
-            last_prep_ms = now_ms;
-            send_disc_arc_prep_high();
-        }
-
         dt = (float)(now_ms - previous_ms) * 0.001f;
         previous_ms = now_ms;
         dt = clampf(dt, 0.001f, 0.050f);
@@ -2165,15 +2144,6 @@ static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
     }
 }
 
-static float visual_align_minimum_command(float command, float error,
-                                          float tolerance, float minimum)
-{
-    if (fabsf(error) <= tolerance || fabsf(command) >= minimum) {
-        return command;
-    }
-    return command < 0.0f ? -minimum : minimum;
-}
-
 static bool run_disc_visual_alignment(void)
 {
     uint8_t rx[64];
@@ -2187,8 +2157,6 @@ static bool run_disc_visual_alignment(void)
     uint32_t last_control_ms = started_ms - CONTROL_PERIOD_MS;
     uint32_t last_query_ms = started_ms - ROUTE_DISC_LINE_QUERY_PERIOD_MS;
     uint32_t last_measurement_ms = 0U;
-    uint32_t stable_samples = 0U;
-    float error_y_px = 0.0f;
     float error_angle_deg = 0.0f;
     bool measurement_valid = false;
     float measured_wheel_speed[4] = {0.0f};
@@ -2219,14 +2187,9 @@ static bool run_disc_visual_alignment(void)
             (void)route_motor_send_zero_all();
             g_command_speed_m_s = 0.0f;
             g_heading_correction_rad_s = 0.0f;
-#if ROUTE_DISC_VISUAL_ALIGN_REQUIRED
-            board_uart1_write("H7,VISION,WHITE_LINE,TIMEOUT,REQUIRED\r\n");
-            g_fault_code = FAULT_ARM_TIMEOUT;
+            g_fault_code = FAULT_WHITE_LINE_NOT_FOUND;
+            board_uart1_write("H7,VISION,WHITE_LINE,TIMEOUT,FAULT\r\n");
             return false;
-#else
-            board_uart1_write("H7,VISION,WHITE_LINE,TIMEOUT,BYPASS\r\n");
-            return true;
-#endif
         }
 
         if ((uint32_t)(now_ms - last_query_ms) >=
@@ -2257,32 +2220,34 @@ static bool run_disc_visual_alignment(void)
                         response_sequence == (unsigned long)sequence &&
                         frame_width == ROUTE_DISC_LINE_FRAME_WIDTH &&
                         frame_height == ROUTE_DISC_LINE_FRAME_HEIGHT) {
-                        error_y_px =
-                            ((float)y10 - ROUTE_DISC_LINE_REFERENCE_Y10) * 0.1f;
                         error_angle_deg =
                             ((float)a100 - ROUTE_DISC_LINE_REFERENCE_A100) * 0.01f;
                         last_measurement_ms = now_ms;
                         measurement_valid = true;
-                        if (fabsf(error_y_px) <=
-                                ROUTE_DISC_LINE_Y_TOLERANCE_PX &&
-                            fabsf(error_angle_deg) <=
-                                ROUTE_DISC_LINE_ANGLE_TOLERANCE_DEG) {
-                            ++stable_samples;
-                        } else {
-                            stable_samples = 0U;
-                        }
                         (void)snprintf(
                             log_line, sizeof(log_line),
-                            "H7,VISION,WHITE_LINE,ERROR,DY=%.1f,DA=%.2f,STABLE=%lu\r\n",
-                            (double)error_y_px,
-                            (double)error_angle_deg,
-                            (unsigned long)stable_samples);
+                            "H7,VISION,WHITE_LINE,TRACK,Y10=%ld,DA=%.2f\r\n",
+                            y10, (double)error_angle_deg);
                         board_uart1_write_only(log_line);
-                    } else if (line_starts_with(
+                        if (y10 >= ROUTE_DISC_LINE_REFERENCE_Y10) {
+                            g_route_heading_target_rad = g_yaw_rad;
+                            board_uart1_write(
+                                "H7,VISION,WHITE_LINE,CROSSED,CONTINUE\r\n");
+                            return true;
+                        }
+                    } else if (sscanf(
                                    line,
-                                   "RK,VISION,WHITE_LINE,NOT_FOUND")) {
-                        measurement_valid = false;
-                        stable_samples = 0U;
+                                   "RK,VISION,WHITE_LINE,NOT_FOUND,SEQ,%lu",
+                                   &response_sequence) == 1 &&
+                               response_sequence ==
+                                   (unsigned long)sequence) {
+                        (void)route_motor_send_zero_all();
+                        g_command_speed_m_s = 0.0f;
+                        g_heading_correction_rad_s = 0.0f;
+                        g_fault_code = FAULT_WHITE_LINE_NOT_FOUND;
+                        board_uart1_write(
+                            "H7,VISION,WHITE_LINE,NOT_FOUND,FAULT\r\n");
+                        return false;
                     }
                 }
                 line_len = 0U;
@@ -2291,18 +2256,8 @@ static bool run_disc_visual_alignment(void)
             } else {
                 line_len = 0U;
                 measurement_valid = false;
-                stable_samples = 0U;
                 board_uart1_write("H7,ERR,WHITE_LINE_RESPONSE_TOO_LONG\r\n");
             }
-        }
-
-        if (stable_samples >= ROUTE_DISC_LINE_STABLE_SAMPLES) {
-            g_route_heading_target_rad = g_yaw_rad;
-            g_command_speed_m_s = 0.0f;
-            g_heading_correction_rad_s = 0.0f;
-            (void)route_motor_send_zero_all();
-            board_uart1_write("H7,VISION,WHITE_LINE,ALIGNED\r\n");
-            return true;
         }
 
         if ((uint32_t)(now_ms - last_control_ms) < CONTROL_PERIOD_MS) {
@@ -2312,7 +2267,8 @@ static bool run_disc_visual_alignment(void)
         last_control_ms = now_ms;
         {
             float dt = (float)(now_ms - previous_ms) * 0.001f;
-            float command_vx_m_s = 0.0f;
+            float command_vx_m_s =
+                ROUTE_FORWARD_SIGN * ROUTE_DISC_LINE_FORWARD_SPEED_M_S;
             float command_vy_m_s = 0.0f;
             float command_wz_rad_s = 0.0f;
 
@@ -2327,28 +2283,18 @@ static bool run_disc_visual_alignment(void)
             if (measurement_valid &&
                 (uint32_t)(now_ms - last_measurement_ms) <=
                     ROUTE_DISC_LINE_STALE_MS) {
-                const float forward_error_px = -error_y_px;
-
-                command_wz_rad_s = clampf(
-                    ROUTE_RIGHT_TURN_SIGN *
-                        ROUTE_DISC_LINE_TURN_KP_RAD_S_PER_DEG *
-                        error_angle_deg -
-                        ROUTE_DISC_LINE_TURN_KD * g_gyro_z_rad_s,
-                    -ROUTE_DISC_LINE_MAX_TURN_RAD_S,
-                    ROUTE_DISC_LINE_MAX_TURN_RAD_S);
-                command_vx_m_s = clampf(
-                    ROUTE_FORWARD_SIGN *
-                        ROUTE_DISC_LINE_TRANSLATION_KP_M_S_PER_PX *
-                        forward_error_px,
-                    -ROUTE_DISC_LINE_MAX_TRANSLATION_M_S,
-                    ROUTE_DISC_LINE_MAX_TRANSLATION_M_S);
-                command_vx_m_s = visual_align_minimum_command(
-                    command_vx_m_s, error_y_px,
-                    ROUTE_DISC_LINE_Y_TOLERANCE_PX,
-                    ROUTE_DISC_LINE_MIN_TRANSLATION_M_S);
+                if (fabsf(error_angle_deg) >
+                    ROUTE_DISC_LINE_ANGLE_DEADBAND_DEG) {
+                    command_wz_rad_s = clampf(
+                        ROUTE_RIGHT_TURN_SIGN *
+                            ROUTE_DISC_LINE_TURN_KP_RAD_S_PER_DEG *
+                            error_angle_deg -
+                            ROUTE_DISC_LINE_TURN_KD * g_gyro_z_rad_s,
+                        -ROUTE_DISC_LINE_MAX_TURN_RAD_S,
+                        ROUTE_DISC_LINE_MAX_TURN_RAD_S);
+                }
             } else {
                 measurement_valid = false;
-                stable_samples = 0U;
             }
 
             g_command_speed_m_s = sqrtf(
@@ -2376,6 +2322,91 @@ static bool run_translation(float vx_direction, float vy_direction,
                                    target_distance_m,
                                    ROUTE_TRANSLATION_SPEED_M_S,
                                    ROUTE_TRANSLATION_ACCEL_M_S2);
+}
+
+static bool run_timed_forward(float speed_m_s, uint32_t duration_ms)
+{
+    float measured_wheel_speed[4] = {0.0f};
+    float wheel_speed[4] = {0.0f};
+    float actual_vx_m_s = 0.0f;
+    float actual_vy_m_s = 0.0f;
+    float actual_wz_rad_s = 0.0f;
+    const float heading_target_rad = g_route_heading_target_rad;
+    uint32_t previous_ms = HAL_GetTick();
+    uint32_t last_control_ms = previous_ms - CONTROL_PERIOD_MS;
+    uint32_t last_log_ms = previous_ms - RUN_LOG_SAMPLE_PERIOD_MS;
+    const uint32_t started_ms = previous_ms;
+
+    if (speed_m_s <= 0.0f || duration_ms == 0U) {
+        g_fault_code = FAULT_KINEMATICS;
+        return false;
+    }
+
+    g_command_speed_m_s = speed_m_s;
+    g_cross_track_m = 0.0f;
+    g_cross_track_command_m_s = 0.0f;
+    g_actual_cross_speed_m_s = 0.0f;
+
+    while ((uint32_t)(HAL_GetTick() - started_ms) < duration_ms) {
+        const uint32_t now_ms = HAL_GetTick();
+        float dt;
+        float command_wz_rad_s;
+        float correction_limit_rad_s;
+
+        if ((uint32_t)(now_ms - last_control_ms) < CONTROL_PERIOD_MS) {
+            HAL_Delay(1U);
+            continue;
+        }
+        last_control_ms = now_ms;
+        dt = clampf((float)(now_ms - previous_ms) * 0.001f, 0.001f, 0.050f);
+        previous_ms = now_ms;
+
+        update_imu(dt);
+        if (!route_motor_feedback_update(now_ms, measured_wheel_speed)) {
+            g_fault_code = FAULT_MOTOR_COMMAND;
+            return false;
+        }
+        if (!mecanum_forward(&chassis, measured_wheel_speed,
+                             &actual_vx_m_s, &actual_vy_m_s,
+                             &actual_wz_rad_s)) {
+            g_fault_code = FAULT_KINEMATICS;
+            return false;
+        }
+        (void)actual_vy_m_s;
+        (void)actual_wz_rad_s;
+        g_estimated_distance_m += fabsf(actual_vx_m_s) * dt * DRIVE_DISTANCE_SCALE;
+
+        correction_limit_rad_s =
+            speed_m_s * HEADING_CORRECTION_SPEED_RATIO /
+            (CHASSIS_HALF_LENGTH_M + CHASSIS_HALF_WIDTH_M);
+        if (correction_limit_rad_s > HEADING_MAX_CORRECTION_RAD_S) {
+            correction_limit_rad_s = HEADING_MAX_CORRECTION_RAD_S;
+        }
+        command_wz_rad_s = clampf(
+            -HEADING_KP * (g_yaw_rad - heading_target_rad) -
+                HEADING_KD * g_gyro_z_rad_s,
+            -correction_limit_rad_s, correction_limit_rad_s);
+        g_heading_correction_rad_s = command_wz_rad_s;
+        if (!mecanum_inverse(&chassis,
+                             ROUTE_FORWARD_SIGN * speed_m_s, 0.0f,
+                             command_wz_rad_s, wheel_speed)) {
+            g_fault_code = FAULT_KINEMATICS;
+            return false;
+        }
+        if (!route_motor_send_wheel_speeds(wheel_speed)) {
+            preserve_rc_or_set_motor_fault();
+            return false;
+        }
+        if ((uint32_t)(now_ms - last_log_ms) >= RUN_LOG_SAMPLE_PERIOD_MS) {
+            last_log_ms = now_ms;
+            log_route_sample(now_ms, measured_wheel_speed);
+        }
+        lcd_display_update();
+    }
+
+    g_command_speed_m_s = 0.0f;
+    g_heading_correction_rad_s = 0.0f;
+    return route_motor_send_zero_all();
 }
 
 static bool run_relative_turn(float angle_rad)
@@ -2718,6 +2749,11 @@ bool route_controller_run_translation_profile(float vx_direction,
     return run_translation_profile(vx_direction, vy_direction,
                                    target_distance_m, maximum_speed_m_s,
                                    acceleration_m_s2);
+}
+
+bool route_controller_run_timed_forward(float speed_m_s, uint32_t duration_ms)
+{
+    return run_timed_forward(speed_m_s, duration_ms);
 }
 
 bool route_controller_run_translation(float vx_direction, float vy_direction,

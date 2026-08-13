@@ -244,24 +244,17 @@ route_start:
     if (!route_controller_run_disc_visual_alignment()) {
         enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
     }
-    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
 #endif
 
-    /* Once the white-line pose is stable, move the final 8 cm at low speed
-     * while the arm remains at PREP_HIGH. DISC_CATCH START is sent only after
+    /* Once the white line reaches the reference row, continue at 0.08 m/s for
+     * one second while holding the calibrated heading and PREP_HIGH pose.
+     * DISC_CATCH START is sent only after
      * this move stops, so RK lowers the arm and enables ball recognition in
      * the final station pose. */
     g_run_state = RUN_DISC_FINAL_APPROACH;
-    route_controller_set_heading_target(
-        field_profile.turn_sign * ROUTE_TURN_ANGLE_RAD);
-    if (!route_controller_run_translation_profile(
-            ROUTE_FORWARD_SIGN, 0.0f,
-            ROUTE_DISC_FINAL_APPROACH_DISTANCE_M,
+    if (!route_controller_run_timed_forward(
             ROUTE_DISC_FINAL_APPROACH_SPEED_M_S,
-            ROUTE_DISC_FINAL_APPROACH_ACCEL_M_S2)) {
+            ROUTE_DISC_FINAL_APPROACH_DURATION_MS)) {
         enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
     }
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);

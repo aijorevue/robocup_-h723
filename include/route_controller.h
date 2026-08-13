@@ -55,7 +55,8 @@ enum {
     FAULT_TURN_TIMEOUT = 7,
     FAULT_ARM_TIMEOUT = 8,
     FAULT_RC_OVERRIDE = 9,
-    FAULT_ARM_REMOTE = 10
+    FAULT_ARM_REMOTE = 10,
+    FAULT_WHITE_LINE_NOT_FOUND = 11
 };
 
 extern volatile run_state_t g_run_state;
@@ -97,6 +98,8 @@ bool route_controller_run_translation_profile(float vx_direction,
                                                float target_distance_m,
                                                float maximum_speed_m_s,
                                                float acceleration_m_s2);
+bool route_controller_run_timed_forward(float speed_m_s,
+                                        uint32_t duration_ms);
 bool route_controller_run_translation(float vx_direction,
                                       float vy_direction,
                                       float target_distance_m);
