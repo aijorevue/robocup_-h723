@@ -40,7 +40,8 @@ typedef enum {
     RUN_LAST_TURN_LEFT = 31
     ,
     RUN_DISC_ARC_ENTRY = 32,
-    RUN_DISC_VISUAL_ALIGN = 33
+    RUN_DISC_VISUAL_ALIGN = 33,
+    RUN_DISC_FINAL_APPROACH = 34
 } run_state_t;
 
 enum {
@@ -80,6 +81,7 @@ void route_controller_mark_first_arm_station(void);
 void route_controller_request_rk_reset(void);
 void route_controller_service_rk_link(void);
 void route_controller_reset_pose(void);
+void route_controller_set_heading_target(float heading_rad);
 uint8_t route_controller_last_arm_task_bypassed(void);
 uint8_t route_controller_rk_link_ready(void);
 
@@ -101,6 +103,7 @@ bool route_controller_run_translation(float vx_direction,
 bool route_controller_run_disc_arc_entry(float lateral_sign,
                                          float turn_sign);
 bool route_controller_run_disc_visual_alignment(void);
+bool route_controller_wait_for_disc_prep_high(void);
 bool route_controller_run_relative_turn(float angle_rad);
 bool route_controller_run_front_center_orbit(float angle_rad,
                                              float center_distance_m);

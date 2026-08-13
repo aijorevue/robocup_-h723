@@ -50,6 +50,7 @@ void board_servo_disable_index(uint8_t servo_index);
 void board_servo_set_angle_deg(float angle_deg);
 float board_read_bus_voltage(void);
 board_lcd_joystick_direction_t board_lcd_joystick_direction(void);
+uint32_t board_lcd_joystick_raw(void);
 board_field_t board_selected_field(void);
 void board_clear_selected_field(void);
 uint8_t board_user_start_active(void);

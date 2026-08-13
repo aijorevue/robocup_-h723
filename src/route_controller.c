@@ -32,6 +32,7 @@ static float g_route_heading_target_rad;
 static float g_accel_body_bias_m_s2[2];
 static float g_accel_body_filtered_m_s2[2];
 static volatile uint8_t g_rk_arm_link_ready;
+static volatile uint8_t g_rk_disc_prep_high_ack;
 static uint8_t g_rk_last_task_bypassed;
 static uint8_t g_first_arm_station_reached;
 static uint8_t g_start_confirmed_from_fault;
@@ -49,6 +50,7 @@ static void request_rk_arm_reset(void)
 {
     g_rk_reset_pending = 1U;
     g_rk_arm_link_ready = 0U;
+    g_rk_disc_prep_high_ack = 0U;
     g_first_arm_station_reached = 0U;
     g_rk_pretask_line_len = 0U;
     g_rk_pretask_last_sync_ms = HAL_GetTick() - RK_ARM_PRETASK_SYNC_PERIOD_MS;
@@ -98,18 +100,26 @@ static void wait_for_user_start_key_release(const char *status)
 static void wait_for_user_start_key(void)
 {
     uint32_t last_status_ms = HAL_GetTick() - 1000U;
+    char status_line[96];
 
     g_run_state = RUN_WAIT_USB_RUN;
     lcd_display_set_start_status("WAIT");
-    board_uart1_write("H7,START,WAIT_FIELD,joystick=UP_RED_OR_DOWN_BLUE\r\n");
+    board_uart1_write("H7,START,WAIT_FIELD,joystick=RIGHT_RED_OR_DOWN_BLUE\r\n");
     wait_for_user_start_key_release("WAIT");
     for (;;) {
         uint32_t now_ms = HAL_GetTick();
 
         lcd_display_update();
         if ((uint32_t)(now_ms - last_status_ms) >= 1000U) {
+            const board_lcd_joystick_direction_t direction =
+                board_lcd_joystick_direction();
+            const uint32_t raw = board_lcd_joystick_raw();
+
             last_status_ms = now_ms;
-            board_uart1_write("H7,START,WAIT_USER_KEY\r\n");
+            (void)snprintf(status_line, sizeof(status_line),
+                           "H7,START,WAIT_USER_KEY,joy=%u,raw=%lu\r\n",
+                           (unsigned int)direction, (unsigned long)raw);
+            board_uart1_write(status_line);
         }
         if (rc_override_service()) {
             lcd_display_set_start_status("WAIT");
@@ -634,6 +644,12 @@ static uint32_t next_rk_task_sequence(void)
 
 static void rk_arm_handle_line(const char *line)
 {
+    if (line_starts_with(line, "RK,ARM,DISC_CATCH,PREP_HIGH_ACK")) {
+        g_rk_disc_prep_high_ack = 1U;
+        g_rk_arm_link_ready = 1U;
+        board_uart1_write_only("H7,ARM,DISC_CATCH,PREP_HIGH_CONFIRMED\r\n");
+        return;
+    }
     if (line_starts_with(line, "RK,ARM,RESET,DONE")) {
         g_rk_reset_pending = 0U;
         g_rk_arm_link_ready = 1U;
@@ -1690,6 +1706,63 @@ static void send_disc_arc_prep_high(void)
     board_usb_write(command);
 }
 
+bool route_controller_wait_for_disc_prep_high(void)
+{
+    const uint32_t started_ms = HAL_GetTick();
+    uint32_t last_send_ms = started_ms - ROUTE_DISC_ARC_PREP_PERIOD_MS;
+    char line[96];
+    uint32_t line_len = 0U;
+    const char *field_name = g_route_field_is_red != 0U ? "RED" : "BLUE";
+    char command[96];
+
+    (void)snprintf(command, sizeof(command),
+                   "ARM,DISC_CATCH,PREP_HIGH,FIELD,%s,ID1,%d,ID2,%d\r\n",
+                   field_name, ROUTE_DISC_PREP_HIGH_ID1_TICK,
+                   ROUTE_DISC_PREP_HIGH_ID2_TICK);
+    board_uart1_write("H7,ARM,DISC_CATCH,WAIT_PREP_HIGH_ACK\r\n");
+    g_rk_disc_prep_high_ack = 0U;
+
+    while ((uint32_t)(HAL_GetTick() - started_ms) < RK_ARM_ACK_TIMEOUT_MS) {
+        uint8_t rx[64];
+        uint32_t read_len;
+        uint32_t i;
+        uint32_t now_ms = HAL_GetTick();
+
+        if ((uint32_t)(now_ms - last_send_ms) >= RK_ARM_START_RETRY_MS) {
+            last_send_ms = now_ms;
+            board_usb_write(command);
+        }
+        read_len = CDC_Read_HS(rx, sizeof(rx));
+        for (i = 0U; i < read_len; ++i) {
+            const char c = (char)rx[i];
+            if (c == '\r' || c == '\n') {
+                line[line_len] = '\0';
+                if (line_len > 0U) {
+                    rk_arm_handle_line(line);
+                    if (g_rk_disc_prep_high_ack != 0U) {
+                        board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_ACKED\r\n");
+                        return true;
+                    }
+                }
+                line_len = 0U;
+            } else if (line_len + 1U < sizeof(line)) {
+                line[line_len++] = c;
+            } else {
+                line_len = 0U;
+            }
+        }
+        if (!keep_chassis_stopped_for_arm_task()) {
+            preserve_rc_or_set_motor_fault();
+            return false;
+        }
+        HAL_Delay(1U);
+    }
+
+    board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_TIMEOUT\r\n");
+    g_fault_code = FAULT_ARM_TIMEOUT;
+    return false;
+}
+
 static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
 {
     disc_arc_length_table_t arc_length_table;
@@ -2594,6 +2667,11 @@ void route_controller_reset_pose(void)
     g_yaw_rad = 0.0f;
     g_route_heading_target_rad = 0.0f;
     g_estimated_distance_m = 0.0f;
+}
+
+void route_controller_set_heading_target(float heading_rad)
+{
+    g_route_heading_target_rad = heading_rad;
 }
 
 uint8_t route_controller_last_arm_task_bypassed(void)

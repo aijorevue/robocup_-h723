@@ -91,7 +91,9 @@ route_start:
 #endif
 
     route_controller_begin_pretask_sync();
-    (void)route_controller_wait_for_rk_reset_before_route();
+    if (!route_controller_wait_for_rk_reset_before_route()) {
+        enter_fault(FAULT_ARM_TIMEOUT);
+    }
 
     g_run_state = RUN_BOOT;
     if (!route_controller_wait_for_can_startup()) {
@@ -167,6 +169,15 @@ route_start:
 
     route_controller_reset_pose();
 
+#if ROUTE_TASK1_ONLY
+    /* The arm must be physically at the high observation pose before the
+     * chassis starts the entry arc. White-line alignment starts only after
+     * the arc reaches the station. */
+    if (!route_controller_wait_for_disc_prep_high()) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
+    }
+#endif
+
 #if ROUTE_DISC_ARC_ENTRY_ENABLED
     /*
      * Replace the old strafe -> forward -> in-place turn sequence with one
@@ -239,6 +250,25 @@ route_start:
     }
 #endif
 
+    /* Once the white-line pose is stable, move the final 8 cm at low speed
+     * while the arm remains at PREP_HIGH. DISC_CATCH START is sent only after
+     * this move stops, so RK lowers the arm and enables ball recognition in
+     * the final station pose. */
+    g_run_state = RUN_DISC_FINAL_APPROACH;
+    route_controller_set_heading_target(
+        field_profile.turn_sign * ROUTE_TURN_ANGLE_RAD);
+    if (!route_controller_run_translation_profile(
+            ROUTE_FORWARD_SIGN, 0.0f,
+            ROUTE_DISC_FINAL_APPROACH_DISTANCE_M,
+            ROUTE_DISC_FINAL_APPROACH_SPEED_M_S,
+            ROUTE_DISC_FINAL_APPROACH_ACCEL_M_S2)) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+    }
+    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        enter_fault(g_fault_code);
+    }
+
 #if ROUTE_TASK1_DISC_CATCH_ENABLED
     g_run_state = RUN_ARM_DISC_CATCH;
     route_controller_log_event(RUN_LOG_EVENT_ARM_START);
@@ -250,6 +280,13 @@ route_start:
                                    : RUN_LOG_EVENT_ARM_DONE);
 #endif
 
+#if ROUTE_TASK1_ONLY
+    /* DISC_CATCH owns retraction and sends DONE only after the arm is home. */
+    board_uart1_write("H7,ROUTE,TASK1_ONLY_COMPLETE\r\n");
+    goto route_task1_only_shutdown;
+#endif
+
+#if !ROUTE_TASK1_ONLY
     g_run_state = RUN_REVERSE_AFTER_DISC;
     if (!route_controller_run_translation(-ROUTE_FORWARD_SIGN, 0.0f,
                                           ROUTE_AFTER_DISC_REVERSE_DISTANCE_M)) {
@@ -410,7 +447,10 @@ route_start:
         (void)orbit_arm_started;
 #endif
     }
+#endif
 
+route_task1_only_shutdown:
+#if !ROUTE_TASK1_ONLY
     g_run_state = RUN_SERVO_90;
     board_servo_set_angle_deg_index(0U, SERVO_MG90S_ROUTE_ANGLE_DEG);
     board_servo_set_angle_deg_index(1U, SERVO_MG90S_ROUTE_ANGLE_DEG);
@@ -426,6 +466,7 @@ route_start:
     }
     board_servo_disable_index(0U);
     board_servo_disable_index(1U);
+#endif
 
     g_run_state = RUN_STOPPING;
     route_controller_hold_zero(1000U);

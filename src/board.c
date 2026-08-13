@@ -222,7 +222,7 @@ static void adc1_init(void)
 
     hadc1.Instance = ADC1;
     hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV64;
-    hadc1.Init.Resolution = ADC_RESOLUTION_16B;
+    hadc1.Init.Resolution = ADC_RESOLUTION_12B;
     hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
     hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
     hadc1.Init.LowPowerAutoWait = DISABLE;
@@ -265,7 +265,8 @@ static void adc1_init(void)
 static uint32_t adc1_read_channel_raw(uint32_t channel_id)
 {
     ADC_ChannelConfTypeDef channel = {0};
-    uint32_t raw;
+    uint32_t samples[LCD_JOYSTICK_MEDIAN_SAMPLES];
+    uint32_t i;
 
     (void)HAL_ADC_Stop(&hadc1);
     channel.Channel = channel_id;
@@ -283,19 +284,35 @@ static uint32_t adc1_read_channel_raw(uint32_t channel_id)
     if (HAL_ADC_PollForConversion(&hadc1, 2U) != HAL_OK) {
         return 0xFFFFFFFFUL;
     }
-    raw = HAL_ADC_GetValue(&hadc1);
-    return raw;
+    (void)HAL_ADC_GetValue(&hadc1);
+    for (i = 0U; i < LCD_JOYSTICK_MEDIAN_SAMPLES; ++i) {
+        if (HAL_ADC_PollForConversion(&hadc1, 2U) != HAL_OK) {
+            return 0xFFFFFFFFUL;
+        }
+        samples[i] = HAL_ADC_GetValue(&hadc1);
+    }
+    for (i = 1U; i < LCD_JOYSTICK_MEDIAN_SAMPLES; ++i) {
+        uint32_t value = samples[i];
+        uint32_t j = i;
+
+        while (j > 0U && samples[j - 1U] > value) {
+            samples[j] = samples[j - 1U];
+            --j;
+        }
+        samples[j] = value;
+    }
+    return samples[LCD_JOYSTICK_MEDIAN_SAMPLES / 2U];
 }
 
 float board_read_bus_voltage(void)
 {
     uint32_t raw = adc1_read_channel_raw(ADC_CHANNEL_4);
 
-    if (raw > 65535UL) {
+    if (raw > LCD_JOYSTICK_ADC_MAX_RAW) {
         raw = 0U;
     }
 
-    return ((float)raw * 3.3f / 65535.0f) * 11.0f;
+    return ((float)raw * 3.3f / (float)LCD_JOYSTICK_ADC_MAX_RAW) * 11.0f;
 }
 
 static board_field_t g_selected_field = BOARD_FIELD_UNKNOWN;
@@ -303,32 +320,39 @@ static board_field_t g_selected_field = BOARD_FIELD_UNKNOWN;
 static uint8_t board_lcd_joystick_selects_field(
     board_lcd_joystick_direction_t direction)
 {
-    return direction == BOARD_LCD_JOYSTICK_UP ||
+    return direction == BOARD_LCD_JOYSTICK_RIGHT ||
            direction == BOARD_LCD_JOYSTICK_DOWN ? 1U : 0U;
+}
+
+uint32_t board_lcd_joystick_raw(void)
+{
+    return adc1_read_channel_raw(ADC_CHANNEL_19);
 }
 
 board_lcd_joystick_direction_t board_lcd_joystick_direction(void)
 {
-    uint32_t raw = adc1_read_channel_raw(ADC_CHANNEL_19);
+    uint32_t raw = board_lcd_joystick_raw();
 
-    if (raw > 65535UL) {
+    if (raw > LCD_JOYSTICK_ADC_MAX_RAW) {
         return BOARD_LCD_JOYSTICK_NONE;
     }
-    /* Official CtrBoard-H7_KEY thresholds are 12-bit.  This project keeps
-     * ADC1 at 16-bit for VBUS, so scale those windows by 16. */
-    if (raw < 3200UL) {
+    if (raw < LCD_JOYSTICK_PRESS_MAX_RAW) {
         return BOARD_LCD_JOYSTICK_PRESS;
     }
-    if (raw > 11200UL && raw < 16000UL) {
+    if (raw > LCD_JOYSTICK_RIGHT_MIN_RAW &&
+        raw < LCD_JOYSTICK_RIGHT_MAX_RAW) {
         return BOARD_LCD_JOYSTICK_RIGHT;
     }
-    if (raw > 24000UL && raw < 28800UL) {
+    if (raw > LCD_JOYSTICK_LEFT_MIN_RAW &&
+        raw < LCD_JOYSTICK_LEFT_MAX_RAW) {
         return BOARD_LCD_JOYSTICK_LEFT;
     }
-    if (raw > 35200UL && raw < 40000UL) {
+    if (raw > LCD_JOYSTICK_UP_MIN_RAW &&
+        raw < LCD_JOYSTICK_UP_MAX_RAW) {
         return BOARD_LCD_JOYSTICK_UP;
     }
-    if (raw > 44800UL && raw < 56000UL) {
+    if (raw > LCD_JOYSTICK_DOWN_MIN_RAW &&
+        raw < LCD_JOYSTICK_DOWN_MAX_RAW) {
         return BOARD_LCD_JOYSTICK_DOWN;
     }
     return BOARD_LCD_JOYSTICK_NONE;
@@ -381,7 +405,7 @@ uint8_t board_user_start_pressed(void)
         } else if ((uint32_t)(now_ms - pressed_since_ms) >=
                    ROUTE_USER_KEY_DEBOUNCE_MS) {
             state = USER_KEY_LATCHED;
-            if (pending_direction == BOARD_LCD_JOYSTICK_UP) {
+            if (pending_direction == BOARD_LCD_JOYSTICK_RIGHT) {
                 g_selected_field = BOARD_FIELD_RED;
             } else if (pending_direction == BOARD_LCD_JOYSTICK_DOWN) {
                 g_selected_field = BOARD_FIELD_BLUE;
