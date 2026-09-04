@@ -1,165 +1,155 @@
-# H7/RK Production Workflow
+# H7/RK Joint RoboCup Workflow
 
-## Ownership and entry points
+## Ownership
 
-- H7 field selection and route sequence: `src/main.c`
-- H7 motion control and RK protocol: `src/route_controller.c`
-- H7 route parameters: `include/app_config.h`
-- H7 persistent run log: `src/run_log.c` and `include/run_log.h`
-- RK serial protocol: `/home/cat/ros2_ws/ros2_test1/ros2_test1/chassis_link.py`
-- RK station and vision state machines:
-  `/home/cat/ros2_ws/ros2_test1/ros2_test1/target_vision.py`
-- RK launch profiles:
-  `/home/cat/ros2_ws/ros2_test1/ros2_test1/launch_common.py`
-- Unified RK launcher: `/home/cat/ros2_ws/start_target_vision.sh`
-- RK boot service: `robocup-chassis-arm.service`
+- H7: LCD joystick field selection, CAN motor control, IMU/odometry, route
+  motion, USB CDC requests, RC override, and persistent run log.
+- RK: camera capture, white-line measurement, field-aware target policy, arm
+  poses, direct servo/C8T6 commands, and sequence-aware replies.
+- Main camera: arm-mounted camera for white-line, ball, ring, and platform
+  target recognition.
+- Secondary camera: task-two entry only; records two distinct letters from
+  A/B/C/D. It is closed after `PRESELECT_DONE`.
+- `ABCD_detector`: A/B/C/D letters. `balls_detector`: red, blue, and yellow
+  balls. Do not restore QR, old red/blue blocks, or white-ball primary logic.
 
-The normal RK command starts the linked profile:
+## Start and reset
 
-```bash
-RED_SQUARE_EXECUTE=true /home/cat/ros2_ws/start_target_vision.sh
-```
-
-Use `VISION_PROFILE=standalone` only for manual vision/arm testing without H7.
-
-## Boot and start contract
-
-1. RK systemd waits for the camera to provide a real frame. The launch script
-   also waits for `/dev/ttyS9` (85 kg bus) and `/dev/ttyS0` (ZP bus).
-2. RK homes the arm to `ID1=480`, `ID2=10`, `ID6=500`, `ID7=1120`,
-   splitter `ID4=800`, and catcher `ID5=800` before announcing READY.
-3. H7 waits at the start gate. LCD joystick UP selects RED; DOWN selects BLUE.
-4. H7 starts CAN/BMI088 initialization and the route without blocking on RK.
-   Before the first arm station it sends `ARM,SYNC,RESET,FIELD,<FIELD>` every
-   250 ms. Motion control continues while RK homes or finishes booting.
-5. At an arm station H7 commands zero wheel speed before sending START.
-
-The H7 standalone policy is fail-open only before RK accepts a task. If no RK
-ACK arrives, that station is bypassed and the next station probes RK again.
-Once RK has acknowledged a task, a task timeout, remote ERR, or failed COLUMN
-STOP is a fault because the arm may no longer be safe for chassis motion.
-
-## Protocol version 2
-
-The link is newline-terminated ASCII over H7 USB CDC. RK opens the stable udev
-name `/dev/h7_chassis`. Every task transaction has a non-zero 32-bit sequence
-number so delayed replies from one `PLATFORM_PICK` cannot complete the next.
+1. Release the LCD joystick, then select RED by moving RIGHT or BLUE by moving
+   DOWN. H7 logs both the decoded direction and raw ADC value.
+2. H7 sends `FIELD,RED` or `FIELD,BLUE` over USB CDC.
+3. H7 sends `ARM,SYNC,RESET,FIELD,<FIELD>` until RK completes the home/reset
+   transaction. H7 does not start the route before reset confirmation.
+4. RK reset homes the arm and replies:
 
 ```text
-H7 -> RK  ARM,<TASK>,START,SEQ,<N>,FIELD,<RED|BLUE>
-RK -> H7  RK,ARM,<TASK>,ACK,SEQ,<N>,FIELD,<RED|BLUE>
+RK,ARM,RESET,DONE,FIELD,<RED|BLUE>
+```
+
+Camera availability does not gate RESET or `PREP_HIGH`. A camera failure may
+prevent visual alignment or target pickup, but must not prevent the arm from
+being raised during the disc arc.
+
+## Task-one route
+
+1. H7 starts `DISC_CATCH,PREP_HIGH` before the first arc command and resends it
+   non-blockingly while the arc is running.
+2. The mirrored cubic arc ends at the configured forward endpoint
+   `ROUTE_FORWARD_DISTANCE_M=3.930 m` and lateral endpoint `0.650 m`.
+   Arc maximum speed is `1.40 m/s`; acceleration is `0.50 m/s^2`.
+3. RK applies `PREP_HIGH`: 85KG ID1/ID2/ID6 are `600/500/670`, ZP splitter
+   ID4 is `1200`, ZP ID5 is `800`, and ZP ID7 is closed at `1300`.
+4. After the arc, H7 queries the main camera for the white line. The reference
+   is `Y10=1500 +/- 100` in an `800x600` frame and `A100=0`.
+5. H7 continues at `0.03 m/s` while the line is below the reference. If the
+   line is not found, H7 uses the configured fallback before continuing. After
+   reaching the reference, the formal route advances a further `250 mm` and
+   stops line tracking.
+6. H7 starts `DISC_CATCH` after the line station is reached. RK filters balls
+   by field: RED accepts red/yellow; BLUE accepts blue/yellow. The opponent
+   color must not trigger the splitter or gripper.
+7. When DISC_CATCH completes, RK closes ID7 and retracts ZP ID5 plus 85KG
+   ID1/ID2/ID6 to home. H7 keeps that safe retracted state during the formal
+   task-two transfer: one continuous `1.30 m` backward / `2.25 m` lateral /
+   `174 deg` diagonal motion. Only after the transfer completes does H7
+   request PREP_HIGH for task two. RK then raises only 85KG `ID1=600,
+   ID2=500, ID6=650`; ZP ID5 remains at its home value `900` and is not
+   expanded again.
+
+## Task-two route
+
+1. H7 enters task two with one continuous diagonal segment. In the fixed route
+   frame it moves `1.30 m` backward and `2.25 m` toward the selected field side,
+   for a commanded diagonal magnitude of approximately `2.599 m`.
+2. During that diagonal segment, H7 smoothly rotates the chassis through `174
+   degrees`: RED turns left and BLUE turns right. There are no intermediate
+   stops for two separate 90-degree turns.
+3. After the diagonal stops, H7 reuses the task-one BMI088 heading correction
+   and closes any residual yaw error to the saved final `174 deg` heading.
+   Task-two arm expansion and camera work begin only after this correction.
+3. H7 sends:
+
+```text
+ARM,PLATFORM_PICK,PRESELECT,SEQ,<N>,FIELD,<FIELD>,COUNT,2
+```
+
+4. RK holds the high platform pose and uses only the secondary camera to
+   collect two distinct letters from A/B/C/D. Duplicate observations do not
+   count. The preselection has a bounded timeout; a missing secondary camera
+   returns a controlled `ERR` instead of blocking H7 indefinitely.
+5. RK replies with:
+
+```text
+RK,ARM,PLATFORM_PICK,PRESELECT_ACK,SEQ,<N>
+RK,ARM,PLATFORM_PICK,PRESELECT_DONE,SEQ,<N>,COUNT,2,LETTER1,<A-D>,LETTER2,<A-D>
+```
+
+6. H7 first performs the task-two station entry used by the standalone
+   commissioning path: field-mirrored lateral shift `400 mm`, then main-camera
+   white-line alignment at `Y10=2000 +/- 100` with `0.10 m/s` approach speed
+   and `0.10 m/s^2` acceleration, followed by one fixed `210 mm` forward
+   approach. White-line tracking is then disabled. H7 runs eight slots.
+   Between slots the right/left shifts are `100, 130, 100, 100, 100, 130,
+   100 mm`, mirrored by field, at `0.50 m/s`.
+7. For each slot H7 sends:
+
+```text
+ARM,PLATFORM_PICK,START,SEQ,<N>,FIELD,<FIELD>,SLOT,<1-8>
+```
+
+8. After preselection, only the main camera recognizes each slot. RK accepts
+   either one of the two locked letters or the own-field ring. Unselected
+   letters and the opponent-field ring are skipped while the arm remains in
+   the expanded pose.
+9. A successful letter/ring pickup uses the current platform arm sequence,
+   including the configured descent, ID7 pulse, ID6 recovery, and return to
+   the expanded pose before the next slot. Every slot returns `DONE` or a
+   bounded skip outcome with the same `SEQ`.
+
+## Task-three handoff
+
+After slot eight, H7 moves straight backward `0.900 m`, turns `90 deg` in
+the field-mirrored direction, and starts `COLUMN_CATCH` asynchronously before
+the orbit. H7 sends `STOP` after the orbit and final reverse, then waits for
+RK to retract the arm and return `DONE`. The H7 route log and RK log must
+contain the same task and sequence.
+
+After the formal task-three tail, H7 requests RK to command ZL channels `S12`
+and `S23` to `1500` for `1000 ms`, moves laterally `500 mm` in the mirrored
+direction between them, turns in place `180 deg`, and requests physical ZL
+`ID3` to move from `900` to `1300` in `400 ms`. These requests use
+`ARM,AUX_ZP,SET,SEQ,...`; the standalone tests are excluded from this tail.
+
+## Protocol contract
+
+All line messages are newline-terminated ASCII over H7 USB CDC:
+
+```text
+H7 -> RK  ARM,<TASK>,START,SEQ,<N>,FIELD,<FIELD>
+RK -> H7  RK,ARM,<TASK>,ACK,SEQ,<N>,FIELD,<FIELD>
 H7 -> RK  ARM,<TASK>,STATUS,SEQ,<N>
 RK -> H7  RK,ARM,<TASK>,DONE,SEQ,<N>,REASON,<REASON>,FIELD,<FIELD>
 RK -> H7  RK,ARM,<TASK>,ERR,SEQ,<N>,REASON,<REASON>,FIELD,<FIELD>
-H7 -> RK  ARM,COLUMN_CATCH,STOP,SEQ,<N>
 ```
 
-RK returns `BUSY,SEQ,<N>,REASON,STARTUP` while startup is incomplete and
-`BUSY,SEQ,<N>,REASON,RESET` while homing. H7 keeps the chassis stopped and
-allows up to `RK_ARM_BUSY_TIMEOUT_MS` for that state.
+`PREP_HIGH` is an asynchronous pose request and may omit `SEQ` for backward
+compatibility. H7 accepts replies only for the active task/sequence. RK
+replays the last completed result for duplicate `START`, `STATUS`, or
+`PRESELECT` requests. `PRESELECT` is sequence-aware and opens the fixed
+secondary-camera path only for its bounded preselection transaction; it does
+not reuse the main-camera task loop.
 
-Duplicate handling is idempotent:
+## Verification
 
-- Repeated START for the active sequence returns the same ACK.
-- Repeated START or STATUS for a completed sequence replays its DONE or ERR.
-- A response with another sequence is ignored by H7.
-- Reconnecting RK clears a partial serial line but preserves the active or
-  last-completed transaction so H7 STATUS can recover it.
+Before a ground run:
 
-## Field behavior
-
-The distance magnitudes are shared; direction and target color are mirrored.
-
-| Behavior | BLUE field | RED field |
-| --- | --- | --- |
-| Initial strafe | Right 0.8 m | Left 0.8 m |
-| Route turns | Right | Left |
-| Platform shifts | Left 0.35 m twice | Right 0.35 m twice |
-| DISC target | Blue or yellow ball | Red or yellow ball |
-| PLATFORM target | Blue block/ring/QR | Red block/ring/QR |
-| COLUMN target | Blue ball | Red ball |
-| Final orbit | Right 270 degrees | Left 270 degrees |
-
-Both red and blue detectors run every detection cycle. Field selection filters
-which detections may trigger a task; it does not merely recolor the display.
-
-## Route sequence
-
-1. Select field with the LCD joystick and release it.
-2. Strafe 0.8 m toward the selected field side and correct yaw to 0 degrees.
-3. Drive forward 4.1 m and correct yaw again.
-4. Turn 90 degrees toward the selected field side.
-5. Run `DISC_CATCH` and wait for DONE or an offline bypass.
-6. Reverse 1.6 m, turn another 90 degrees, and drive forward 1.6 m.
-7. Turn another 90 degrees and run the first `PLATFORM_PICK`.
-8. Shift 0.35 m toward the platform direction and run the second pick.
-9. Shift another 0.35 m and run the third pick.
-10. Move diagonally using 0.9 m reverse plus 0.1 m mirrored lateral motion.
-11. Turn another 90 degrees and start `COLUMN_CATCH` asynchronously.
-12. Orbit 270 degrees around a point 0.5 m ahead, then reverse 0.3 m.
-13. Send COLUMN STOP and wait until RK has homed the arm.
-14. Move both H7 MG90S outputs to 95 degrees, return to 0 degrees, disable
-    PWM, stop the motors, and save the run log.
-
-Current limits are 1.8 m/s and 2.0 m/s^2 for translation, 2.2 rad/s and
-3.8 rad/s^2 for turns, and 1.0 rad/s for the orbit.
-
-## RC takeover continuity
-
-- CH5 high owns the chassis from any route, arm-wait, fault-wait, or final
-  servo-settle state.
-- A parser, UART, lost-frame, or failsafe event does not by itself inject a
-  zero-speed command. During a short interruption H7 replays the last valid
-  chassis command and reports `source=HOLD` in the RC status log.
-- A fresh CH5-low frame stops immediately and releases ownership after the
-  configured confirmation interval. Sustained signal loss also stops and
-  releases ownership after its bounded timeout.
-- H7 continuously drains DM motor feedback while holding zero, enabling,
-  disabling, and driving under RC. This prevents the FDCAN RX FIFO from
-  filling while the autonomous odometry loop is paused.
-- If a CAN zero, enable, drive, or disable transaction fails, H7 keeps motor
-  ownership and retries the safe transition instead of reporting a false
-  release.
-
-## Task behavior
-
-- `DISC_CATCH`: move to `ID1=600`, `ID2=350`, catcher `ID5=1100`, then
-  descend to `ID1=520`. A yellow ball sets splitter ID4 to 1600; a field-color
-  ball sets it to 800. ID7 pulses once per newly observed ball. Two seconds
-  without a valid ball homes the arm and completes the task.
-- `PLATFORM_PICK`: each transaction performs at most one field-color block,
-  ring, or QR grasp. Two seconds without a fresh target homes the arm and
-  completes that transaction with `NO_TARGET_TIMEOUT`.
-- `COLUMN_CATCH`: splitter ID4 stays at 800. ID7 pulses once per newly observed
-  field-color ball while the chassis orbits. The task ends only after H7 STOP
-  and a successful home command.
-
-## Log interpretation
-
-H7 UART logs include the task and `SEQ=<N>` on START, ACK, DONE, bypass, ERR,
-and timeout records. The persistent run log uses:
-
-- `RUN_LOG_EVENT_ARM_START`: station entered
-- `RUN_LOG_EVENT_ARM_ACK`: asynchronous COLUMN task accepted
-- `RUN_LOG_EVENT_ARM_DONE`: synchronous station completed
-- `RUN_LOG_EVENT_ARM_BYPASS`: RK did not accept that station
-- `RUN_LOG_EVENT_ARM_STOP_DONE`: COLUMN task homed successfully
-
-RK writes protocol and vision output to
-`/home/cat/ros2_ws/chassis_arm_link.log`. A normal transaction contains the
-same task name and sequence in RX, ACK, and DONE. `FAULT_ARM_TIMEOUT` means an
-accepted task or STOP did not finish in time. `FAULT_ARM_REMOTE` means RK
-explicitly reported a servo, homing, startup-command, or control failure.
-
-## Verification before a ground run
-
-1. Keep the chassis lifted and leave servo power available with an emergency
-   stop reachable.
-2. Run RK protocol unit tests and build the ROS package.
-3. Build H7 and confirm there are no compiler errors.
-4. Start RK with `RED_SQUARE_EXECUTE=false` for a protocol-only test.
-5. Select RED, then BLUE, and confirm H7 logs opposite strafe/turn states and
-   RK logs matching field target policies.
-6. Repeat three `PLATFORM_PICK` transactions and confirm their sequence numbers
-   are different and each DONE matches only its own sequence.
-7. Only then enable servo writes and perform the complete ground route.
+1. Build RK with `colcon build --symlink-install --packages-select ros2_test1`
+   and run the protocol/station tests.
+2. Build H7 and inspect `app_config.h` and the generated ELF/BIN.
+3. Confirm exactly one process owns the H7 USB CDC device and that the 85KG
+   bus is `/dev/ttyS9` through C8T6 while the ZP bus is `/dev/ttyS0`.
+4. Confirm logs contain matching `FIELD`, `SEQ`, `ACK`, `DONE`/`ERR`, and slot
+   numbers. Do not treat stale log lines as a new run.
+5. Keep the chassis lifted for the first protocol and arm-pose test. Flash H7
+   only after the build is verified, then require a real flash readback
+   comparison before reporting success.

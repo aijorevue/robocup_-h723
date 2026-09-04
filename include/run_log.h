@@ -18,7 +18,11 @@ enum {
     RUN_LOG_EVENT_ARM_STOP_DONE = 14U,
     RUN_LOG_EVENT_ARM_ACK = 15U,
     RUN_LOG_EVENT_FAULT = 20U,
-    RUN_LOG_EVENT_ROUTE_DONE = 21U
+    RUN_LOG_EVENT_ROUTE_DONE = 21U,
+    RUN_LOG_EVENT_TASK2_RX_BYTES = 29U,
+    RUN_LOG_EVENT_TASK2_RX_START = 30U,
+    RUN_LOG_EVENT_TASK2_INITIAL_SHIFT_START = 31U,
+    RUN_LOG_EVENT_TASK2_INITIAL_SHIFT_DONE = 32U
 };
 
 void run_log_reset(void);
@@ -29,6 +33,8 @@ void run_log_sample(uint32_t timestamp_ms, uint32_t state, uint32_t fault,
                     float cross_track_m, float cross_track_command_m_s,
                     float actual_cross_speed_m_s, uint32_t event);
 bool run_log_save(uint32_t final_state, uint32_t fault);
+/* Persist a diagnostic event immediately, without waiting for route exit. */
+bool run_log_save_event(uint32_t state, uint32_t fault, uint32_t event);
 void run_log_dump_stored(void);
 
 #endif

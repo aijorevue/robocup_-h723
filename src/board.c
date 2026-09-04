@@ -28,6 +28,7 @@ volatile uint32_t g_rc_fault_epoch;
 #define FDCAN_ABORT_MAX_POLLS 200000UL
 
 static bool fdcan_abort_unresolved;
+static bool fdcan_bus_off_latched;
 static bool usb_device_started;
 static uint32_t last_fdcan_recover_ms;
 static uint8_t uart5_rx_byte;
@@ -380,45 +381,18 @@ uint8_t board_user_start_active(void)
 
 uint8_t board_user_start_pressed(void)
 {
-    typedef enum {
-        USER_KEY_IDLE = 0,
-        USER_KEY_DEBOUNCING,
-        USER_KEY_LATCHED
-    } user_key_state_t;
-    static user_key_state_t state = USER_KEY_IDLE;
-    static uint32_t pressed_since_ms;
-    static board_lcd_joystick_direction_t pending_direction;
-    uint32_t now_ms = HAL_GetTick();
-    uint8_t active = board_user_start_active();
+    const board_lcd_joystick_direction_t direction =
+        board_lcd_joystick_direction();
 
-    switch (state) {
-    case USER_KEY_IDLE:
-        if (active != 0U) {
-            pressed_since_ms = now_ms;
-            pending_direction = board_lcd_joystick_direction();
-            state = USER_KEY_DEBOUNCING;
-        }
-        break;
-    case USER_KEY_DEBOUNCING:
-        if (active == 0U || board_lcd_joystick_direction() != pending_direction) {
-            state = USER_KEY_IDLE;
-        } else if ((uint32_t)(now_ms - pressed_since_ms) >=
-                   ROUTE_USER_KEY_DEBOUNCE_MS) {
-            state = USER_KEY_LATCHED;
-            if (pending_direction == BOARD_LCD_JOYSTICK_RIGHT) {
-                g_selected_field = BOARD_FIELD_RED;
-            } else if (pending_direction == BOARD_LCD_JOYSTICK_DOWN) {
-                g_selected_field = BOARD_FIELD_BLUE;
-            }
-            return 1U;
-        }
-        break;
-    case USER_KEY_LATCHED:
-    default:
-        if (active == 0U) {
-            state = USER_KEY_IDLE;
-        }
-        break;
+    /* Restore the direct-start behavior: the field choice itself starts the
+     * route immediately. */
+    if (direction == BOARD_LCD_JOYSTICK_RIGHT) {
+        g_selected_field = BOARD_FIELD_RED;
+        return 1U;
+    }
+    if (direction == BOARD_LCD_JOYSTICK_DOWN) {
+        g_selected_field = BOARD_FIELD_BLUE;
+        return 1U;
     }
     return 0U;
 }
@@ -477,7 +451,7 @@ static void uart5_init(void)
     }
 }
 
-static void fdcan1_init(void)
+static bool fdcan1_configure_and_start(void)
 {
     hfdcan1.Instance = FDCAN1;
     hfdcan1.Init.FrameFormat = FDCAN_FRAME_CLASSIC;
@@ -507,10 +481,16 @@ static void fdcan1_init(void)
     hfdcan1.Init.TxFifoQueueElmtsNbr = 8U;
     hfdcan1.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
     hfdcan1.Init.TxElmtSize = FDCAN_DATA_BYTES_8;
-    if (HAL_FDCAN_Init(&hfdcan1) != HAL_OK ||
-        HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_REJECT,
-                                     FDCAN_REJECT_REMOTE, FDCAN_REJECT_REMOTE) != HAL_OK ||
-        HAL_FDCAN_Start(&hfdcan1) != HAL_OK) {
+    return HAL_FDCAN_Init(&hfdcan1) == HAL_OK &&
+           HAL_FDCAN_ConfigGlobalFilter(
+               &hfdcan1, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_REJECT,
+               FDCAN_REJECT_REMOTE, FDCAN_REJECT_REMOTE) == HAL_OK &&
+           HAL_FDCAN_Start(&hfdcan1) == HAL_OK;
+}
+
+static void fdcan1_init(void)
+{
+    if (!fdcan1_configure_and_start()) {
         Error_Handler();
     }
 }
@@ -621,6 +601,8 @@ void board_init(void)
     MX_USB_DEVICE_Init();
     usb_device_started = true;
     fdcan_abort_unresolved = false;
+    fdcan_bus_off_latched = false;
+    last_fdcan_recover_ms = 0U;
     fdcan1_init();
 }
 
@@ -776,6 +758,14 @@ void HAL_UART_MspInit(UART_HandleTypeDef *uart)
     }
 }
 
+static bool fdcan1_recover_from_bus_off(void)
+{
+    (void)HAL_FDCAN_Stop(&hfdcan1);
+    (void)HAL_FDCAN_DeInit(&hfdcan1);
+    fdcan_abort_unresolved = false;
+    return fdcan1_configure_and_start();
+}
+
 static bool fdcan_protocol_healthy(void)
 {
     FDCAN_ProtocolStatusTypeDef status = {0};
@@ -786,15 +776,22 @@ static bool fdcan_protocol_healthy(void)
         return false;
     }
     if (status.BusOff != 0U) {
-        g_fdcan_bus_off_count++;
+        /* Count transitions, not every polling pass while the controller is
+         * recovering. This keeps the persistent log diagnostic. */
+        if (!fdcan_bus_off_latched) {
+            g_fdcan_bus_off_count++;
+            fdcan_bus_off_latched = true;
+        }
         if ((uint32_t)(now_ms - last_fdcan_recover_ms) >= 20U) {
             last_fdcan_recover_ms = now_ms;
-            fdcan_abort_unresolved = false;
-            (void)HAL_FDCAN_Stop(&hfdcan1);
-            (void)HAL_FDCAN_Start(&hfdcan1);
+            if (fdcan1_recover_from_bus_off()) {
+                fdcan_bus_off_latched = false;
+                return true;
+            }
         }
         return false;
     }
+    fdcan_bus_off_latched = false;
     return true;
 }
 
@@ -849,7 +846,10 @@ bool board_fdcan1_send_classic_std8_batch4(const board_can_frame_t frames[4])
     uint32_t request_mask = 0U;
     uint32_t i;
 
-    if (frames == NULL || fdcan_abort_unresolved || !fdcan_protocol_healthy() ||
+    /* wait_tx_fifo_free() owns the health polling and provides a bounded
+     * recovery window. Do not fail immediately on the first Bus-Off sample;
+     * otherwise a transient CAN restart is converted into a route fault. */
+    if (frames == NULL || fdcan_abort_unresolved ||
         !board_fdcan1_wait_tx_fifo_free(4U, 50U)) {
         g_fdcan_tx_error_count++;
         return false;

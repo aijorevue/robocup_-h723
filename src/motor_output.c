@@ -11,8 +11,6 @@
 #define MOTOR_SPECIAL_RETRY_COUNT 10U
 #define MOTOR_SPECIAL_COMPAT_RETRY_COUNT 3U
 #define MOTOR_SPECIAL_RETRY_GAP_MS 2U
-#define MOTOR_FEEDBACK_STALE_TIMEOUT_MS 100U
-
 static const dm_motor_limits_t feedback_limits = {
     .p_min = -12.5f,
     .p_max = 12.5f,
@@ -53,7 +51,22 @@ static bool feedback_slot_valid(uint32_t now_ms, uint32_t slot)
            (uint32_t)(now_ms - last_feedback_ms[slot]) <= MOTOR_FEEDBACK_STALE_TIMEOUT_MS;
 }
 
-static void feedback_from_frame(uint32_t now_ms, const board_can_rx_frame_t *frame)
+static uint8_t standard_id_to_motor_id(uint16_t standard_id)
+{
+    uint32_t i;
+
+    for (i = 0U; i < 4U; ++i) {
+        if (standard_id == motor_base_id[i] ||
+            standard_id == (uint16_t)(motor_base_id[i] +
+                                      DM_CAN_MODE_VEL_OFFSET)) {
+            return (uint8_t)(i + 1U);
+        }
+    }
+    return 0U;
+}
+
+static void feedback_from_frame(uint32_t now_ms,
+                                const board_can_rx_frame_t *frame)
 {
     dm_motor_feedback_t feedback = {0};
     uint8_t motor_id;
@@ -65,6 +78,12 @@ static void feedback_from_frame(uint32_t now_ms, const board_can_rx_frame_t *fra
         return;
     }
     motor_id = feedback.can_id_low4;
+    /* Normal DM feedback carries the motor ID in data[0].  Some driver
+     * firmware versions leave that nibble unset and identify the motor only
+     * through the arbitration ID, so accept that unambiguous form too. */
+    if (motor_id < 1U || motor_id > 4U) {
+        motor_id = standard_id_to_motor_id(frame->standard_id);
+    }
     if (motor_id < 1U || motor_id > 4U) {
         return;
     }
@@ -170,6 +189,7 @@ bool motor_disable_all(void)
 bool motor_feedback_update(uint32_t now_ms, float wheel_rad_s[4])
 {
     uint32_t i;
+    uint32_t valid_count = 0U;
 
     motor_feedback_drain(now_ms);
     if (wheel_rad_s != NULL) {
@@ -178,9 +198,9 @@ bool motor_feedback_update(uint32_t now_ms, float wheel_rad_s[4])
         }
     }
     for (i = 0U; i < 4U; ++i) {
-        if (!feedback_slot_valid(now_ms, i)) {
-            return false;
+        if (feedback_slot_valid(now_ms, i)) {
+            ++valid_count;
         }
     }
-    return true;
+    return valid_count >= MOTOR_FEEDBACK_MIN_VALID_COUNT;
 }

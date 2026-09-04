@@ -3,7 +3,6 @@
 
 #include "app_config.h"
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 
 typedef enum {
@@ -43,10 +42,7 @@ typedef enum {
     RUN_DISC_ARC_ENTRY = 32,
     RUN_DISC_VISUAL_ALIGN = 33,
     RUN_DISC_FINAL_APPROACH = 34,
-    RUN_TASK2_DIAGONAL_TURN = 35,
-    RUN_AUX_ZP_S12 = 36,
-    RUN_AUX_ZP_S23 = 37,
-    RUN_AUX_ZP_ID3 = 38
+    RUN_TASK2_DIAGONAL_TURN = 35
 } run_state_t;
 
 enum {
@@ -79,15 +75,6 @@ extern volatile float g_actual_cross_speed_m_s;
 
 void route_controller_init(void);
 void route_controller_wait_for_start(void);
-bool route_controller_take_task2_test(uint8_t *is_red, uint32_t *sequence,
-                                      char *letter1, char *letter2,
-                                      size_t letter_capacity);
-bool route_controller_wait_for_task2_test_next(uint32_t sequence);
-uint32_t route_controller_task2_test_step(void);
-bool route_controller_run_task2_test(uint32_t sequence, const char *letter1,
-                                     const char *letter2);
-bool route_controller_take_task3_test(uint8_t *is_red, uint32_t *sequence);
-bool route_controller_run_task3_test(uint32_t sequence);
 void route_controller_set_field(uint8_t is_red);
 void route_controller_reset_run_context(void);
 void route_controller_begin_pretask_sync(void);
@@ -128,11 +115,6 @@ bool route_controller_run_translation_with_turn(float vx_direction,
 bool route_controller_run_disc_arc_entry(float lateral_sign,
                                          float turn_sign);
 bool route_controller_run_disc_visual_alignment(void);
-/* Raise only ID1/ID2/ID6 after the formal task-two transfer; ID5 stays home. */
-bool route_controller_run_task2_prep_high(void);
-/* Formal task-two first-station entry: lateral shift, shared white-line
- * alignment, and the fixed post-reference approach. */
-bool route_controller_run_task2_platform_entry(void);
 bool route_controller_wait_for_disc_prep_high(void);
 bool route_controller_run_relative_turn(float angle_rad);
 bool route_controller_run_front_center_orbit(float angle_rad,
@@ -142,11 +124,6 @@ bool route_controller_wait_for_rk_platform_preselect(void);
 bool route_controller_wait_for_rk_platform_slot(uint32_t slot);
 bool route_controller_start_rk_arm_task(const char *task);
 bool route_controller_stop_rk_arm_task(const char *task);
-/* Execute one acknowledged ZP20S auxiliary command over the RK link.  Pass
- * servo_id=0 for physical ZL channel S12/S23; pass a nonzero ID for a normal
- * ZP servo such as ID3. */
-bool route_controller_run_zp_aux(uint32_t channel, uint32_t pulse,
-                                 uint32_t time_ms, uint8_t servo_id);
 
 #if ROUTE_AUTO_RUN_ON_BOOT == 0U
 void route_controller_wait_for_usb_run_command(void);

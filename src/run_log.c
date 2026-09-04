@@ -14,6 +14,7 @@
 #define RUN_LOG_VERSION 2U
 #define RUN_LOG_MAX_RECORDS 512U
 #define RUN_LOG_SLOT_COUNT 3U
+#define RUN_LOG_IMMEDIATE_EVENT_MAX 8U
 
 typedef struct {
     uint32_t timestamp_ms;
@@ -56,7 +57,10 @@ _Static_assert(RUN_LOG_SLOT_COUNT * RUN_LOG_SLOT_SIZE <= RUN_LOG_FLASH_SECTOR_SI
                "run log slots must fit in the flash sector");
 
 static run_log_record_t records[RUN_LOG_MAX_RECORDS] __attribute__((aligned(32)));
+static run_log_record_t immediate_events[RUN_LOG_IMMEDIATE_EVENT_MAX]
+    __attribute__((aligned(32)));
 static uint32_t record_count;
+static uint32_t immediate_event_count;
 static bool saved;
 
 static uint32_t crc32_update(uint32_t crc, const uint8_t *data, size_t length)
@@ -213,6 +217,82 @@ static bool flash_program_words(uint32_t address, const void *data, size_t lengt
     return true;
 }
 
+static bool run_log_write_records(const run_log_record_t *source,
+                                  uint32_t source_count, uint32_t final_state,
+                                  uint32_t fault)
+{
+    FLASH_EraseInitTypeDef erase = {0};
+    run_log_header_t header __attribute__((aligned(32))) = {0};
+    uint32_t sector_error = 0U;
+    uint32_t slot = 0U;
+    uint32_t slot_address;
+    uint32_t offset;
+    size_t payload_length;
+    size_t programmed_length;
+    bool ok;
+
+    if (source_count > RUN_LOG_MAX_RECORDS ||
+        (source_count > 0U && source == NULL)) {
+        return false;
+    }
+
+    header.magic = RUN_LOG_MAGIC;
+    header.version = RUN_LOG_VERSION;
+    header.record_count = source_count;
+    header.final_state = final_state;
+    header.fault = fault;
+    header.sample_period_ms = RUN_LOG_SAMPLE_PERIOD_MS;
+    header.payload_crc32 = records_crc32(source, source_count);
+    header.reserved = next_log_sequence();
+
+    erase.TypeErase = FLASH_TYPEERASE_SECTORS;
+    erase.Banks = FLASH_BANK_1;
+    erase.Sector = FLASH_SECTOR_7;
+    erase.NbSectors = 1U;
+    erase.VoltageRange = FLASH_VOLTAGE_RANGE_3;
+
+    if (HAL_FLASH_Unlock() != HAL_OK) {
+        return false;
+    }
+    ok = find_next_log_slot(&slot);
+    if (!ok) {
+        ok = HAL_FLASHEx_Erase(&erase, &sector_error) == HAL_OK;
+        slot = 0U;
+    }
+    slot_address = log_slot_address(slot);
+    if (ok && source_count > 0U) {
+        payload_length = (size_t)source_count * sizeof(source[0]);
+        programmed_length = (payload_length + 31U) & ~(size_t)31U;
+
+        /* Program a padded final flash word without reading past source. */
+        for (offset = 0U; offset < programmed_length; offset += 32U) {
+            uint8_t flash_word[32] __attribute__((aligned(32)));
+            size_t remaining = payload_length > offset
+                                   ? payload_length - offset
+                                   : 0U;
+            size_t copy_length = remaining < sizeof(flash_word)
+                                     ? remaining
+                                     : sizeof(flash_word);
+            memset(flash_word, 0xFF, sizeof(flash_word));
+            if (copy_length > 0U) {
+                memcpy(flash_word, ((const uint8_t *)source) + offset,
+                       copy_length);
+            }
+            if (!flash_program_words(slot_address + sizeof(header) + offset,
+                                     flash_word, sizeof(flash_word))) {
+                ok = false;
+                break;
+            }
+        }
+    }
+    if (ok) {
+        ok = flash_program_words(slot_address, &header, sizeof(header));
+    }
+    (void)HAL_FLASH_Lock();
+    SCB_InvalidateICache();
+    return ok;
+}
+
 static int32_t scaled(float value, float factor)
 {
     const float result = value * factor;
@@ -261,54 +341,63 @@ void run_log_sample(uint32_t timestamp_ms, uint32_t state, uint32_t fault,
 
 bool run_log_save(uint32_t final_state, uint32_t fault)
 {
-    FLASH_EraseInitTypeDef erase = {0};
-    run_log_header_t header __attribute__((aligned(32))) = {0};
-    uint32_t sector_error = 0U;
-    uint32_t slot = 0U;
-    uint32_t slot_address;
-    size_t payload_length;
-    size_t programmed_length;
+    static run_log_record_t combined[RUN_LOG_MAX_RECORDS]
+        __attribute__((aligned(32)));
+    uint32_t combined_count = 0U;
+    uint32_t index;
     bool ok;
 
     if (saved) {
         return true;
     }
-    header.magic = RUN_LOG_MAGIC;
-    header.version = RUN_LOG_VERSION;
-    header.record_count = record_count;
-    header.final_state = final_state;
-    header.fault = fault;
-    header.sample_period_ms = RUN_LOG_SAMPLE_PERIOD_MS;
-    header.payload_crc32 = records_crc32(records, record_count);
-    header.reserved = next_log_sequence();
 
-    erase.TypeErase = FLASH_TYPEERASE_SECTORS;
-    erase.Banks = FLASH_BANK_1;
-    erase.Sector = FLASH_SECTOR_7;
-    erase.NbSectors = 1U;
-    erase.VoltageRange = FLASH_VOLTAGE_RANGE_3;
+    for (index = 0U; index < immediate_event_count &&
+                     combined_count < RUN_LOG_MAX_RECORDS;
+         ++index) {
+        combined[combined_count] = immediate_events[index];
+        combined[combined_count].index = combined_count;
+        ++combined_count;
+    }
+    for (index = 0U; index < record_count &&
+                     combined_count < RUN_LOG_MAX_RECORDS;
+         ++index) {
+        combined[combined_count] = records[index];
+        combined[combined_count].index = combined_count;
+        ++combined_count;
+    }
 
-    if (HAL_FLASH_Unlock() != HAL_OK) {
+    ok = run_log_write_records(combined, combined_count, final_state, fault);
+    saved = ok;
+    if (ok) {
+        immediate_event_count = 0U;
+        memset(immediate_events, 0, sizeof(immediate_events));
+    }
+    return ok;
+}
+
+bool run_log_save_event(uint32_t state, uint32_t fault, uint32_t event)
+{
+    run_log_record_t *record;
+    bool ok;
+
+    if (immediate_event_count >= RUN_LOG_IMMEDIATE_EVENT_MAX) {
         return false;
     }
-    ok = find_next_log_slot(&slot);
-    if (!ok) {
-        ok = HAL_FLASHEx_Erase(&erase, &sector_error) == HAL_OK;
-        slot = 0U;
-    }
-    slot_address = log_slot_address(slot);
-    if (ok && record_count > 0U) {
-        payload_length = (size_t)record_count * sizeof(records[0]);
-        programmed_length = (payload_length + 31U) & ~(size_t)31U;
-        ok = flash_program_words(slot_address + sizeof(header), records,
-                                 programmed_length);
-    }
-    if (ok) {
-        ok = flash_program_words(slot_address, &header, sizeof(header));
-    }
-    (void)HAL_FLASH_Lock();
-    SCB_InvalidateICache();
-    saved = ok;
+    record = &immediate_events[immediate_event_count];
+    memset(record, 0, sizeof(*record));
+    record->timestamp_ms = HAL_GetTick();
+    record->state = state;
+    record->fault = fault;
+    record->index = immediate_event_count;
+    record->can_tx_errors = g_fdcan_tx_error_count;
+    record->can_bus_offs = g_fdcan_bus_off_count;
+    record->event = event;
+    ++immediate_event_count;
+
+    /* Write the complete immediate-event set so the latest slot contains the
+     * START evidence even when later events arrive before route shutdown. */
+    ok = run_log_write_records(immediate_events, immediate_event_count, state,
+                               fault);
     return ok;
 }
 
