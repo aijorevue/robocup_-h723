@@ -591,6 +591,11 @@ route_start:
     }
 
         {
+            const float post_route_lateral_sign =
+                field_profile.is_red != 0U
+                    ? -ROUTE_RIGHT_STRAFE_SIGN
+                    : ROUTE_RIGHT_STRAFE_SIGN;
+
             g_run_state = field_profile.is_red != 0U
                                ? RUN_LAST_TURN_LEFT
                                : RUN_LAST_TURN_RIGHT;
@@ -684,8 +689,32 @@ route_start:
                 enter_fault(g_fault_code);
             }
 
+            /* Mirror both final auxiliary shifts by field: RED moves left,
+             * BLUE moves right.  The first shift precedes PA0. */
+            {
+                g_run_state = field_profile.is_red != 0U
+                                   ? RUN_PLATFORM_SHIFT_LEFT
+                                   : RUN_PLATFORM_SHIFT_RIGHT;
+                if (!route_controller_run_translation_profile(
+                        0.0f, post_route_lateral_sign,
+                        ROUTE_POST_ROUTE_LEFT_SHIFT_DISTANCE_M,
+                        ROUTE_TRANSLATION_SPEED_M_S,
+                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                            : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                if (g_run_state == RUN_FAULT) {
+                    enter_fault(g_fault_code);
+                }
+                board_uart1_write(
+                    field_profile.is_red != 0U
+                        ? "H7,ROUTE,TASK3,POST_REVERSE_SHIFT_1,DIR=LEFT,DISTANCE=300mm\r\n"
+                        : "H7,ROUTE,TASK3,POST_REVERSE_SHIFT_1,DIR=RIGHT,DISTANCE=300mm\r\n");
+            }
+
             /* Open PA0 first, hold it for the configured interval, then
-             * restore its power-on angle before moving the chassis. */
+             * restore its power-on angle before the second chassis shift. */
             board_servo_set_angle_deg_index(
                 SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POST_ROUTE_PA0_ANGLE_DEG);
             board_uart1_write(
@@ -703,11 +732,16 @@ route_start:
                 enter_fault(g_fault_code);
             }
 
-            /* Move left before operating PA2.  This is a chassis-left move
-             * in the robot frame, independent of field color mirroring. */
-            g_run_state = RUN_PLATFORM_SHIFT_LEFT;
+            /* Mirror the second final shift with the field: RED moves left,
+             * BLUE moves right, immediately before operating PA2. */
+            g_run_state = field_profile.is_red != 0U
+                               ? RUN_PLATFORM_SHIFT_LEFT
+                               : RUN_PLATFORM_SHIFT_RIGHT;
             if (!route_controller_run_translation_profile(
-                    0.0f, -ROUTE_RIGHT_STRAFE_SIGN,
+                    0.0f,
+                    field_profile.is_red != 0U
+                        ? -ROUTE_RIGHT_STRAFE_SIGN
+                        : ROUTE_RIGHT_STRAFE_SIGN,
                     ROUTE_POST_ROUTE_LEFT_SHIFT_DISTANCE_M,
                     ROUTE_TRANSLATION_SPEED_M_S,
                     ROUTE_TRANSLATION_ACCEL_M_S2)) {
@@ -719,7 +753,9 @@ route_start:
                 enter_fault(g_fault_code);
             }
             board_uart1_write(
-                "H7,ROUTE,TASK3,POST_REVERSE_LEFT_SHIFT,DISTANCE=300mm\r\n");
+                field_profile.is_red != 0U
+                    ? "H7,ROUTE,TASK3,POST_REVERSE_SHIFT_2,DIR=LEFT,DISTANCE=300mm\r\n"
+                    : "H7,ROUTE,TASK3,POST_REVERSE_SHIFT_2,DIR=RIGHT,DISTANCE=300mm\r\n");
 
             /* Operate PA2 after the left shift, then return it to its
              * power-on angle before the route is marked complete. */
@@ -742,7 +778,7 @@ route_start:
         }
 
         board_uart1_write(
-                    "H7,ROUTE,TASK3,COMPLETE,POST_REVERSE_DONE,DISTANCE=650mm\r\n");
+                    "H7,ROUTE,TASK3,COMPLETE,POST_REVERSE_DONE,DISTANCE=720mm\r\n");
 #endif
 
 #if ROUTE_TASK1_ONLY || ROUTE_STOP_AFTER_WHITE_LINE
@@ -755,7 +791,7 @@ route_test_shutdown:
      * the field branch above, so it must not run twice. */
     if (task2_test || task3_test) {
         board_uart1_write(
-            "H7,ROUTE,TASK3,POST_REVERSE,DONE,DISTANCE=650mm\r\n");
+            "H7,ROUTE,TASK3,POST_REVERSE,DONE,DISTANCE=720mm\r\n");
 
         g_run_state = RUN_AUX_ZP_S23;
         if (!route_controller_run_zp_aux(

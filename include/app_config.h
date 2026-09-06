@@ -133,7 +133,7 @@
 /* Standalone task-two starts at the task-two area, first translates laterally
  * to the platform line, then approaches the main-camera white-line reference
  * at a deliberately slow speed. After reaching the reference, the standalone
- * test makes one fixed 210 mm forward approach and then stops white-line
+ * test makes one fixed 170 mm forward approach and then stops white-line
  * tracking. Keep these values separate from the formal task-one route above. */
 #define ROUTE_TASK2_TEST_INITIAL_LATERAL_M 0.400f
 #define ROUTE_TASK2_TEST_INITIAL_TRANSLATION_SPEED_M_S 0.200f
@@ -142,7 +142,7 @@
 #define ROUTE_TASK2_TEST_WHITE_LINE_REFERENCE_TOLERANCE_Y10 100L
 #define ROUTE_TASK2_TEST_WHITE_LINE_FORWARD_SPEED_M_S 0.100f
 #define ROUTE_TASK2_TEST_WHITE_LINE_ACCEL_M_S2 0.100f
-#define ROUTE_TASK2_TEST_WHITE_LINE_AFTER_CROSSED_FORWARD_M 0.150f
+#define ROUTE_TASK2_TEST_WHITE_LINE_AFTER_CROSSED_FORWARD_M 0.170f
 #define ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M 1.350f
 #define ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M 2.120f
 #define ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M 2.5133444f
@@ -170,7 +170,7 @@
 #define ROUTE_TASK3_TEST_ORBIT_SPEED_RAMP_RAD_S2 0.500f
 #define ROUTE_TASK3_TEST_STATUS_RETRY_MS 250U
 #define ROUTE_FINAL_REVERSE_DISTANCE_M 0.300f
-#define ROUTE_TASK3_POST_REVERSE_DISTANCE_M 0.650f
+#define ROUTE_TASK3_POST_REVERSE_DISTANCE_M 0.720f
 #define ROUTE_POST_ROUTE_LEFT_SHIFT_DISTANCE_M 0.300f
 #define ROUTE_TASK3_POST_RED_LEFT_SHIFT_DISTANCE_M 0.300f
 #define ROUTE_TASK3_POST_AUX_HOLD_MS 5000U
