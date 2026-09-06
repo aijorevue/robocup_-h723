@@ -37,6 +37,7 @@ static volatile uint8_t g_rk_disc_prep_high_ack;
 static uint8_t g_rk_disc_prep_high_requested;
 static uint32_t g_rk_disc_prep_high_last_send_ms;
 static uint8_t g_rk_last_task_bypassed;
+static uint8_t g_rk_last_task_soft_timed_out;
 static uint8_t g_first_arm_station_reached;
 static uint8_t g_start_confirmed_from_fault;
 static uint8_t g_route_field_is_red;
@@ -74,6 +75,7 @@ static void service_rk_link_before_first_station(void);
 static bool service_disc_prep_high_during_arc(void);
 static bool service_task2_test_command(void);
 static bool service_task3_test_command(void);
+static bool handle_local_mg90s_command(const char *line);
 static bool run_disc_visual_alignment(void);
 static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                                long reference_y10,
@@ -781,6 +783,11 @@ static bool service_task2_test_command(void)
                 memmove(line, frame_start, normalized_len + 1U);
                 line_len = (uint32_t)normalized_len;
             }
+            if (line_len > 0U && g_run_state == RUN_WAIT_USB_RUN &&
+                handle_local_mg90s_command(line)) {
+                line_len = 0U;
+                return false;
+            }
             if (line_len > 0U &&
                 parse_task3_test_start(line, &is_red, &sequence)) {
                 if (g_task2_test_pending != 0U ||
@@ -1318,6 +1325,66 @@ static bool line_matches_token_prefix(const char *line, const char *prefix)
     return line[prefix_length] == '\0' || line[prefix_length] == ',';
 }
 
+/* PA0/TIM2_CH1 is a local H7 PWM output, not a ZP20S bus servo.  Accept
+ * manual commands only while the chassis is idle or waiting in fault state;
+ * the autonomous route never grants this command path control of the servo. */
+static bool handle_local_mg90s_command(const char *line)
+{
+    char copy[128];
+    char *tokens[6];
+    char *token;
+    char *end;
+    char *index_end;
+    size_t count = 0U;
+    unsigned long servo_index;
+    float angle_deg;
+    char response[128];
+
+    if (line == NULL || !line_starts_with(line, "LOCAL_SERVO,")) {
+        return false;
+    }
+
+    (void)snprintf(copy, sizeof(copy), "%s", line);
+    token = strtok(copy, ",");
+    while (token != NULL && count < (sizeof(tokens) / sizeof(tokens[0]))) {
+        tokens[count++] = token;
+        token = strtok(NULL, ",");
+    }
+
+    if (count != 6U || strcmp(tokens[0], "LOCAL_SERVO") != 0 ||
+        strcmp(tokens[1], "SET") != 0 || strcmp(tokens[2], "INDEX") != 0 ||
+        strcmp(tokens[4], "ANGLE_DEG") != 0) {
+        board_usb_write("H7,LOCAL_SERVO,ERR,REASON,PARSE\r\n");
+        board_uart1_write_only("H7,LOCAL_SERVO,ERR,REASON,PARSE\r\n");
+        return true;
+    }
+
+    servo_index = strtoul(tokens[3], &index_end, 10);
+    if (*tokens[3] == '\0' || *index_end != '\0' ||
+        (servo_index != SERVO_MG90S_PA0_INDEX &&
+         servo_index != SERVO_MG90S_PA2_INDEX)) {
+        board_usb_write("H7,LOCAL_SERVO,ERR,REASON,SERVO_INDEX\r\n");
+        board_uart1_write_only("H7,LOCAL_SERVO,ERR,REASON,SERVO_INDEX\r\n");
+        return true;
+    }
+
+    angle_deg = strtof(tokens[5], &end);
+    if (*tokens[5] == '\0' || *end != '\0' || !isfinite(angle_deg) ||
+        angle_deg < 0.0f || angle_deg > SERVO_MG90S_MAX_ANGLE_DEG) {
+        board_usb_write("H7,LOCAL_SERVO,ERR,REASON,ANGLE_RANGE\r\n");
+        board_uart1_write_only("H7,LOCAL_SERVO,ERR,REASON,ANGLE_RANGE\r\n");
+        return true;
+    }
+
+    board_servo_set_angle_deg_index((uint8_t)servo_index, angle_deg);
+    (void)snprintf(response, sizeof(response),
+                   "H7,LOCAL_SERVO,ACK,INDEX,%lu,ANGLE_DEG,%.1f\r\n",
+                   servo_index, (double)angle_deg);
+    board_usb_write(response);
+    board_uart1_write_only(response);
+    return true;
+}
+
 static uint32_t next_rk_task_sequence(void)
 {
     ++g_rk_task_sequence_counter;
@@ -1434,7 +1501,11 @@ static void service_rk_link_before_first_station(void)
                 board_uart1_write_only("H7,USB,RX,");
                 board_uart1_write_only(g_rk_pretask_line);
                 board_uart1_write_only("\r\n");
-                rk_arm_handle_line(g_rk_pretask_line);
+                if (!(g_run_state == RUN_WAIT_USB_RUN ||
+                      g_run_state == RUN_FAULT) ||
+                    !handle_local_mg90s_command(g_rk_pretask_line)) {
+                    rk_arm_handle_line(g_rk_pretask_line);
+                }
             }
             g_rk_pretask_line_len = 0U;
         } else if (g_rk_pretask_line_len + 1U < sizeof(g_rk_pretask_line)) {
@@ -1477,7 +1548,11 @@ static void wait_for_rk_ready_on_boot(void)
                     board_uart1_write_only("H7,USB,RX,");
                     board_uart1_write_only(line);
                     board_uart1_write_only("\r\n");
-                    rk_arm_handle_line(line);
+                    if (!(g_run_state == RUN_WAIT_USB_RUN ||
+                          g_run_state == RUN_FAULT) ||
+                        !handle_local_mg90s_command(line)) {
+                        rk_arm_handle_line(line);
+                    }
                     if (g_rk_arm_link_ready != 0U) {
                         board_uart1_write("H7,ARM,BOOT_RK_READY\r\n");
                         return;
@@ -1522,8 +1597,13 @@ static bool wait_for_rk_arm_task(const char *task)
     uint32_t last_status_ms = started_ms;
     uint32_t last_zero_ms = started_ms - CONTROL_PERIOD_MS;
     const char *field_name = g_route_field_is_red != 0U ? "RED" : "BLUE";
+    const uint32_t task_timeout_ms =
+        strcmp(task, "DISC_CATCH") == 0
+            ? RK_ARM_DISC_CATCH_TASK_TIMEOUT_MS
+            : RK_ARM_TASK_TIMEOUT_MS;
 
     g_rk_last_task_bypassed = 0U;
+    g_rk_last_task_soft_timed_out = 0U;
 
     (void)snprintf(start_command, sizeof(start_command),
                     "ARM,%s,START,SEQ,%lu,FIELD,%s\r\n", task,
@@ -1553,7 +1633,8 @@ static bool wait_for_rk_arm_task(const char *task)
 
 #if RK_ARM_TASK_TIMEOUT_MS > 0U
         if (rk_acknowledged &&
-            (uint32_t)(now_ms - task_started_ms) >= RK_ARM_TASK_TIMEOUT_MS) {
+            task_timeout_ms > 0U &&
+            (uint32_t)(now_ms - task_started_ms) >= task_timeout_ms) {
             char stop_command[64];
 
             (void)snprintf(log_line, sizeof(log_line),
@@ -1570,6 +1651,7 @@ static bool wait_for_rk_arm_task(const char *task)
                            task, (unsigned long)sequence);
             board_uart1_write(log_line);
             g_rk_last_task_bypassed = 1U;
+            g_rk_last_task_soft_timed_out = 1U;
             return true;
         }
 #endif
@@ -3596,14 +3678,14 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                         if (!reverse_search_logged) {
                             reverse_search_logged = true;
                             board_uart1_write_only(
-                                "H7,VISION,WHITE_LINE,SEARCH,DIR=REVERSE,SPEED=0.03,T=5000ms\r\n");
+                                "H7,VISION,WHITE_LINE,SEARCH,DIR=REVERSE,SPEED=0.08,T=3000ms\r\n");
                         }
                     } else {
                         desired_forward_speed_m_s = forward_speed_m_s;
                         if (!forward_search_logged) {
                             forward_search_logged = true;
                             board_uart1_write_only(
-                                "H7,VISION,WHITE_LINE,SEARCH,DIR=FORWARD,SPEED=0.03\r\n");
+                                "H7,VISION,WHITE_LINE,SEARCH,DIR=FORWARD,SPEED=0.08\r\n");
                         }
                     }
                 }
@@ -3903,6 +3985,7 @@ static bool run_front_center_orbit(float angle_rad, float center_distance_m)
                 task3_test_service_orbit_pause(g_task3_test_active_sequence);
 
             if (pause_action == 0) {
+                g_route_heading_target_rad = g_yaw_rad;
                 return true;
             }
             if (pause_action < 0) {
@@ -4012,6 +4095,7 @@ static bool run_front_center_orbit(float angle_rad, float center_distance_m)
                 settled_since_ms = now_ms;
             } else if ((uint32_t)(now_ms - settled_since_ms) >=
                        ROUTE_TURN_SETTLE_MS) {
+                g_route_heading_target_rad = g_yaw_rad;
                 return route_motor_send_zero_all();
             }
         } else {
@@ -4149,6 +4233,7 @@ void route_controller_reset_run_context(void)
 {
     g_fault_code = FAULT_NONE;
     g_rk_last_task_bypassed = 0U;
+    g_rk_last_task_soft_timed_out = 0U;
     g_first_arm_station_reached = 0U;
     g_rk_arm_link_ready = 0U;
     g_rk_disc_prep_high_ack = 0U;
@@ -4235,6 +4320,11 @@ void route_controller_set_heading_target(float heading_rad)
 uint8_t route_controller_last_arm_task_bypassed(void)
 {
     return g_rk_last_task_bypassed;
+}
+
+uint8_t route_controller_last_arm_task_soft_timed_out(void)
+{
+    return g_rk_last_task_soft_timed_out;
 }
 
 bool route_controller_wait_for_can_startup(void)
@@ -4473,7 +4563,7 @@ bool route_controller_run_task2_platform_entry(void)
 
     g_run_state = RUN_DISC_FINAL_APPROACH;
     board_uart1_write(
-        "H7,ROUTE,TASK2_WHITE_LINE,REFERENCE_REACHED,FORWARD=210mm\r\n");
+        "H7,ROUTE,TASK2_WHITE_LINE,REFERENCE_REACHED,FORWARD=150mm\r\n");
     moved = run_translation_profile(
         ROUTE_FORWARD_SIGN, 0.0f,
         ROUTE_TASK2_TEST_WHITE_LINE_AFTER_CROSSED_FORWARD_M,
@@ -4597,6 +4687,14 @@ bool route_controller_run_zp_aux(uint32_t channel, uint32_t pulse,
                                  uint32_t time_ms, uint8_t servo_id)
 {
     return run_zp_aux(channel, pulse, time_ms, servo_id);
+}
+
+void route_controller_set_task3_orbit_test_mode(uint8_t enable)
+{
+    /* Reuses the standalone task-three gating inside run_front_center_orbit
+     * (slow speed, ramp, 120 s timeout). The sentinel sequence never matches
+     * a real test transaction, so USB test commands stay inert. */
+    g_task3_test_active_sequence = enable != 0U ? 0xFFFFU : 0U;
 }
 
 #if ROUTE_AUTO_RUN_ON_BOOT == 0U

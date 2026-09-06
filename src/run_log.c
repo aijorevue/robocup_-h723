@@ -302,7 +302,9 @@ static int32_t scaled(float value, float factor)
 void run_log_reset(void)
 {
     memset(records, 0, sizeof(records));
+    memset(immediate_events, 0, sizeof(immediate_events));
     record_count = 0U;
+    immediate_event_count = 0U;
     saved = false;
 }
 
@@ -339,34 +341,62 @@ void run_log_sample(uint32_t timestamp_ms, uint32_t state, uint32_t fault,
     record_count++;
 }
 
-bool run_log_save(uint32_t final_state, uint32_t fault)
+static uint32_t combine_records(run_log_record_t *combined)
 {
-    static run_log_record_t combined[RUN_LOG_MAX_RECORDS]
-        __attribute__((aligned(32)));
     uint32_t combined_count = 0U;
     uint32_t index;
-    bool ok;
-
-    if (saved) {
-        return true;
-    }
 
     for (index = 0U; index < immediate_event_count &&
                      combined_count < RUN_LOG_MAX_RECORDS;
          ++index) {
         combined[combined_count] = immediate_events[index];
-        combined[combined_count].index = combined_count;
         ++combined_count;
     }
     for (index = 0U; index < record_count &&
                      combined_count < RUN_LOG_MAX_RECORDS;
          ++index) {
         combined[combined_count] = records[index];
-        combined[combined_count].index = combined_count;
         ++combined_count;
     }
 
-    ok = run_log_write_records(combined, combined_count, final_state, fault);
+    /* Immediate events and periodic samples use separate RAM buffers. Sort
+     * their merged view by tick so an interrupted route remains readable in
+     * the order in which it actually happened. */
+    for (index = 1U; index < combined_count; ++index) {
+        run_log_record_t value = combined[index];
+        uint32_t position = index;
+
+        while (position > 0U &&
+               combined[position - 1U].timestamp_ms > value.timestamp_ms) {
+            combined[position] = combined[position - 1U];
+            --position;
+        }
+        combined[position] = value;
+    }
+    for (index = 0U; index < combined_count; ++index) {
+        combined[index].index = index;
+    }
+    return combined_count;
+}
+
+bool run_log_save_snapshot(uint32_t final_state, uint32_t fault)
+{
+    static run_log_record_t combined[RUN_LOG_MAX_RECORDS]
+        __attribute__((aligned(32)));
+    const uint32_t combined_count = combine_records(combined);
+
+    return run_log_write_records(combined, combined_count, final_state, fault);
+}
+
+bool run_log_save(uint32_t final_state, uint32_t fault)
+{
+    bool ok;
+
+    if (saved) {
+        return true;
+    }
+
+    ok = run_log_save_snapshot(final_state, fault);
     saved = ok;
     if (ok) {
         immediate_event_count = 0U;
@@ -394,10 +424,9 @@ bool run_log_save_event(uint32_t state, uint32_t fault, uint32_t event)
     record->event = event;
     ++immediate_event_count;
 
-    /* Write the complete immediate-event set so the latest slot contains the
-     * START evidence even when later events arrive before route shutdown. */
-    ok = run_log_write_records(immediate_events, immediate_event_count, state,
-                               fault);
+    /* Include route samples so an immediate diagnostic write cannot replace
+     * an interrupted-route log with only the new event. */
+    ok = run_log_save_snapshot(state, fault);
     return ok;
 }
 

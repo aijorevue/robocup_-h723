@@ -48,6 +48,7 @@ void board_usb_write(const char *text);
 void board_servo_set_angle_deg_index(uint8_t servo_index, float angle_deg);
 void board_servo_disable_index(uint8_t servo_index);
 void board_servo_set_angle_deg(float angle_deg);
+void board_servo_apply_power_on_pose(void);
 float board_read_bus_voltage(void);
 board_lcd_joystick_direction_t board_lcd_joystick_direction(void);
 uint32_t board_lcd_joystick_raw(void);

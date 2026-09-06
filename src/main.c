@@ -49,10 +49,15 @@ static route_field_profile_t route_field_profile(board_field_t field)
  * exception is RC takeover: it is an explicit operator command, so autonomy
  * must yield immediately.  Unknown field selection still returns to the
  * start gate because there is no valid route mirror to execute. */
+/* RC service has already captured takeover/release evidence.  The RC branch
+ * below closes that snapshot before returning to the LCD start gate. */
 #define enter_fault(code)                                      \
     do {                                                       \
         const uint32_t _fault_code = (code);                   \
         if (_fault_code == FAULT_RC_OVERRIDE) {                \
+            (void)run_log_save((uint32_t)RUN_RC_OVERRIDE,      \
+                               FAULT_RC_OVERRIDE);             \
+            run_log_dump_stored();                             \
             board_uart1_write("H7,RC,ROUTE_ABORTED_BY_RC\r\n"); \
             goto route_start;                                 \
         }                                                      \
@@ -109,6 +114,7 @@ route_start:
     field_profile = route_field_profile(selected_field);
     route_controller_set_field(field_profile.is_red);
     route_controller_reset_run_context();
+    board_servo_apply_power_on_pose();
 
     if (field_profile.is_red != 0U) {
         board_uart1_write("H7,ROUTE,FIELD=RED\r\n");
@@ -409,9 +415,12 @@ route_start:
     if (!route_controller_wait_for_rk_arm_task(ROUTE_TASK1_RK_ARM_TASK)) {
         enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
     }
-    route_controller_log_event(route_controller_last_arm_task_bypassed() != 0U
-                                   ? RUN_LOG_EVENT_ARM_BYPASS
-                                   : RUN_LOG_EVENT_ARM_DONE);
+    route_controller_log_event(
+        route_controller_last_arm_task_soft_timed_out() != 0U
+            ? RUN_LOG_EVENT_ARM_STOP
+            : (route_controller_last_arm_task_bypassed() != 0U
+                   ? RUN_LOG_EVENT_ARM_BYPASS
+                   : RUN_LOG_EVENT_ARM_DONE));
 #endif
 
 #if ROUTE_TASK1_ONLY
@@ -429,17 +438,17 @@ route_start:
 
     /*
      * Enter task two as one continuous diagonal segment.  The route-frame
-     * components reproduce the 1.3 m reverse and 2.25 m side approach.
-     * The chassis rotates smoothly through 174 degrees during the segment,
+     * components reproduce the 1.35 m reverse and 2.12 m side approach.
+     * The chassis rotates smoothly through 172 degrees during the segment,
      * mirrored by field, so there are no intermediate 90-degree stops.
      */
     g_run_state = RUN_TASK2_DIAGONAL_TURN;
     board_uart1_write(
         field_profile.is_red != 0U
             ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1350mm,"
-              "LATERAL=2200mm,TURN=LEFT174\r\n"
+              "LATERAL=2120mm,TURN=LEFT172\r\n"
             : "H7,ROUTE,TASK2_DIAGONAL,FIELD=BLUE,BACKWARD=1350mm,"
-              "LATERAL=2200mm,TURN=RIGHT174\r\n");
+              "LATERAL=2120mm,TURN=RIGHT172\r\n");
     if (!route_controller_run_translation_with_turn(
             -ROUTE_FORWARD_SIGN * ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M,
             field_profile.strafe_sign * ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M,
@@ -472,34 +481,22 @@ route_start:
     board_uart1_write(
         "H7,ROUTE,TASK2_ENTRY,GYRO_ALIGN,DONE,TARGET=DIAGONAL_FINAL\r\n");
 
-    /* Only after the diagonal transfer is complete, raise the task-two arm
-     * joints. The RK PREP_HIGH handler keeps ZP ID5 at its home value. */
-    g_run_state = RUN_ARM_DISC_CATCH;
-    if (!route_controller_run_task2_prep_high()) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
-    }
-    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
 #if ROUTE_TASK2_PLATFORM_PICK_ENABLED
     {
         uint32_t platform_index;
 
+        /* PRESELECT_DONE means the secondary pair is locked AND RK has
+         * waited for the task-two high pose. Keep the chassis stopped until
+         * that barrier, then use the standalone white-line entry sequence. */
         g_run_state = RUN_ARM_PLATFORM_PICK;
         board_uart1_write(
             field_profile.is_red != 0U
-                ? "H7,ROUTE,TASK2_PRESELECT,FIELD=RED,COUNT=2\r\n"
-                : "H7,ROUTE,TASK2_PRESELECT,FIELD=BLUE,COUNT=2\r\n");
+                ? "H7,ROUTE,TASK2_PRESELECT,FIELD=RED,COUNT=2,BEFORE_WHITE_LINE\r\n"
+                : "H7,ROUTE,TASK2_PRESELECT,FIELD=BLUE,COUNT=2,BEFORE_WHITE_LINE\r\n");
         if (!route_controller_wait_for_rk_platform_preselect()) {
             enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
         }
-        board_uart1_write("H7,ROUTE,TASK2_PRESELECT_DONE\r\n");
-
-        /* Reuse the standalone task-two first-station entry: 400 mm lateral,
-         * main-camera white-line alignment at Y10=2000 +/- 100, then 210 mm
-         * forward. The legacy 350/50 diagonal is intentionally removed. */
+        board_uart1_write("H7,ROUTE,TASK2_PRESELECT_DONE,ARM_HIGH_READY\r\n");
         if (!route_controller_run_task2_platform_entry()) {
             enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
         }
@@ -522,9 +519,12 @@ route_start:
             if (!route_controller_wait_for_rk_platform_slot(platform_index + 1U)) {
                 enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
             }
-            route_controller_log_event(route_controller_last_arm_task_bypassed() != 0U
-                                           ? RUN_LOG_EVENT_ARM_BYPASS
-                                           : RUN_LOG_EVENT_ARM_DONE);
+            route_controller_log_event(
+                route_controller_last_arm_task_soft_timed_out() != 0U
+                    ? RUN_LOG_EVENT_ARM_STOP
+                    : (route_controller_last_arm_task_bypassed() != 0U
+                           ? RUN_LOG_EVENT_ARM_BYPASS
+                           : RUN_LOG_EVENT_ARM_DONE));
             if (platform_index + 1U < ROUTE_TASK2_PLATFORM_PICK_COUNT) {
                 float shift_distance_m;
 
@@ -590,74 +590,159 @@ route_start:
         enter_fault(g_fault_code);
     }
 
-    g_run_state = field_profile.is_red != 0U ? RUN_LAST_TURN_LEFT :
-                                               RUN_LAST_TURN_RIGHT;
-    if (!route_controller_run_relative_turn(
-            field_profile.turn_sign * ROUTE_STANDARD_QUARTER_TURN_RAD *
-            ROUTE_GYRO_TURN_SCALE)) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT : g_fault_code);
-    }
-    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-    {
-        bool orbit_arm_started = false;
-
-#if ROUTE_TASK3_COLUMN_CATCH_ENABLED
-        g_run_state = RUN_ARM_COLUMN_CATCH;
-        route_controller_log_event(RUN_LOG_EVENT_ARM_START);
-        orbit_arm_started = route_controller_start_rk_arm_task(
-            ROUTE_TASK3_RK_ARM_TASK);
-        if (!orbit_arm_started && g_fault_code != FAULT_NONE) {
-            enter_fault(g_fault_code);
-        }
-        route_controller_log_event(orbit_arm_started
-                                       ? RUN_LOG_EVENT_ARM_ACK
-                                       : RUN_LOG_EVENT_ARM_BYPASS);
-#endif
-
-        g_run_state = RUN_FRONT_CENTER_ORBIT;
-        if (!route_controller_run_front_center_orbit(
-                field_profile.turn_sign * ROUTE_FRONT_CENTER_ORBIT_ANGLE_RAD *
-                    ROUTE_GYRO_TURN_SCALE,
-                ROUTE_FRONT_CENTER_ORBIT_RADIUS_M)) {
-            enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
-        }
-        route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-        if (g_run_state == RUN_FAULT) {
-            enter_fault(g_fault_code);
-        }
-
-#if ROUTE_TASK3_COLUMN_CATCH_ENABLED
-        if (orbit_arm_started) {
-            g_run_state = RUN_ARM_COLUMN_CATCH;
-            route_controller_log_event(RUN_LOG_EVENT_ARM_STOP);
-            if (!route_controller_stop_rk_arm_task(ROUTE_TASK3_RK_ARM_TASK)) {
-                enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
+        {
+            g_run_state = field_profile.is_red != 0U
+                               ? RUN_LAST_TURN_LEFT
+                               : RUN_LAST_TURN_RIGHT;
+            if (!route_controller_run_relative_turn(
+                    field_profile.turn_sign * ROUTE_STANDARD_QUARTER_TURN_RAD *
+                    ROUTE_GYRO_TURN_SCALE)) {
+                enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT : g_fault_code);
             }
-            route_controller_log_event(RUN_LOG_EVENT_ARM_STOP_DONE);
-        }
-#else
-        (void)orbit_arm_started;
+            route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
+
+            bool orbit_arm_started = false;
+
+#if ROUTE_TASK3_COLUMN_CATCH_ENABLED
+            g_run_state = RUN_ARM_COLUMN_CATCH;
+            route_controller_log_event(RUN_LOG_EVENT_ARM_START);
+            orbit_arm_started = route_controller_start_rk_arm_task(
+                ROUTE_TASK3_RK_ARM_TASK);
+            if (!orbit_arm_started && g_fault_code != FAULT_NONE) {
+                enter_fault(g_fault_code);
+            }
+            route_controller_log_event(orbit_arm_started
+                                           ? RUN_LOG_EVENT_ARM_ACK
+                                           : RUN_LOG_EVENT_ARM_BYPASS);
 #endif
 
-        /* Finish the asynchronous COLUMN_CATCH transaction first.  The RK
-         * STOP handler retracts the arm, so the chassis must not reverse
-         * while the arm is still in its low grasp pose. */
-        g_run_state = RUN_FINAL_REVERSE;
-        if (!route_controller_run_translation(
-                -ROUTE_FORWARD_SIGN, 0.0f,
-                ROUTE_TASK3_POST_REVERSE_DISTANCE_M)) {
-            enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
-                                                    : g_fault_code);
+            g_run_state = RUN_FRONT_CENTER_ORBIT;
+            /* The formal route uses the slow, field-tested orbit controller,
+             * but its route geometry is independent from the standalone test:
+             * 360 degrees at the formal 450 mm front-center radius. */
+            route_controller_set_task3_orbit_test_mode(1U);
+            if (!route_controller_run_front_center_orbit(
+                    field_profile.turn_sign * ROUTE_FORMAL_TASK3_ORBIT_ANGLE_RAD *
+                        ROUTE_GYRO_TURN_SCALE,
+                    ROUTE_FRONT_CENTER_ORBIT_RADIUS_M)) {
+                route_controller_set_task3_orbit_test_mode(0U);
+                enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
+            }
+            route_controller_set_task3_orbit_test_mode(0U);
+            route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
+
+#if ROUTE_TASK3_COLUMN_CATCH_ENABLED
+            if (orbit_arm_started) {
+                g_run_state = RUN_ARM_COLUMN_CATCH;
+                route_controller_log_event(RUN_LOG_EVENT_ARM_STOP);
+                if (!route_controller_stop_rk_arm_task(ROUTE_TASK3_RK_ARM_TASK)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
+                }
+                route_controller_log_event(RUN_LOG_EVENT_ARM_STOP_DONE);
+            }
+#else
+            (void)orbit_arm_started;
+#endif
+
+            /* The red-field 360-degree orbit ends with the chassis facing the
+             * reverse leg from the opposite side.  Add the required right
+             * 88-degree transition only for RED; BLUE keeps the existing
+             * post-orbit heading and reverse sequence. */
+            if (field_profile.is_red != 0U) {
+                g_run_state = RUN_TURN_RIGHT;
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,POST_ORBIT_TURN,FIELD=RED,"
+                    "DIR=RIGHT,ANGLE=88deg\r\n");
+                if (!route_controller_run_relative_turn(
+                        ROUTE_RIGHT_TURN_SIGN * ROUTE_STANDARD_QUARTER_TURN_RAD *
+                        ROUTE_GYRO_TURN_SCALE)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
+                                                            : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                if (g_run_state == RUN_FAULT) {
+                    enter_fault(g_fault_code);
+                }
+            }
+
+            /* The RK STOP handler retracts the arm before this reverse. */
+            g_run_state = RUN_FINAL_REVERSE;
+            if (!route_controller_run_translation(
+                    -ROUTE_FORWARD_SIGN, 0.0f,
+                    ROUTE_TASK3_POST_REVERSE_DISTANCE_M)) {
+                enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                        : g_fault_code);
+            }
+            route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
+
+            /* Open PA0 first, hold it for the configured interval, then
+             * restore its power-on angle before moving the chassis. */
+            board_servo_set_angle_deg_index(
+                SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POST_ROUTE_PA0_ANGLE_DEG);
+            board_uart1_write(
+                "H7,LOCAL_SERVO,POST_ROUTE,INDEX,0,ANGLE_DEG,80.0,HOLD_MS,5000\r\n");
+            route_controller_hold_zero(ROUTE_TASK3_POST_AUX_HOLD_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
+            board_servo_set_angle_deg_index(
+                SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POWER_ON_PA0_ANGLE_DEG);
+            board_uart1_write(
+                "H7,LOCAL_SERVO,POST_ROUTE,INDEX,0,ANGLE_DEG,150.0,RESTORE\r\n");
+            route_controller_hold_zero(ROUTE_SERVO_RETURN_SETTLE_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
+
+            /* Move left before operating PA2.  This is a chassis-left move
+             * in the robot frame, independent of field color mirroring. */
+            g_run_state = RUN_PLATFORM_SHIFT_LEFT;
+            if (!route_controller_run_translation_profile(
+                    0.0f, -ROUTE_RIGHT_STRAFE_SIGN,
+                    ROUTE_POST_ROUTE_LEFT_SHIFT_DISTANCE_M,
+                    ROUTE_TRANSLATION_SPEED_M_S,
+                    ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                        : g_fault_code);
+            }
+            route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
+            board_uart1_write(
+                "H7,ROUTE,TASK3,POST_REVERSE_LEFT_SHIFT,DISTANCE=300mm\r\n");
+
+            /* Operate PA2 after the left shift, then return it to its
+             * power-on angle before the route is marked complete. */
+            board_servo_set_angle_deg_index(
+                SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POST_ROUTE_PA2_ANGLE_DEG);
+            board_uart1_write(
+                "H7,LOCAL_SERVO,POST_ROUTE,INDEX,1,ANGLE_DEG,90.0,HOLD_MS,5000\r\n");
+            route_controller_hold_zero(ROUTE_TASK3_POST_AUX_HOLD_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
+            board_servo_set_angle_deg_index(
+                SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POWER_ON_PA2_ANGLE_DEG);
+            board_uart1_write(
+                "H7,LOCAL_SERVO,POST_ROUTE,INDEX,1,ANGLE_DEG,30.0,RESTORE\r\n");
+            route_controller_hold_zero(ROUTE_SERVO_RETURN_SETTLE_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
         }
-        route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-        if (g_run_state == RUN_FAULT) {
-            enter_fault(g_fault_code);
-        }
-    }
+
+        board_uart1_write(
+                    "H7,ROUTE,TASK3,COMPLETE,POST_REVERSE_DONE,DISTANCE=650mm\r\n");
 #endif
 
 #if ROUTE_TASK1_ONLY || ROUTE_STOP_AFTER_WHITE_LINE
@@ -665,13 +750,12 @@ route_task1_only_shutdown:
 #endif
 route_test_shutdown:
 #if !ROUTE_TASK1_ONLY
-    /* The end-of-route SG90 units are on the ZL ZP20S 24-channel bus.
-     * Standalone TASK2/TASK3 must exit without touching formal-route output.
-     * After formal TASK3: pulse S23 to 500 and restore 1000.  On RED only,
-     * shift left 300 mm, pulse S12 to 1500, and restore 600. */
-    if (!task2_test && !task3_test) {
+    /* The test shutdown tail repeats the post sequence for the independent
+     * task-two/task-three runs; the formal route already completed it inside
+     * the field branch above, so it must not run twice. */
+    if (task2_test || task3_test) {
         board_uart1_write(
-            "H7,ROUTE,TASK3,POST_REVERSE,DONE,DISTANCE=300mm\r\n");
+            "H7,ROUTE,TASK3,POST_REVERSE,DONE,DISTANCE=650mm\r\n");
 
         g_run_state = RUN_AUX_ZP_S23;
         if (!route_controller_run_zp_aux(

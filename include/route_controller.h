@@ -46,7 +46,8 @@ typedef enum {
     RUN_TASK2_DIAGONAL_TURN = 35,
     RUN_AUX_ZP_S12 = 36,
     RUN_AUX_ZP_S23 = 37,
-    RUN_AUX_ZP_ID3 = 38
+    RUN_AUX_ZP_ID3 = 38,
+    RUN_FINAL_ALIGN_TURN = 39
 } run_state_t;
 
 enum {
@@ -100,6 +101,7 @@ void route_controller_start_disc_prep_high_async(void);
 void route_controller_reset_pose(void);
 void route_controller_set_heading_target(float heading_rad);
 uint8_t route_controller_last_arm_task_bypassed(void);
+uint8_t route_controller_last_arm_task_soft_timed_out(void);
 uint8_t route_controller_rk_link_ready(void);
 
 bool route_controller_wait_for_can_startup(void);
@@ -147,6 +149,11 @@ bool route_controller_stop_rk_arm_task(const char *task);
  * ZP servo such as ID3. */
 bool route_controller_run_zp_aux(uint32_t channel, uint32_t pulse,
                                  uint32_t time_ms, uint8_t servo_id);
+
+/* Run the front-center orbit with the standalone task-three profile (slow
+ * speed, ramp, long timeout) so the formal route matches the commissioning
+ * behaviour that was validated on the field. */
+void route_controller_set_task3_orbit_test_mode(uint8_t enable);
 
 #if ROUTE_AUTO_RUN_ON_BOOT == 0U
 void route_controller_wait_for_usb_run_command(void);

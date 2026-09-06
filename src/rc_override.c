@@ -7,10 +7,12 @@
 #include "motor_output.h"
 #include "rc_control.h"
 #include "route_controller.h"
+#include "run_log.h"
 
 #include "stm32h7xx_hal.h"
 
 #include <stdint.h>
+#include <math.h>
 #include <stdio.h>
 
 #define RC_MOTOR_DISABLE_RETRY_MS 1000U
@@ -179,6 +181,32 @@ static bool send_drive_command(const chassis_command_t *command)
            motor_send_wheel_speeds(wheel_speed);
 }
 
+static void log_rc_sample(uint32_t timestamp_ms,
+                          const chassis_command_t *command,
+                          const float measured_wheel_speed[4],
+                          uint32_t event)
+{
+    float actual_vx = 0.0f;
+    float actual_vy = 0.0f;
+    float actual_wz = 0.0f;
+    float command_speed;
+
+    if (command == NULL || measured_wheel_speed == NULL) {
+        return;
+    }
+    (void)mecanum_forward(&rc_chassis, measured_wheel_speed, &actual_vx,
+                          &actual_vy, &actual_wz);
+    (void)actual_vx;
+    (void)actual_wz;
+    command_speed = sqrtf(command->vx_m_s * command->vx_m_s +
+                          command->vy_m_s * command->vy_m_s);
+    run_log_sample(timestamp_ms, (uint32_t)RUN_RC_OVERRIDE, FAULT_NONE,
+                   g_gyro_z_rad_s, g_yaw_rad, command_speed,
+                   command->wz_rad_s, g_estimated_distance_m,
+                   g_imu_temperature_c, measured_wheel_speed, g_cross_track_m,
+                   command->vy_m_s, actual_vy, event);
+}
+
 static chassis_command_t update_command(uint32_t now_ms)
 {
     rc_frame_t frame = {0};
@@ -286,6 +314,8 @@ bool rc_override_service(void)
     uint32_t released_since_ms = 0U;
     uint32_t signal_lost_since_ms = 0U;
     uint32_t last_status_ms;
+    uint32_t last_log_ms;
+    uint32_t last_command_error_log_ms;
 
     command_debug = update_command(HAL_GetTick());
     if (!command_debug.armed) {
@@ -318,11 +348,15 @@ bool rc_override_service(void)
     route_controller_request_rk_reset();
     lcd_display_set_start_status("RC");
     board_uart1_write("H7,RC,TAKEOVER\r\n");
+    (void)run_log_save_event((uint32_t)RUN_RC_OVERRIDE, FAULT_NONE,
+                             RUN_LOG_EVENT_RC_TAKEOVER);
 
     if (!motors_enabled) {
         last_enable_attempt_ms = HAL_GetTick();
         if (!enable_motors_for_arm()) {
             board_uart1_write("H7,RC,MOTOR_ENABLE_FAIL\r\n");
+            (void)run_log_save_event((uint32_t)RUN_RC_OVERRIDE, FAULT_NONE,
+                                     RUN_LOG_EVENT_RC_MOTOR_ENABLE_FAIL);
             enter_fault_safe(HAL_GetTick());
             motor_enable_pending = false;
         }
@@ -330,6 +364,8 @@ bool rc_override_service(void)
 
     last_control_ms = HAL_GetTick();
     last_status_ms = last_control_ms - 1000U;
+    last_log_ms = last_control_ms - RUN_LOG_SAMPLE_PERIOD_MS;
+    last_command_error_log_ms = last_control_ms - 1000U;
     for (;;) {
         const uint32_t now_ms = HAL_GetTick();
 
@@ -400,6 +436,12 @@ bool rc_override_service(void)
                     motors_enabled = false;
                     motor_enable_pending = false;
                     motor_disable_pending = false;
+                    (void)run_log_save_event(
+                        (uint32_t)RUN_RC_OVERRIDE, FAULT_RC_OVERRIDE,
+                        signal_loss_release ? RUN_LOG_EVENT_RC_SIGNAL_LOST
+                                             : RUN_LOG_EVENT_RC_RELEASED);
+                    (void)run_log_save_snapshot((uint32_t)RUN_RC_OVERRIDE,
+                                                FAULT_RC_OVERRIDE);
                     board_uart1_write(signal_loss_release
                                           ? "H7,RC,RELEASED,SIGNAL_LOST,WAIT_USER_KEY\r\n"
                                           : "H7,RC,RELEASED,CH5_LOW,WAIT_USER_KEY\r\n");
@@ -411,6 +453,13 @@ bool rc_override_service(void)
             if (motors_enabled && last_drive_command.armed &&
                 !send_drive_command(&last_drive_command)) {
                 board_uart1_write("H7,RC,MOTOR_COMMAND_FAIL\r\n");
+                if ((uint32_t)(now_ms - last_command_error_log_ms) >=
+                    1000U) {
+                    last_command_error_log_ms = now_ms;
+                    log_rc_sample(now_ms, &last_drive_command,
+                                  measured_wheel_speed,
+                                  RUN_LOG_EVENT_RC_MOTOR_COMMAND_FAIL);
+                }
                 enter_fault_safe(now_ms);
                 last_enable_attempt_ms = now_ms - RC_MOTOR_ENABLE_RETRY_MS;
             }
@@ -427,6 +476,13 @@ bool rc_override_service(void)
                 if (!enable_motors_for_arm()) {
                     motor_enable_pending = false;
                     board_uart1_write("H7,RC,MOTOR_ENABLE_RETRY\r\n");
+                    if ((uint32_t)(now_ms - last_command_error_log_ms) >=
+                        1000U) {
+                        last_command_error_log_ms = now_ms;
+                        (void)run_log_save_event(
+                            (uint32_t)RUN_RC_OVERRIDE, FAULT_NONE,
+                            RUN_LOG_EVENT_RC_MOTOR_ENABLE_FAIL);
+                    }
                 }
             }
             continue;
@@ -436,6 +492,11 @@ bool rc_override_service(void)
             enter_fault_safe(now_ms);
             last_enable_attempt_ms = now_ms - RC_MOTOR_ENABLE_RETRY_MS;
             continue;
+        }
+        if ((uint32_t)(now_ms - last_log_ms) >= RUN_LOG_SAMPLE_PERIOD_MS) {
+            last_log_ms = now_ms;
+            log_rc_sample(now_ms, &command_debug, measured_wheel_speed,
+                          RUN_LOG_EVENT_RC_SAMPLE);
         }
     }
 #else

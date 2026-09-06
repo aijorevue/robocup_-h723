@@ -598,6 +598,7 @@ void board_init(void)
     g_rc_fault_epoch = 0U;
     uart5_init();
     servo_pwm_init();
+    board_servo_apply_power_on_pose();
     MX_USB_DEVICE_Init();
     usb_device_started = true;
     fdcan_abort_unresolved = false;
@@ -671,6 +672,16 @@ void board_servo_disable_index(uint8_t servo_index)
 void board_servo_set_angle_deg(float angle_deg)
 {
     board_servo_set_angle_deg_index(0U, angle_deg);
+}
+
+void board_servo_apply_power_on_pose(void)
+{
+    /* Keep both local MG90S outputs valid from power-up through either field
+     * route.  These are independent of the RK bus-servo arm poses. */
+    board_servo_set_angle_deg_index(
+        SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POWER_ON_PA0_ANGLE_DEG);
+    board_servo_set_angle_deg_index(
+        SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POWER_ON_PA2_ANGLE_DEG);
 }
 
 void board_uart1_write_only(const char *text)
