@@ -107,7 +107,7 @@ DISC_CATCH_PREP_ID1_TICK = 600
 DISC_CATCH_PREP_ID2_TICK = 600
 DISC_CATCH_READY_ID1_TICK = 460
 DISC_CATCH_READY_ID2_TICK = 550
-DISC_CATCH_ID6_TICK = 640
+DISC_CATCH_ID6_TICK = 340
 DISC_CATCH_CATCHER_READY_TICK = 1110
 DISC_CATCH_SPLITTER_READY_TICK = 1300
 DISC_CATCH_DESCEND_ID1_TICK = 520
@@ -2578,7 +2578,7 @@ class TargetGraspController:
         if station == "PLATFORM_PICK":
             self.id1 = 600
             self.id2 = 600
-            self.id6 = 640
+            self.id6 = 340
             self.id5 = CATCHER_HOME_TICK
             self.splitter_id4 = DISC_CATCH_SPLITTER_READY_TICK
         else:
@@ -2630,7 +2630,7 @@ class TargetGraspController:
         self.platform_preselect_letters = set()
         self.id1 = 600
         self.id2 = 600
-        self.id6 = 640
+        self.id6 = 340
         self.id7 = self.id7_closed
         self.id5 = CATCHER_HOME_TICK
         self.splitter_id4 = DISC_CATCH_SPLITTER_READY_TICK
@@ -2997,7 +2997,7 @@ class TargetGraspController:
             return False
         self.id1 = 600
         self.id2 = 600
-        self.id6 = 640
+        self.id6 = 340
         self.id7 = self.id7_closed
         self.chassis_station_stage = None
         self.active_chassis_station = None
@@ -3013,7 +3013,7 @@ class TargetGraspController:
     def _finish_platform_pick(self, reason):
         self.id1 = 600
         self.id2 = 600
-        self.id6 = 640
+        self.id6 = 340
         self.id7 = self.id7_closed
         self.id5 = CATCHER_HOME_TICK
         self.splitter_id4 = DISC_CATCH_SPLITTER_READY_TICK
@@ -3027,7 +3027,7 @@ class TargetGraspController:
         self.arm_preview.publish(
             f"PLATFORM_PICK {reason}; keep expanded for next slot"
         )
-        return f"PLATFORM_PICK {reason}; ID1=600 ID2=600 ID6=640 ID7=1300"
+        return f"PLATFORM_PICK {reason}; ID1=600 ID2=600 ID6=340 ID7=1300"
 
     def stop_chassis_station(self, station):
         if self.active_chassis_station != station:
@@ -4348,29 +4348,29 @@ class TargetGraspController:
             self.return_attempts = 0
 
         if self.algorithm_stage == "platform_post_grab_id6":
-            self.state = "PLATFORM_PICK post-grab ID6=570"
+            self.state = "PLATFORM_PICK post-grab ID6=270"
             if not self.servo_bridge.write_enabled:
-                self.id6 = 570
+                self.id6 = 270
                 self.algorithm_stage = "platform_post_grab_id6_wait"
                 self.stage_deadline = now + self._arm_settle_s()
                 self.arm_preview.set_targets(self.id1, self.id2, self.id7, self.id6)
-                return "preview PLATFORM_PICK post-grab ID6=570"
+                return "preview PLATFORM_PICK post-grab ID6=270"
             if can_command:
-                self.id6 = 570
+                self.id6 = 270
                 result = self._send(
-                    "PLATFORM_PICK post-grab move ID6=570",
+                    "PLATFORM_PICK post-grab move ID6=270",
                     require_feedback=False,
                 )
                 if self.servo_bridge.last_command_ok:
                     self.algorithm_stage = "platform_post_grab_id6_wait"
                     self.stage_deadline = time.monotonic() + self._arm_settle_s()
                 return result
-            return "PLATFORM_PICK waiting post-grab ID6=570"
+            return "PLATFORM_PICK waiting post-grab ID6=270"
 
         if self.algorithm_stage == "platform_post_grab_id6_wait":
             if now < self.stage_deadline:
                 return (
-                    "PLATFORM_PICK waiting ID6=570 "
+                    "PLATFORM_PICK waiting ID6=270 "
                     f"{self.stage_deadline - now:.1f}s"
                 )
             self.algorithm_stage = "platform_post_grab_open"
@@ -4430,13 +4430,13 @@ class TargetGraspController:
             if not self.servo_bridge.write_enabled:
                 self.id1 = 600
                 self.id2 = 600
-                self.id6 = 640
+                self.id6 = 340
                 return self._finish_platform_pick("PICKED")
             if can_command:
                 result = self._send_fixed_arm_pose_staged(
                     600,
                     600,
-                    640,
+                    340,
                     "PLATFORM_PICK restore expanded pose",
                     raising=True,
                     id7=self.id7_closed,
@@ -4898,7 +4898,7 @@ class TargetGraspController:
             ):
                 expand_id1 = 600
                 expand_id2 = 600
-                expand_id6 = 640
+                expand_id6 = 340
                 self.id7 = self.id7_closed
                 self.id5 = CATCHER_HOME_TICK
                 self.splitter_id4 = DISC_CATCH_SPLITTER_READY_TICK

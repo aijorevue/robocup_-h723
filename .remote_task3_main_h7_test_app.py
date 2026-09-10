@@ -516,7 +516,7 @@ def run(args) -> int:
         boards = ServoBoards(args.arm_uart, args.zp_uart)
         boards.pose_high()
         print(
-            "TASK3 ARM_HIGH ID1=600 ID2=600 ID6=650 "
+            "TASK3 ARM_HIGH ID1=600 ID2=600 ID6=350 "
             "ZP4=1200 ZP5=800 ZP7=1300",
             flush=True,
         )

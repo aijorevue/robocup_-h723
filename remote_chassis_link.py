@@ -44,6 +44,7 @@ class ChassisArmLink:
         self.pending_stops = []
         self.pending_preps = []
         self.pending_aux_zp = []
+        self.pending_aux_htd85 = []
         self.pending_white_line_queries = []
         self.reset_pending = False
         self.reset_in_progress = False
@@ -58,6 +59,8 @@ class ChassisArmLink:
         self.last_completed_details = ()
         self.last_aux_sequence = None
         self.last_aux_success = False
+        self.last_aux_htd85_sequence = None
+        self.last_aux_htd85_success = False
         self.last_backpressure_log = 0.0
         self.last_open_failure_log = 0.0
         if self.enabled:
@@ -217,6 +220,13 @@ class ChassisArmLink:
 
     def _send_aux_state(self, state, sequence=None, *details):
         parts = ["RK", "AUX_ZP", state]
+        if sequence is not None:
+            parts.extend(("SEQ", str(sequence)))
+        parts.extend(str(detail) for detail in details)
+        return self.send_line(",".join(parts))
+
+    def _send_aux_htd85_state(self, state, sequence=None, *details):
+        parts = ["RK", "AUX_HTD85", state]
         if sequence is not None:
             parts.extend(("SEQ", str(sequence)))
         parts.extend(str(detail) for detail in details)
@@ -637,6 +647,54 @@ class ChassisArmLink:
                 self._send_aux_state("ACK", sequence, "FIELD", self.field_mode.wire_name)
             return
 
+        if len(parts) >= 3 and parts[:3] == ["ARM", "AUX_HTD85", "SET"]:
+            channel = self._int_from_parts(parts, "CHANNEL")
+            servo_id = self._int_from_parts(parts, "SERVO_ID")
+            pulse = self._int_from_parts(parts, "PULSE")
+            time_ms = self._int_from_parts(parts, "TIME")
+            requested = self._field_from_parts(parts[3:])
+            request_valid = (
+                channel is None
+                and servo_id == 3
+                and pulse is not None
+                and 0 <= pulse <= 1000
+                and time_ms is not None
+                and 0 <= time_ms <= 30000
+            )
+            if not request_valid:
+                self._send_aux_htd85_state(
+                    "ERR", sequence, "REASON", "BAD_REQUEST",
+                    "FIELD", self.field_mode.wire_name,
+                )
+                return
+            if requested is not None and self.active_task is None:
+                self.field_mode = requested
+            if sequence is not None and sequence == self.last_aux_htd85_sequence:
+                self._send_aux_htd85_state(
+                    "ACK", sequence, "FIELD", self.field_mode.wire_name
+                )
+                if self.last_aux_htd85_success:
+                    self._send_aux_htd85_state(
+                        "DONE", sequence, "FIELD", self.field_mode.wire_name
+                    )
+                return
+            if sequence is None or not any(
+                item.get("sequence") == sequence
+                for item in self.pending_aux_htd85
+            ):
+                self.pending_aux_htd85.append(
+                    {
+                        "sequence": sequence,
+                        "servo_id": servo_id,
+                        "pulse": pulse,
+                        "time_ms": time_ms,
+                    }
+                )
+                self._send_aux_htd85_state(
+                    "ACK", sequence, "FIELD", self.field_mode.wire_name
+                )
+            return
+
         if len(parts) >= 3 and parts[0] == "ARM" and parts[2] == "STOP":
             task = parts[1]
             if self.active_task != task or not self._same_sequence(
@@ -726,6 +784,11 @@ class ChassisArmLink:
         self.pending_aux_zp = []
         return requests
 
+    def consume_aux_htd85(self):
+        requests = self.pending_aux_htd85
+        self.pending_aux_htd85 = []
+        return requests
+
     def complete_aux_zp(self, request, success, reason=""):
         sequence = request.get("sequence")
         self.last_aux_sequence = sequence
@@ -733,6 +796,19 @@ class ChassisArmLink:
         if success:
             return self._send_aux_state("DONE", sequence, "FIELD", self.field_mode.wire_name)
         return self._send_aux_state(
+            "ERR", sequence, "REASON", reason or "AUX_WRITE_FAILED",
+            "FIELD", self.field_mode.wire_name,
+        )
+
+    def complete_aux_htd85(self, request, success, reason=""):
+        sequence = request.get("sequence")
+        self.last_aux_htd85_sequence = sequence
+        self.last_aux_htd85_success = bool(success)
+        if success:
+            return self._send_aux_htd85_state(
+                "DONE", sequence, "FIELD", self.field_mode.wire_name
+            )
+        return self._send_aux_htd85_state(
             "ERR", sequence, "REASON", reason or "AUX_WRITE_FAILED",
             "FIELD", self.field_mode.wire_name,
         )
@@ -806,6 +882,7 @@ class ChassisArmLink:
         self.pending_starts.clear()
         self.pending_preps.clear()
         self.pending_aux_zp.clear()
+        self.pending_aux_htd85.clear()
         self.pending_preselects.clear()
         self.pending_platform_slots.clear()
         self.pending_stops.clear()

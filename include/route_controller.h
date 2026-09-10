@@ -47,6 +47,7 @@ typedef enum {
     RUN_AUX_ZP_S12 = 36,
     RUN_AUX_ZP_S23 = 37,
     RUN_AUX_ZP_ID3 = 38,
+    RUN_AUX_HTD85_ID3 = 40,
     RUN_FINAL_ALIGN_TURN = 39
 } run_state_t;
 
@@ -144,11 +145,12 @@ bool route_controller_wait_for_rk_platform_preselect(void);
 bool route_controller_wait_for_rk_platform_slot(uint32_t slot);
 bool route_controller_start_rk_arm_task(const char *task);
 bool route_controller_stop_rk_arm_task(const char *task);
-/* Execute one acknowledged ZP20S auxiliary command over the RK link.  Pass
- * servo_id=0 for physical ZL channel S12/S23; pass a nonzero ID for a normal
- * ZP servo such as ID3. */
+/* Execute one acknowledged ZP20S auxiliary command over the RK link. */
 bool route_controller_run_zp_aux(uint32_t channel, uint32_t pulse,
                                  uint32_t time_ms, uint8_t servo_id);
+/* Execute one acknowledged Hiwonder HTD85 auxiliary command over the RK link. */
+bool route_controller_run_htd85_aux(uint8_t servo_id, uint32_t pulse,
+                                    uint32_t time_ms);
 
 /* Run the front-center orbit with the standalone task-three profile (slow
  * speed, ramp, long timeout) so the formal route matches the commissioning

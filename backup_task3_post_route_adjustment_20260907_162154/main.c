@@ -439,16 +439,16 @@ route_start:
     /*
      * Enter task two as one continuous diagonal segment.  The route-frame
      * components reproduce the 1.35 m reverse and 2.12 m side approach.
-     * The chassis rotates smoothly through 180 degrees during the segment,
+     * The chassis rotates smoothly through 172 degrees during the segment,
      * mirrored by field, so there are no intermediate 90-degree stops.
      */
     g_run_state = RUN_TASK2_DIAGONAL_TURN;
     board_uart1_write(
         field_profile.is_red != 0U
             ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1350mm,"
-              "LATERAL=2120mm,TURN=LEFT180\r\n"
+              "LATERAL=2120mm,TURN=LEFT172\r\n"
             : "H7,ROUTE,TASK2_DIAGONAL,FIELD=BLUE,BACKWARD=1350mm,"
-              "LATERAL=2120mm,TURN=RIGHT180\r\n");
+              "LATERAL=2120mm,TURN=RIGHT172\r\n");
     if (!route_controller_run_translation_with_turn(
             -ROUTE_FORWARD_SIGN * ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M,
             field_profile.strafe_sign * ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M,
@@ -653,22 +653,17 @@ route_start:
             (void)orbit_arm_started;
 #endif
 
-            /* Mirror the post-orbit transition by field: RED turns right and
-             * BLUE turns left, both by the configured 90 degrees. */
-            {
-                const uint8_t red_field = field_profile.is_red != 0U;
-                const float post_orbit_turn_sign = red_field
-                                                       ? ROUTE_RIGHT_TURN_SIGN
-                                                       : ROUTE_LEFT_TURN_SIGN;
-                g_run_state = red_field ? RUN_TURN_RIGHT : RUN_TURN_LEFT;
+            /* The red-field 360-degree orbit ends with the chassis facing the
+             * reverse leg from the opposite side.  Add the required right
+             * 88-degree transition only for RED; BLUE keeps the existing
+             * post-orbit heading and reverse sequence. */
+            if (field_profile.is_red != 0U) {
+                g_run_state = RUN_TURN_RIGHT;
                 board_uart1_write(
-                    red_field
-                        ? "H7,ROUTE,TASK3,POST_ORBIT_TURN,FIELD=RED,"
-                          "DIR=RIGHT,ANGLE=90deg\r\n"
-                        : "H7,ROUTE,TASK3,POST_ORBIT_TURN,FIELD=BLUE,"
-                          "DIR=LEFT,ANGLE=90deg\r\n");
+                    "H7,ROUTE,TASK3,POST_ORBIT_TURN,FIELD=RED,"
+                    "DIR=RIGHT,ANGLE=88deg\r\n");
                 if (!route_controller_run_relative_turn(
-                        post_orbit_turn_sign * ROUTE_TASK3_POST_ORBIT_TURN_RAD *
+                        ROUTE_RIGHT_TURN_SIGN * ROUTE_STANDARD_QUARTER_TURN_RAD *
                         ROUTE_GYRO_TURN_SCALE)) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
                                                             : g_fault_code);
@@ -700,7 +695,7 @@ route_start:
                                    : RUN_PLATFORM_SHIFT_RIGHT;
                 if (!route_controller_run_translation_profile(
                         0.0f, post_route_lateral_sign,
-                        ROUTE_TASK3_POST_FIRST_SHIFT_DISTANCE_M,
+                        ROUTE_POST_ROUTE_LEFT_SHIFT_DISTANCE_M,
                         ROUTE_TRANSLATION_SPEED_M_S,
                         ROUTE_TRANSLATION_ACCEL_M_S2)) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
@@ -712,8 +707,8 @@ route_start:
                 }
                 board_uart1_write(
                     field_profile.is_red != 0U
-                        ? "H7,ROUTE,TASK3,POST_REVERSE_SHIFT_1,DIR=LEFT,DISTANCE=400mm\r\n"
-                        : "H7,ROUTE,TASK3,POST_REVERSE_SHIFT_1,DIR=RIGHT,DISTANCE=400mm\r\n");
+                        ? "H7,ROUTE,TASK3,POST_REVERSE_SHIFT_1,DIR=LEFT,DISTANCE=300mm\r\n"
+                        : "H7,ROUTE,TASK3,POST_REVERSE_SHIFT_1,DIR=RIGHT,DISTANCE=300mm\r\n");
             }
 
             /* Open PA0 first, hold it for the configured interval, then
@@ -832,9 +827,9 @@ route_start:
             board_uart1_write(
                 field_profile.is_red != 0U
                     ? "H7,ROUTE,TASK3,POST_ROUTE_FINAL_SHIFT,FIELD=RED,"
-                      "DIR=RIGHT,DISTANCE=2500mm\r\n"
+                      "DIR=RIGHT,DISTANCE=1000mm\r\n"
                     : "H7,ROUTE,TASK3,POST_ROUTE_FINAL_SHIFT,FIELD=BLUE,"
-                      "DIR=LEFT,DISTANCE=2500mm\r\n");
+                      "DIR=LEFT,DISTANCE=1000mm\r\n");
 
             g_run_state = RUN_FORWARD;
             if (!route_controller_run_translation_profile(
@@ -854,7 +849,7 @@ route_start:
 
             g_run_state = RUN_TURN_LEFT;
             if (!route_controller_run_relative_turn(
-                    ROUTE_LEFT_TURN_SIGN * ROUTE_TASK3_POST_FINAL_TURN_RAD *
+                    ROUTE_LEFT_TURN_SIGN * ROUTE_STANDARD_QUARTER_TURN_RAD *
                     ROUTE_GYRO_TURN_SCALE)) {
                 enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
                                                         : g_fault_code);
@@ -864,15 +859,15 @@ route_start:
                 enter_fault(g_fault_code);
             }
             board_uart1_write(
-                "H7,ROUTE,TASK3,POST_ROUTE_FINAL_TURN,DIR=LEFT,ANGLE=89deg\r\n");
+                "H7,ROUTE,TASK3,POST_ROUTE_FINAL_TURN,DIR=LEFT,ANGLE=88deg\r\n");
         }
 
             board_uart1_write(
-                field_profile.is_red != 0U
-                    ? "H7,ROUTE,TASK3,COMPLETE,POST_ROUTE_FINAL_TURN_DONE,"
-                      "RIGHT=2500mm,FORWARD=500mm,TURN=LEFT_89deg\r\n"
-                    : "H7,ROUTE,TASK3,COMPLETE,POST_ROUTE_FINAL_TURN_DONE,"
-                      "LEFT=2500mm,FORWARD=500mm,TURN=LEFT_89deg\r\n");
+                    field_profile.is_red != 0U
+                        ? "H7,ROUTE,TASK3,COMPLETE,POST_ROUTE_FINAL_TURN_DONE,"
+                          "RIGHT=1000mm,FORWARD=500mm,TURN=LEFT_88deg\r\n"
+                        : "H7,ROUTE,TASK3,COMPLETE,POST_ROUTE_FINAL_TURN_DONE,"
+                          "LEFT=1000mm,FORWARD=500mm,TURN=LEFT_88deg\r\n");
 #endif
 
 #if ROUTE_TASK1_ONLY || ROUTE_STOP_AFTER_WHITE_LINE

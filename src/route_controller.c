@@ -65,6 +65,15 @@ static uint8_t g_task3_test_resume_requested;
 static uint8_t g_task3_test_stop_requested;
 static uint8_t g_task3_test_paused;
 static uint8_t g_task3_test_slow_requested;
+/* Formal COLUMN_CATCH has its own control channel.  Keep it separate from
+ * the standalone TEST,TASK3 protocol so stale test frames cannot pause or
+ * resume the competition route. */
+static uint32_t g_formal_task3_active_sequence;
+static uint8_t g_formal_task3_is_red;
+static uint8_t g_formal_task3_pause_requested;
+static uint8_t g_formal_task3_resume_requested;
+static uint8_t g_formal_task3_stop_requested;
+static uint8_t g_formal_task3_paused;
 
 typedef enum {
     ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC = 1,
@@ -75,6 +84,7 @@ static void service_rk_link_before_first_station(void);
 static bool service_disc_prep_high_during_arc(void);
 static bool service_task2_test_command(void);
 static bool service_task3_test_command(void);
+static bool service_formal_task3_command(void);
 static bool handle_local_mg90s_command(const char *line);
 static bool run_disc_visual_alignment(void);
 static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
@@ -88,6 +98,16 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
 static bool route_motor_feedback_update_after_command(float wheel_rad_s[4],
                                                        bool *allow_missing_once);
 static bool enable_motors(void);
+
+static void clear_formal_task3_context(void)
+{
+    g_formal_task3_active_sequence = 0U;
+    g_formal_task3_is_red = 0U;
+    g_formal_task3_pause_requested = 0U;
+    g_formal_task3_resume_requested = 0U;
+    g_formal_task3_stop_requested = 0U;
+    g_formal_task3_paused = 0U;
+}
 
 static void request_rk_arm_reset(void)
 {
@@ -960,6 +980,183 @@ static void task3_test_send_error(const char *reason, uint32_t sequence)
                    (unsigned long)sequence, reason,
                    g_task3_test_is_red != 0U ? "RED" : "BLUE");
     board_usb_write(response);
+}
+
+static void formal_task3_send_status(const char *status, uint32_t sequence)
+{
+    char response[160];
+
+    (void)snprintf(response, sizeof(response),
+                   "H7,ARM,COLUMN_CATCH,%s,SEQ,%lu,FIELD,%s\r\n", status,
+                   (unsigned long)sequence,
+                   g_formal_task3_is_red != 0U ? "RED" : "BLUE");
+    board_usb_write(response);
+}
+
+static void formal_task3_send_ack(const char *command, uint32_t sequence)
+{
+    char response[192];
+
+    (void)snprintf(response, sizeof(response),
+                   "H7,ARM,COLUMN_CATCH,ACK,SEQ,%lu,FIELD,%s,COMMAND,%s\r\n",
+                   (unsigned long)sequence,
+                   g_formal_task3_is_red != 0U ? "RED" : "BLUE", command);
+    board_usb_write(response);
+}
+
+static bool parse_formal_task3_control(const char *line, const char *command,
+                                       uint32_t *sequence, uint8_t *is_red)
+{
+    char copy[160];
+    char *tokens[8];
+    char *token;
+    char *end;
+    size_t count = 0U;
+    unsigned long parsed_sequence;
+
+    if (line == NULL || command == NULL || sequence == NULL ||
+        is_red == NULL) {
+        return false;
+    }
+    (void)snprintf(copy, sizeof(copy), "%s", line);
+    token = strtok(copy, ",");
+    while (token != NULL && count < (sizeof(tokens) / sizeof(tokens[0]))) {
+        tokens[count++] = token;
+        token = strtok(NULL, ",");
+    }
+    if (count != 8U || strcmp(tokens[0], "RK") != 0 ||
+        strcmp(tokens[1], "ARM") != 0 ||
+        strcmp(tokens[2], "COLUMN_CATCH") != 0 ||
+        strcmp(tokens[3], command) != 0 || strcmp(tokens[4], "SEQ") != 0 ||
+        strcmp(tokens[6], "FIELD") != 0 ||
+        (strcmp(tokens[7], "RED") != 0 && strcmp(tokens[7], "BLUE") != 0)) {
+        return false;
+    }
+    parsed_sequence = strtoul(tokens[5], &end, 10);
+    if (*tokens[5] == '\0' || *end != '\0' || parsed_sequence == 0UL ||
+        parsed_sequence > 0xFFFFFFFFUL) {
+        return false;
+    }
+    *sequence = (uint32_t)parsed_sequence;
+    *is_red = strcmp(tokens[7], "RED") == 0 ? 1U : 0U;
+    return true;
+}
+
+static bool service_formal_task3_command(void)
+{
+    static char line[160];
+    static uint32_t line_len;
+    uint8_t rx[128];
+    uint32_t read_len = CDC_Read_HS(rx, sizeof(rx));
+    uint32_t index;
+
+    for (index = 0U; index < read_len; ++index) {
+        const char c = (char)rx[index];
+
+        if (c == '\r' || c == '\n') {
+            uint32_t sequence;
+            uint8_t is_red;
+
+            line[line_len] = '\0';
+            if (line_len > 0U && g_formal_task3_active_sequence != 0U) {
+                if (parse_formal_task3_control(line, "PAUSE", &sequence,
+                                               &is_red) &&
+                    sequence == g_formal_task3_active_sequence &&
+                    is_red == g_formal_task3_is_red) {
+                    if (g_formal_task3_paused == 0U) {
+                        g_formal_task3_pause_requested = 1U;
+                    }
+                    formal_task3_send_ack("PAUSE", sequence);
+                } else if (parse_formal_task3_control(
+                               line, "RESUME", &sequence, &is_red) &&
+                           sequence == g_formal_task3_active_sequence &&
+                           is_red == g_formal_task3_is_red) {
+                    g_formal_task3_resume_requested = 1U;
+                    formal_task3_send_ack("RESUME", sequence);
+                } else if (parse_formal_task3_control(
+                               line, "STOP", &sequence, &is_red) &&
+                           sequence == g_formal_task3_active_sequence &&
+                           is_red == g_formal_task3_is_red) {
+                    g_formal_task3_stop_requested = 1U;
+                    formal_task3_send_ack("STOP", sequence);
+                }
+            }
+            line_len = 0U;
+        } else if (line_len + 1U < sizeof(line)) {
+            line[line_len++] = c;
+        } else {
+            line_len = 0U;
+        }
+    }
+    return read_len > 0U;
+}
+
+/* Return 1 to keep orbiting, 0 to leave the orbit, and -1 on a hard motor
+ * failure.  This is the formal COLUMN_CATCH channel; TEST,TASK3 remains
+ * handled by task3_test_service_orbit_pause(). */
+static int formal_task3_service_orbit_pause(uint32_t sequence)
+{
+    uint32_t last_paused_status_ms;
+
+    (void)service_formal_task3_command();
+    if (g_formal_task3_stop_requested != 0U) {
+        if (!route_motor_send_zero_all()) {
+            g_fault_code = FAULT_MOTOR_COMMAND;
+            return -1;
+        }
+        formal_task3_send_status("STOPPED", sequence);
+        g_formal_task3_stop_requested = 0U;
+        return 0;
+    }
+    if (g_formal_task3_pause_requested == 0U) {
+        return 1;
+    }
+
+    if (!route_motor_send_zero_all()) {
+        g_fault_code = FAULT_MOTOR_COMMAND;
+        return -1;
+    }
+    g_formal_task3_pause_requested = 0U;
+    g_formal_task3_paused = 1U;
+    formal_task3_send_status("PAUSED", sequence);
+    last_paused_status_ms = HAL_GetTick();
+
+    while (g_formal_task3_paused != 0U) {
+        const uint32_t now_ms = HAL_GetTick();
+
+        (void)service_formal_task3_command();
+        if (rc_override_service()) {
+            (void)route_motor_send_zero_all();
+            formal_task3_send_status("STOPPED", sequence);
+            g_formal_task3_paused = 0U;
+            g_formal_task3_stop_requested = 0U;
+            return 0;
+        }
+        if (g_formal_task3_stop_requested != 0U) {
+            if (!route_motor_send_zero_all()) {
+                g_fault_code = FAULT_MOTOR_COMMAND;
+                return -1;
+            }
+            formal_task3_send_status("STOPPED", sequence);
+            g_formal_task3_paused = 0U;
+            g_formal_task3_stop_requested = 0U;
+            return 0;
+        }
+        if (g_formal_task3_resume_requested != 0U) {
+            g_formal_task3_resume_requested = 0U;
+            g_formal_task3_paused = 0U;
+            formal_task3_send_status("RESUMED", sequence);
+            return 2;
+        }
+        if ((uint32_t)(now_ms - last_paused_status_ms) >=
+            ROUTE_TASK3_TEST_STATUS_RETRY_MS) {
+            last_paused_status_ms = now_ms;
+            formal_task3_send_status("PAUSED", sequence);
+        }
+        lcd_display_update();
+        HAL_Delay(10U);
+    }
+    return 1;
 }
 
 static bool service_task3_test_command(void)
@@ -2038,6 +2235,16 @@ static bool start_rk_arm_task(const char *task)
                     if (line_matches_token_prefix(line, ack_prefix)) {
                         g_rk_async_task_sequence = sequence;
                         g_rk_last_task_bypassed = 0U;
+                        if (strcmp(task, "COLUMN_CATCH") == 0) {
+                            g_formal_task3_active_sequence = sequence;
+                            g_formal_task3_is_red = g_route_field_is_red;
+                            g_formal_task3_pause_requested = 0U;
+                            g_formal_task3_resume_requested = 0U;
+                            g_formal_task3_stop_requested = 0U;
+                            g_formal_task3_paused = 0U;
+                            board_uart1_write(
+                                "H7,ARM,COLUMN_CATCH,FORMAL_CHANNEL_ACTIVE\r\n");
+                        }
                         (void)snprintf(log_line, sizeof(log_line),
                                        "H7,ARM,%s,ACK_ASYNC,SEQ=%lu\r\n", task,
                                        (unsigned long)sequence);
@@ -2160,6 +2367,9 @@ static bool stop_rk_arm_task(const char *task)
                                        (unsigned long)g_rk_async_task_sequence);
                         board_uart1_write(log_line);
                         g_rk_async_task_sequence = 0U;
+                        if (strcmp(task, "COLUMN_CATCH") == 0) {
+                            clear_formal_task3_context();
+                        }
                         return true;
                     }
                     if (line_matches_token_prefix(line, error_prefix)) {
@@ -2193,8 +2403,8 @@ static bool stop_rk_arm_task(const char *task)
     }
 }
 
-static bool run_zp_aux(uint32_t channel, uint32_t pulse, uint32_t time_ms,
-                       uint8_t servo_id)
+static bool run_remote_aux(uint32_t channel, uint32_t pulse, uint32_t time_ms,
+                           uint8_t servo_id, bool htd85)
 {
     uint8_t rx[96];
     char line[160];
@@ -2210,13 +2420,18 @@ static bool run_zp_aux(uint32_t channel, uint32_t pulse, uint32_t time_ms,
     uint32_t last_zero_ms = started_ms - CONTROL_PERIOD_MS;
     const uint32_t sequence = next_rk_task_sequence();
     const char *field_name = g_route_field_is_red != 0U ? "RED" : "BLUE";
-    const bool valid_channel = channel == ROUTE_AUX_ZP_S12_CHANNEL ||
-                               channel == ROUTE_AUX_ZP_S23_CHANNEL;
-    const bool valid_servo = servo_id == ROUTE_AUX_ZP_ID3_SERVO_ID;
+    const bool valid_channel = !htd85 &&
+                               (channel == ROUTE_AUX_ZP_S12_CHANNEL ||
+                                channel == ROUTE_AUX_ZP_S23_CHANNEL);
+    const bool valid_servo = htd85 && servo_id == ROUTE_AUX_ZP_ID3_SERVO_ID;
+    const char *protocol = htd85 ? "AUX_HTD85" : "AUX_ZP";
+    const uint32_t min_pulse = htd85 ? 0U : 500U;
+    const uint32_t max_pulse = htd85 ? 1000U : 2500U;
+    const uint32_t max_time_ms = htd85 ? 30000U : 9999U;
 
     if ((!valid_channel && !valid_servo) || (valid_channel && servo_id != 0U) ||
-        (valid_servo && channel != 0U) || pulse < 500U || pulse > 2500U ||
-        time_ms > 9999U) {
+        (valid_servo && channel != 0U) || pulse < min_pulse ||
+        pulse > max_pulse || time_ms > max_time_ms) {
         g_fault_code = FAULT_KINEMATICS;
         return false;
     }
@@ -2224,25 +2439,25 @@ static bool run_zp_aux(uint32_t channel, uint32_t pulse, uint32_t time_ms,
     if (valid_channel) {
         (void)snprintf(
             command, sizeof(command),
-            "ARM,AUX_ZP,SET,SEQ,%lu,FIELD,%s,CHANNEL,%lu,PULSE,%lu,TIME,%lu\r\n",
-            (unsigned long)sequence, field_name, (unsigned long)channel,
+            "ARM,%s,SET,SEQ,%lu,FIELD,%s,CHANNEL,%lu,PULSE,%lu,TIME,%lu\r\n",
+            protocol, (unsigned long)sequence, field_name, (unsigned long)channel,
             (unsigned long)pulse, (unsigned long)time_ms);
     } else {
         (void)snprintf(
             command, sizeof(command),
-            "ARM,AUX_ZP,SET,SEQ,%lu,FIELD,%s,SERVO_ID,%u,PULSE,%lu,TIME,%lu\r\n",
-            (unsigned long)sequence, field_name, (unsigned int)servo_id,
+            "ARM,%s,SET,SEQ,%lu,FIELD,%s,SERVO_ID,%u,PULSE,%lu,TIME,%lu\r\n",
+            protocol, (unsigned long)sequence, field_name, (unsigned int)servo_id,
             (unsigned long)pulse, (unsigned long)time_ms);
     }
     (void)snprintf(ack_prefix, sizeof(ack_prefix),
-                   "RK,AUX_ZP,ACK,SEQ,%lu", (unsigned long)sequence);
+                   "RK,%s,ACK,SEQ,%lu", protocol, (unsigned long)sequence);
     (void)snprintf(done_prefix, sizeof(done_prefix),
-                   "RK,AUX_ZP,DONE,SEQ,%lu", (unsigned long)sequence);
+                   "RK,%s,DONE,SEQ,%lu", protocol, (unsigned long)sequence);
     (void)snprintf(error_prefix, sizeof(error_prefix),
-                   "RK,AUX_ZP,ERR,SEQ,%lu", (unsigned long)sequence);
+                   "RK,%s,ERR,SEQ,%lu", protocol, (unsigned long)sequence);
     (void)snprintf(log_line, sizeof(log_line),
-                   "H7,AUX_ZP,WAIT,SEQ=%lu,TARGET=%s%lu,PULSE=%lu,TIME=%lu\r\n",
-                   (unsigned long)sequence,
+                   "H7,%s,WAIT,SEQ=%lu,TARGET=%s%lu,PULSE=%lu,TIME=%lu\r\n",
+                   protocol, (unsigned long)sequence,
                    valid_channel ? "S" : "ID", valid_channel
                        ? (unsigned long)channel
                        : (unsigned long)servo_id,
@@ -2279,13 +2494,19 @@ static bool run_zp_aux(uint32_t channel, uint32_t pulse, uint32_t time_ms,
                     if (line_matches_token_prefix(line, ack_prefix)) {
                         if (ack_ms == 0U) {
                             ack_ms = HAL_GetTick();
-                            board_uart1_write_only("H7,AUX_ZP,ACK\r\n");
+                            (void)snprintf(log_line, sizeof(log_line),
+                                           "H7,%s,ACK\r\n", protocol);
+                            board_uart1_write_only(log_line);
                         }
                     } else if (line_matches_token_prefix(line, done_prefix)) {
-                        board_uart1_write("H7,AUX_ZP,DONE\r\n");
+                        (void)snprintf(log_line, sizeof(log_line),
+                                       "H7,%s,DONE\r\n", protocol);
+                        board_uart1_write(log_line);
                         return true;
                     } else if (line_matches_token_prefix(line, error_prefix)) {
-                        board_uart1_write("H7,AUX_ZP,REMOTE_ERROR\r\n");
+                        (void)snprintf(log_line, sizeof(log_line),
+                                       "H7,%s,REMOTE_ERROR\r\n", protocol);
+                        board_uart1_write(log_line);
                         g_fault_code = FAULT_ARM_REMOTE;
                         return false;
                     }
@@ -2295,23 +2516,40 @@ static bool run_zp_aux(uint32_t channel, uint32_t pulse, uint32_t time_ms,
                 line[line_len++] = c;
             } else {
                 line_len = 0U;
-                board_uart1_write("H7,ERR,AUX_ZP_LINE_TOO_LONG\r\n");
+                (void)snprintf(log_line, sizeof(log_line),
+                               "H7,ERR,%s_LINE_TOO_LONG\r\n", protocol);
+                board_uart1_write(log_line);
             }
         }
         now_ms = HAL_GetTick();
         if (ack_ms == 0U) {
             if ((uint32_t)(now_ms - started_ms) >= ROUTE_AUX_ACK_TIMEOUT_MS) {
-                board_uart1_write("H7,AUX_ZP,ACK_TIMEOUT\r\n");
+                (void)snprintf(log_line, sizeof(log_line),
+                               "H7,%s,ACK_TIMEOUT\r\n", protocol);
+                board_uart1_write(log_line);
                 g_fault_code = FAULT_ARM_TIMEOUT;
                 return false;
             }
         } else if ((uint32_t)(now_ms - ack_ms) >= ROUTE_AUX_DONE_TIMEOUT_MS) {
-            board_uart1_write("H7,AUX_ZP,DONE_TIMEOUT\r\n");
+            (void)snprintf(log_line, sizeof(log_line),
+                           "H7,%s,DONE_TIMEOUT\r\n", protocol);
+            board_uart1_write(log_line);
             g_fault_code = FAULT_ARM_TIMEOUT;
             return false;
         }
         HAL_Delay(1U);
     }
+}
+
+static bool run_zp_aux(uint32_t channel, uint32_t pulse, uint32_t time_ms,
+                       uint8_t servo_id)
+{
+    return run_remote_aux(channel, pulse, time_ms, servo_id, false);
+}
+
+static bool run_htd85_aux(uint8_t servo_id, uint32_t pulse, uint32_t time_ms)
+{
+    return run_remote_aux(0U, pulse, time_ms, servo_id, true);
 }
 
 static bool settle_translation_cross_track(float along_x, float along_y,
@@ -3678,7 +3916,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                         if (!reverse_search_logged) {
                             reverse_search_logged = true;
                             board_uart1_write_only(
-                                "H7,VISION,WHITE_LINE,SEARCH,DIR=REVERSE,SPEED=0.08,T=3000ms\r\n");
+                                "H7,VISION,WHITE_LINE,SEARCH,DIR=REVERSE,SPEED=0.08,T=900ms\r\n");
                         }
                     } else {
                         desired_forward_speed_m_s = forward_speed_m_s;
@@ -3941,15 +4179,25 @@ static bool run_front_center_orbit(float angle_rad, float center_distance_m)
     bool first_feedback_cycle = true;
     const uint8_t task3_test =
         g_task3_test_active_sequence != 0U ? 1U : 0U;
+    const uint8_t formal_task3 =
+        g_formal_task3_active_sequence != 0U ? 1U : 0U;
+    const uint8_t orbit_task3_control =
+        (task3_test != 0U || formal_task3 != 0U) ? 1U : 0U;
     const uint32_t timeout_ms = task3_test != 0U
                                     ? ROUTE_TASK3_TEST_ORBIT_TIMEOUT_MS
-                                    : ROUTE_FRONT_CENTER_ORBIT_TIMEOUT_MS;
+                                    : (formal_task3 != 0U
+                                           ? ROUTE_FORMAL_TASK3_ORBIT_TIMEOUT_MS
+                                           : ROUTE_FRONT_CENTER_ORBIT_TIMEOUT_MS);
     const float max_speed_rad_s = task3_test != 0U
                                       ? ROUTE_TASK3_TEST_ORBIT_MAX_SPEED_RAD_S
-                                      : ROUTE_ORBIT_MAX_SPEED_RAD_S;
+                                      : (formal_task3 != 0U
+                                             ? ROUTE_FORMAL_TASK3_ORBIT_MAX_SPEED_RAD_S
+                                             : ROUTE_ORBIT_MAX_SPEED_RAD_S);
     const float acceleration_rad_s2 = task3_test != 0U
                                          ? ROUTE_TASK3_TEST_ORBIT_ACCEL_RAD_S2
-                                         : ROUTE_ORBIT_ACCEL_RAD_S2;
+                                         : (formal_task3 != 0U
+                                                ? ROUTE_FORMAL_TASK3_ORBIT_ACCEL_RAD_S2
+                                                : ROUTE_ORBIT_ACCEL_RAD_S2);
     const float slow_speed_rad_s = task3_test != 0U
                                        ? ROUTE_TASK3_TEST_ORBIT_SLOW_SPEED_RAD_S
                                        : max_speed_rad_s;
@@ -3980,9 +4228,12 @@ static bool run_front_center_orbit(float angle_rad, float center_distance_m)
             g_fault_code = FAULT_TURN_TIMEOUT;
             return false;
         }
-        if (task3_test != 0U) {
-            const int pause_action =
-                task3_test_service_orbit_pause(g_task3_test_active_sequence);
+        if (orbit_task3_control != 0U) {
+            const int pause_action = formal_task3 != 0U
+                                         ? formal_task3_service_orbit_pause(
+                                               g_formal_task3_active_sequence)
+                                         : task3_test_service_orbit_pause(
+                                               g_task3_test_active_sequence);
 
             if (pause_action == 0) {
                 g_route_heading_target_rad = g_yaw_rad;
@@ -4241,6 +4492,7 @@ void route_controller_reset_run_context(void)
     g_rk_disc_prep_high_last_send_ms = 0U;
     g_rk_reset_pending = 0U;
     g_rk_async_task_sequence = 0U;
+    clear_formal_task3_context();
     g_rk_pretask_line_len = 0U;
     g_command_speed_m_s = 0.0f;
     g_heading_correction_rad_s = 0.0f;
@@ -4687,6 +4939,12 @@ bool route_controller_run_zp_aux(uint32_t channel, uint32_t pulse,
                                  uint32_t time_ms, uint8_t servo_id)
 {
     return run_zp_aux(channel, pulse, time_ms, servo_id);
+}
+
+bool route_controller_run_htd85_aux(uint8_t servo_id, uint32_t pulse,
+                                    uint32_t time_ms)
+{
+    return run_htd85_aux(servo_id, pulse, time_ms);
 }
 
 void route_controller_set_task3_orbit_test_mode(uint8_t enable)

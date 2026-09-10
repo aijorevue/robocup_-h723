@@ -37,7 +37,7 @@ being raised during the disc arc.
 2. The mirrored cubic arc ends at the configured forward endpoint
    `ROUTE_FORWARD_DISTANCE_M=3.930 m` and lateral endpoint `0.650 m`.
    Arc maximum speed is `1.40 m/s`; acceleration is `0.50 m/s^2`.
-3. RK applies `PREP_HIGH`: 85KG ID1/ID2/ID6 are `600/500/670`, ZP splitter
+3. RK applies `PREP_HIGH`: 85KG ID1/ID2/ID6 are `600/500/350`, ZP splitter
    ID4 is `1200`, ZP ID5 is `800`, and ZP ID7 is closed at `1300`.
 4. After the arc, H7 queries the main camera for the white line. The reference
    is `Y10=1500 +/- 100` in an `800x600` frame and `A100=0`.
@@ -53,7 +53,7 @@ being raised during the disc arc.
    task-two transfer: one continuous `1.30 m` backward / `2.25 m` lateral /
    `174 deg` diagonal motion. Only after the transfer completes does H7
    request PREP_HIGH for task two. RK then raises only 85KG `ID1=600,
-   ID2=500, ID6=650`; ZP ID5 remains at its home value `900` and is not
+   ID2=500, ID6=350`; ZP ID5 remains at its home value `900` and is not
    expanded again.
 
 ## Task-two route

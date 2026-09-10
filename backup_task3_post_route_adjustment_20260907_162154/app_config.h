@@ -33,7 +33,7 @@
 /* Autonomous route: enter the disc station with the mirrored cubic arc
  * (forward endpoint 3.93 m, lateral endpoint 0.65 m), perform DISC_CATCH,
  * then take one diagonal task-two entry of 1.35 m backward and 2.25 m toward
- * the selected field side while rotating 180 degrees, and run eight slots.
+ * the selected field side while rotating 172 degrees, and run eight slots.
  * The platform task first locks two distinct A/B/C/D letters with the
  * secondary camera, then uses the main camera for all eight slots. */
 #define CONTROL_PERIOD_MS 10U
@@ -100,9 +100,9 @@
 #define ROUTE_DISC_ARC_ODOM_FORWARD_SCALE 0.880f
 #define ROUTE_DISC_ARC_ODOM_LATERAL_SCALE 1.450f
 #define ROUTE_DISC_PREP_RETRY_PERIOD_MS 300U
-#define ROUTE_DISC_PREP_HIGH_ID1_TICK 650
+#define ROUTE_DISC_PREP_HIGH_ID1_TICK 600
 #define ROUTE_DISC_PREP_HIGH_ID2_TICK 600
-#define ROUTE_DISC_PREP_HIGH_ID6_TICK 350
+#define ROUTE_DISC_PREP_HIGH_ID6_TICK 650
 /* Camera reference measured at the desired DISC station pose, 800x600.
  * Formal task one uses the main-camera white-line closed loop after the arc.
  * The RK detector reports Y10 in tenths of a pixel. */
@@ -146,7 +146,7 @@
 #define ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M 1.350f
 #define ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M 2.120f
 #define ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M 2.5133444f
-#define ROUTE_TASK2_ENTRY_TURN_ANGLE_RAD 3.1415927f /* 180 deg */
+#define ROUTE_TASK2_ENTRY_TURN_ANGLE_RAD 3.0019663f /* 172 deg */
 #define ROUTE_AFTER_PLATFORM_REVERSE_COMPONENT_M 0.950f
 #define ROUTE_AFTER_PLATFORM_LEFT_COMPONENT_M 0.000f
 #define ROUTE_AFTER_PLATFORM_DIAGONAL_DISTANCE_M 0.9500000f
@@ -175,12 +175,9 @@
 #define ROUTE_FINAL_REVERSE_DISTANCE_M 0.300f
 #define ROUTE_TASK3_POST_REVERSE_DISTANCE_M 0.720f
 #define ROUTE_POST_ROUTE_LEFT_SHIFT_DISTANCE_M 0.300f
-#define ROUTE_TASK3_POST_FIRST_SHIFT_DISTANCE_M 0.400f
-#define ROUTE_POST_ROUTE_FINAL_LEFT_SHIFT_DISTANCE_M 2.500f
+#define ROUTE_POST_ROUTE_FINAL_LEFT_SHIFT_DISTANCE_M 1.000f
 #define ROUTE_POST_ROUTE_FINAL_FORWARD_DISTANCE_M 0.500f
 #define ROUTE_TASK3_POST_RED_LEFT_SHIFT_DISTANCE_M 0.300f
-#define ROUTE_TASK3_POST_ORBIT_TURN_RAD 1.5707963f /* 90 deg */
-#define ROUTE_TASK3_POST_FINAL_TURN_RAD 1.5533430f /* 89 deg */
 #define ROUTE_TASK3_POST_AUX_HOLD_MS 5000U
 #define ROUTE_SERVO_OPEN_HOLD_MS 2000U
 #define ROUTE_SERVO_RETURN_SETTLE_MS 700U

@@ -103,14 +103,19 @@ SPLITTER_OTHER_BALL_TICK = 1600
 CATCHER_HOME_TICK = 900
 CATCHER_RELEASE_READY_TICK = 1100
 POST_GRAB_ID2_RETREAT_TICK = 100
-DISC_CATCH_PREP_ID1_TICK = 600
+DISC_CATCH_PREP_ID1_TICK = 650
 DISC_CATCH_PREP_ID2_TICK = 600
-DISC_CATCH_READY_ID1_TICK = 460
+DISC_CATCH_READY_ID1_TICK = 550
 DISC_CATCH_READY_ID2_TICK = 550
-DISC_CATCH_ID6_TICK = 650
+DISC_CATCH_ID6_TICK = 350
 DISC_CATCH_CATCHER_READY_TICK = 1110
 DISC_CATCH_SPLITTER_READY_TICK = 1300
-DISC_CATCH_DESCEND_ID1_TICK = 520
+DISC_CATCH_POST_HIGH_ID1_TICK = 650
+DISC_CATCH_POST_HIGH_ID2_TICK = 600
+DISC_CATCH_POST_HIGH_ID6_TICK = 350
+# Formal task-three keeps its own fixed descent calibration. This is not a
+# task-one ball pose and must not be reused by DISC_CATCH.
+COLUMN_CATCH_DESCEND_ID1_TICK = 520
 DISC_CATCH_TARGET_TIMEOUT_S = 5.0
 DISC_CATCH_SPLITTER_FIELD_TICK = 1100
 DISC_CATCH_SPLITTER_YELLOW_TICK = 1600
@@ -132,8 +137,9 @@ ARM_TUNE_ZP_LIMITS = {
     5: (500, 2500),
     7: (500, 2500),
 }
-COLUMN_CATCH_READY_ID1_TICK = 600
-COLUMN_CATCH_READY_ID2_TICK = 600
+COLUMN_CATCH_READY_ID1_TICK = 650
+COLUMN_CATCH_READY_ID2_TICK = 500
+COLUMN_CATCH_READY_ID6_TICK = 350
 COLUMN_CATCH_SPLITTER_TICK = 1300
 RING_DISTANCE_OFFSET_CM = BALL_DISTANCE_OFFSET_CM + RING_DISTANCE_EXTRA_CM
 RING_DISTANCE_SCALE_CM = (
@@ -1280,7 +1286,35 @@ class DirectBusServoBridge:
             self.status = status
         return self.status
 
-    def _send_htd85_targets(self, arm_targets, repeat=None):
+    def send_htd85_aux(self, servo_id=3, pulse=0, time_ms=300, repeat=None):
+        """Write one auxiliary target on the Hiwonder HTD85 binary bus."""
+        servo_id = int(servo_id)
+        pulse = int(pulse)
+        time_ms = int(time_ms)
+        if (
+            not self.enabled
+            or self.arm_fd is None
+            or servo_id != 3
+            or not 0 <= pulse <= HTD85_MAX_POSITION
+            or not 0 <= time_ms <= 30000
+        ):
+            self.last_command_ok = False
+            return self.status
+        if not self.write_enabled:
+            self.last_command_ok = False
+            self.status = "direct bus servo read-only; HTD85 auxiliary target not sent"
+            return self.status
+        self.last_command_ok = False
+        ok, status = self._send_htd85_targets(
+            [(servo_id, pulse)], repeat=repeat, time_ms=time_ms
+        )
+        self.last_command_ok = bool(ok)
+        self.status = status if not ok else (
+            f"HTD85 AUX TX ID{servo_id}={pulse} T={time_ms}ms"
+        )
+        return self.status
+
+    def _send_htd85_targets(self, arm_targets, repeat=None, time_ms=None):
         """Write 85KG targets through the Hiwonder USB servo board."""
         if not arm_targets:
             return True, ""
@@ -1292,7 +1326,7 @@ class DirectBusServoBridge:
                     payload = htd85_move_packet(
                         servo_id,
                         value,
-                        self.arm_time_ms,
+                        self.arm_time_ms if time_ms is None else int(time_ms),
                     )
                     self._write_payload(self.arm_fd, payload, repeat=repeat)
                     sent.append(f"ID{servo_id}={value}")
@@ -1300,7 +1334,7 @@ class DirectBusServoBridge:
                         f"DIRECT SERVO TX htd85-binary={self.arm_device} "
                         f"{self._format_payload(payload)} "
                         f"physical_id={servo_id} target={value} "
-                        f"time={self.arm_time_ms}ms",
+                        f"time={self.arm_time_ms if time_ms is None else int(time_ms)}ms",
                         flush=True,
                     )
                     # Keep adjacent joint commands separate without waiting for
@@ -2582,7 +2616,7 @@ class TargetGraspController:
             self.chassis_station_stage = None
             self.id1 = 600
             self.id2 = 600
-            self.id6 = 650
+            self.id6 = 350
             self.id5 = CATCHER_HOME_TICK
             self.splitter_id4 = DISC_CATCH_SPLITTER_READY_TICK
         else:
@@ -2634,7 +2668,7 @@ class TargetGraspController:
         self.platform_preselect_letters = set()
         self.id1 = 600
         self.id2 = 600
-        self.id6 = 650
+        self.id6 = 350
         self.id7 = self.id7_closed
         self.id5 = CATCHER_HOME_TICK
         self.splitter_id4 = DISC_CATCH_SPLITTER_READY_TICK
@@ -2863,13 +2897,13 @@ class TargetGraspController:
             COLUMN_CATCH_READY_ID1_TICK,
             COLUMN_CATCH_READY_ID2_TICK,
             self.id7,
-            DISC_CATCH_ID6_TICK,
+            COLUMN_CATCH_READY_ID6_TICK,
         )
         self.arm_preview.publish("COLUMN_CATCH ready")
         if not self.servo_bridge.write_enabled:
             self.id1 = COLUMN_CATCH_READY_ID1_TICK
             self.id2 = COLUMN_CATCH_READY_ID2_TICK
-            self.id6 = DISC_CATCH_ID6_TICK
+            self.id6 = COLUMN_CATCH_READY_ID6_TICK
             self.chassis_station_deadline = time.monotonic() + self._arm_settle_s()
             self.status = (
                 f"preview COLUMN_CATCH ready ID1={self.id1} "
@@ -2879,7 +2913,7 @@ class TargetGraspController:
         status = self._send_fixed_arm_pose_staged(
             COLUMN_CATCH_READY_ID1_TICK,
             COLUMN_CATCH_READY_ID2_TICK,
-            DISC_CATCH_ID6_TICK,
+            COLUMN_CATCH_READY_ID6_TICK,
             "COLUMN_CATCH ready",
             raising=True,
             id7=self.id7,
@@ -2950,7 +2984,10 @@ class TargetGraspController:
         # Every completed station must leave the arm fully retracted. In
         # particular, task-one completion must not leave ID5 at the catcher
         # ready position while H7 transfers to task two.
-        result = self.shutdown_contract()
+        station = self.active_chassis_station
+        result = self.shutdown_contract(
+            raise_before_home=station == "DISC_CATCH"
+        )
         success = (
             not self.servo_bridge.write_enabled
             or self.servo_bridge.last_command_ok
@@ -2970,7 +3007,10 @@ class TargetGraspController:
     def reset_from_chassis(self):
         """Retract and discard every task/cycle state for a new H7 route."""
 
-        result = self.shutdown_contract()
+        station = self.active_chassis_station
+        result = self.shutdown_contract(
+            raise_before_home=station == "DISC_CATCH"
+        )
         success = (
             not self.servo_bridge.write_enabled
             or self.servo_bridge.last_command_ok
@@ -3004,7 +3044,7 @@ class TargetGraspController:
             return False
         self.id1 = 600
         self.id2 = 600
-        self.id6 = 650
+        self.id6 = 350
         self.id7 = self.id7_closed
         self.chassis_station_stage = None
         self.active_chassis_station = None
@@ -3020,7 +3060,7 @@ class TargetGraspController:
     def _finish_platform_pick(self, reason):
         self.id1 = 600
         self.id2 = 600
-        self.id6 = 650
+        self.id6 = 350
         self.id7 = self.id7_closed
         self.id5 = CATCHER_HOME_TICK
         self.splitter_id4 = DISC_CATCH_SPLITTER_READY_TICK
@@ -3034,7 +3074,7 @@ class TargetGraspController:
         self.arm_preview.publish(
             f"PLATFORM_PICK {reason}; keep expanded for next slot"
         )
-        return f"PLATFORM_PICK {reason}; ID1=600 ID2=600 ID6=650 ID7=1300"
+        return f"PLATFORM_PICK {reason}; ID1=600 ID2=600 ID6=350 ID7=1300"
 
     def stop_chassis_station(self, station):
         if self.active_chassis_station != station:
@@ -3045,7 +3085,9 @@ class TargetGraspController:
         """Best-effort home before reporting a station control failure to H7."""
 
         station = self.active_chassis_station or "UNKNOWN"
-        result = self.shutdown_contract()
+        result = self.shutdown_contract(
+            raise_before_home=station == "DISC_CATCH"
+        )
         home_ok = (
             not self.servo_bridge.write_enabled
             or self.servo_bridge.last_command_ok
@@ -3306,7 +3348,7 @@ class TargetGraspController:
             self.state = "COLUMN_CATCH ready"
             if now < self.chassis_station_deadline:
                 return f"COLUMN_CATCH ready settling {self.chassis_station_deadline - now:.1f}s"
-            self.id1 = DISC_CATCH_DESCEND_ID1_TICK
+            self.id1 = COLUMN_CATCH_DESCEND_ID1_TICK
             self.id2 = COLUMN_CATCH_READY_ID2_TICK
             self.id6 = BASE_YAW_CENTER_TICK
             self._enforce_angle_gap()
@@ -3435,7 +3477,13 @@ class TargetGraspController:
             self.algorithm_stage = "fault"
         return result
 
-    def shutdown_contract(self, catcher_target=None, splitter_target=None):
+    def shutdown_contract(
+        self,
+        catcher_target=None,
+        splitter_target=None,
+        *,
+        raise_before_home=False,
+    ):
         if not self.enabled or not self.servo_bridge.write_enabled:
             return "shutdown contract skipped; servo writes disabled"
         self.id7 = self.id7_closed
@@ -3455,20 +3503,47 @@ class TargetGraspController:
             return self.status
         time.sleep(max(0.10, min(1.0, self._zp_settle_s())))
 
-        # Retract the elbow first so the upper arm clears the mechanism before
-        # ID1 returns home. Keep this as two bus transactions: sending ID1 and
-        # ID2 together defeats the required physical sequence.
+        high_status = "not requested"
+        if raise_before_home:
+            high_status = self._send_fixed_arm_pose_staged(
+                DISC_CATCH_POST_HIGH_ID1_TICK,
+                DISC_CATCH_POST_HIGH_ID2_TICK,
+                DISC_CATCH_POST_HIGH_ID6_TICK,
+                "DISC_CATCH post-catch high",
+                raising=True,
+                id7=self.id7,
+                id5=CATCHER_HOME_TICK,
+                splitter_id4=(
+                    SPLITTER_YELLOW_TICK
+                    if splitter_target is None
+                    else int(splitter_target)
+                ),
+            )
+            if not self.servo_bridge.last_command_ok:
+                self.status = f"shutdown contract post-catch high failed: {high_status}"
+                self.arm_preview.publish(self.status)
+                print(self.status, flush=True)
+                return self.status
+            time.sleep(max(0.15, min(1.2, self._arm_settle_s())))
+
+        # After task-one completion, retract ID2 and ID6 together only after
+        # the high pose has settled; return ID1 last to clear the work area.
         self.id2 = HOME_ID2_TICK
+        self.id6 = BASE_YAW_HOME_TICK
         self.arm_preview.set_targets(self.id1, self.id2, self.id7, self.id6)
-        self.arm_preview.publish("shutdown contract ID2 home first")
+        self.arm_preview.publish("shutdown contract ID2 ID6 home first")
         print(
-            f"SHUTDOWN CONTRACT ID2_FIRST ID2={self.id2} wait_ms=200",
+            f"SHUTDOWN CONTRACT ID2_ID6_FIRST ID2={self.id2} ID6={self.id6} "
+            "wait_ms=200",
             flush=True,
         )
-        id2_status = self.servo_bridge.send_targets(id2=self.id2)
+        id2_id6_status = self.servo_bridge.send_targets(
+            id2=self.id2,
+            id6=self.id6,
+        )
         self.last_command_time = time.monotonic()
         if not self.servo_bridge.last_command_ok:
-            self.status = f"shutdown contract ID2 failed: {id2_status}"
+            self.status = f"shutdown contract ID2/ID6 failed: {id2_id6_status}"
             self.arm_preview.publish(self.status)
             print(self.status, flush=True)
             return self.status
@@ -3508,7 +3583,7 @@ class TargetGraspController:
             return self.status
         self.status = (
             f"shutdown contracted: claw={claw_status}; "
-            f"id2_first={id2_status}; arm={status}"
+            f"high={high_status}; id2_id6_first={id2_id6_status}; arm={status}"
         )
         self.arm_preview.publish(self.status)
         time.sleep(max(0.15, min(1.2, self._arm_settle_s())))
@@ -4355,29 +4430,29 @@ class TargetGraspController:
             self.return_attempts = 0
 
         if self.algorithm_stage == "platform_post_grab_id6":
-            self.state = "PLATFORM_PICK post-grab ID6=570"
+            self.state = "PLATFORM_PICK post-grab ID6=270"
             if not self.servo_bridge.write_enabled:
-                self.id6 = 570
+                self.id6 = 270
                 self.algorithm_stage = "platform_post_grab_id6_wait"
                 self.stage_deadline = now + self._arm_settle_s()
                 self.arm_preview.set_targets(self.id1, self.id2, self.id7, self.id6)
-                return "preview PLATFORM_PICK post-grab ID6=570"
+                return "preview PLATFORM_PICK post-grab ID6=270"
             if can_command:
-                self.id6 = 570
+                self.id6 = 270
                 result = self._send(
-                    "PLATFORM_PICK post-grab move ID6=570",
+                    "PLATFORM_PICK post-grab move ID6=270",
                     require_feedback=False,
                 )
                 if self.servo_bridge.last_command_ok:
                     self.algorithm_stage = "platform_post_grab_id6_wait"
                     self.stage_deadline = time.monotonic() + self._arm_settle_s()
                 return result
-            return "PLATFORM_PICK waiting post-grab ID6=570"
+            return "PLATFORM_PICK waiting post-grab ID6=270"
 
         if self.algorithm_stage == "platform_post_grab_id6_wait":
             if now < self.stage_deadline:
                 return (
-                    "PLATFORM_PICK waiting ID6=570 "
+                    "PLATFORM_PICK waiting ID6=270 "
                     f"{self.stage_deadline - now:.1f}s"
                 )
             self.algorithm_stage = "platform_post_grab_open"
@@ -4437,13 +4512,13 @@ class TargetGraspController:
             if not self.servo_bridge.write_enabled:
                 self.id1 = 600
                 self.id2 = 600
-                self.id6 = 650
+                self.id6 = 350
                 return self._finish_platform_pick("PICKED")
             if can_command:
                 result = self._send_fixed_arm_pose_staged(
                     600,
                     600,
-                    650,
+                    350,
                     "PLATFORM_PICK restore expanded pose",
                     raising=True,
                     id7=self.id7_closed,
@@ -4875,7 +4950,7 @@ class TargetGraspController:
             if self.chassis_station_stage == "platform_entry_hold":
                 self.id1 = 600
                 self.id2 = 600
-                self.id6 = 650
+                self.id6 = 350
                 self.id7 = self.id7_closed
                 self.id5 = CATCHER_HOME_TICK
                 self.splitter_id4 = DISC_CATCH_SPLITTER_READY_TICK
@@ -4919,7 +4994,7 @@ class TargetGraspController:
             ):
                 expand_id1 = 600
                 expand_id2 = 600
-                expand_id6 = 650
+                expand_id6 = 350
                 self.id7 = self.id7_closed
                 self.id5 = CATCHER_HOME_TICK
                 self.splitter_id4 = DISC_CATCH_SPLITTER_READY_TICK
@@ -6200,7 +6275,7 @@ def main(argv=None):
     if chassis_link.enabled:
         # H7 owns every arm transition. Keep the arm at HOME after process
         # startup and wait for DISC_CATCH PREP_HIGH; never run the legacy
-        # standalone HOME -> READY (550/300/600) startup sequence.
+        # standalone HOME -> READY is not used by the formal route.
         grasp_controller.startup_stage = "complete"
         grasp_controller.state = "station_home"
         grasp_controller.status = "H7 link ready; arm held at home"
@@ -6546,6 +6621,23 @@ def main(argv=None):
                 print(
                     f"CHASSIS AUX_ZP {target_name}={aux.get('pulse')} "
                     f"T={aux.get('time_ms')}ms "
+                    f"done={'yes' if aux_success else 'no'} | {aux_status}",
+                    flush=True,
+                )
+            for aux in chassis_link.consume_aux_htd85():
+                aux_status = grasp_controller.servo_bridge.send_htd85_aux(
+                    servo_id=aux.get("servo_id"),
+                    pulse=aux.get("pulse"),
+                    time_ms=aux.get("time_ms"),
+                )
+                aux_success = (
+                    grasp_controller.servo_bridge.write_enabled
+                    and grasp_controller.servo_bridge.last_command_ok
+                )
+                chassis_link.complete_aux_htd85(aux, aux_success, aux_status)
+                print(
+                    f"CHASSIS AUX_HTD85 ID{aux.get('servo_id')}="
+                    f"{aux.get('pulse')} T={aux.get('time_ms')}ms "
                     f"done={'yes' if aux_success else 'no'} | {aux_status}",
                     flush=True,
                 )
