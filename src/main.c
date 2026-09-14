@@ -690,8 +690,8 @@ route_start:
                 enter_fault(g_fault_code);
             }
 
-            /* Mirror both final auxiliary shifts by field: RED moves left,
-             * BLUE moves right.  The first shift precedes PA0. */
+            /* After the 720 mm reverse, RED moves left and BLUE moves right
+             * by 600 mm before the PA0 action. */
             {
                 g_run_state = field_profile.is_red != 0U
                                    ? RUN_PLATFORM_SHIFT_LEFT
@@ -710,12 +710,11 @@ route_start:
                 }
                 board_uart1_write(
                     field_profile.is_red != 0U
-                        ? "H7,ROUTE,TASK3,POST_REVERSE_SHIFT_1,DIR=LEFT,DISTANCE=400mm\r\n"
-                        : "H7,ROUTE,TASK3,POST_REVERSE_SHIFT_1,DIR=RIGHT,DISTANCE=400mm\r\n");
+                        ? "H7,ROUTE,TASK3,POST_REVERSE_SHIFT,DIR=LEFT,DISTANCE=600mm\r\n"
+                        : "H7,ROUTE,TASK3,POST_REVERSE_SHIFT,DIR=RIGHT,DISTANCE=600mm\r\n");
             }
 
-            /* Open PA0 first, hold it for the configured interval, then
-             * restore its power-on angle before the second chassis shift. */
+            /* PA0=80 is the first post-reverse action. */
             board_servo_set_angle_deg_index(
                 SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POST_ROUTE_PA0_ANGLE_DEG);
             board_uart1_write(
@@ -724,42 +723,12 @@ route_start:
             if (g_run_state == RUN_FAULT) {
                 enter_fault(g_fault_code);
             }
+
+            /* Set PA0=150 and PA2=90 together, then hold both for 5 s. */
             board_servo_set_angle_deg_index(
                 SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POWER_ON_PA0_ANGLE_DEG);
             board_uart1_write(
-                "H7,LOCAL_SERVO,POST_ROUTE,INDEX,0,ANGLE_DEG,150.0,RESTORE\r\n");
-            route_controller_hold_zero(ROUTE_SERVO_RETURN_SETTLE_MS);
-            if (g_run_state == RUN_FAULT) {
-                enter_fault(g_fault_code);
-            }
-
-            /* Mirror the second final shift with the field: RED moves left,
-             * BLUE moves right, immediately before operating PA2. */
-            g_run_state = field_profile.is_red != 0U
-                               ? RUN_PLATFORM_SHIFT_LEFT
-                               : RUN_PLATFORM_SHIFT_RIGHT;
-            if (!route_controller_run_translation_profile(
-                    0.0f,
-                    field_profile.is_red != 0U
-                        ? -ROUTE_RIGHT_STRAFE_SIGN
-                        : ROUTE_RIGHT_STRAFE_SIGN,
-                    ROUTE_POST_ROUTE_LEFT_SHIFT_DISTANCE_M,
-                    ROUTE_TRANSLATION_SPEED_M_S,
-                    ROUTE_TRANSLATION_ACCEL_M_S2)) {
-                enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
-                                                        : g_fault_code);
-            }
-            route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-            if (g_run_state == RUN_FAULT) {
-                enter_fault(g_fault_code);
-            }
-            board_uart1_write(
-                field_profile.is_red != 0U
-                    ? "H7,ROUTE,TASK3,POST_REVERSE_SHIFT_2,DIR=LEFT,DISTANCE=300mm\r\n"
-                    : "H7,ROUTE,TASK3,POST_REVERSE_SHIFT_2,DIR=RIGHT,DISTANCE=300mm\r\n");
-
-            /* Operate PA2 after the left shift, then return it to its
-             * power-on angle before the route is marked complete. */
+                "H7,LOCAL_SERVO,POST_ROUTE,INDEX,0,ANGLE_DEG,150.0\r\n");
             board_servo_set_angle_deg_index(
                 SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POST_ROUTE_PA2_ANGLE_DEG);
             board_uart1_write(
@@ -777,38 +746,18 @@ route_start:
                 enter_fault(g_fault_code);
             }
 
-            /* Operate the Hiwonder HTD85 bus servo ID3 after PA2 returns home.  The H7
-             * waits for each acknowledged command, holds 700 for 3 seconds,
-             * restores 980, and only then resumes chassis motion. */
-            g_run_state = RUN_AUX_HTD85_ID3;
-            if (!route_controller_run_htd85_aux(
-                    ROUTE_HTD85_AUX_ID3_SERVO_ID,
-                    ROUTE_TASK3_POST_ID3_TARGET_PULSE,
-                    ROUTE_TASK3_POST_ID3_TIME_MS)) {
-                enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
-                                                        : g_fault_code);
-            }
-            route_controller_hold_zero(ROUTE_TASK3_POST_ID3_HOLD_MS);
-            if (g_run_state == RUN_FAULT) {
-                enter_fault(g_fault_code);
-            }
-            g_run_state = RUN_AUX_HTD85_ID3;
-            if (!route_controller_run_htd85_aux(
-                    ROUTE_HTD85_AUX_ID3_SERVO_ID,
-                    ROUTE_TASK3_POST_ID3_RESTORE_PULSE,
-                    ROUTE_TASK3_POST_ID3_TIME_MS)) {
-                enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
-                                                        : g_fault_code);
-            }
+            /* PA2 returns home before the final lateral approach. */
+            board_servo_set_angle_deg_index(
+                SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POWER_ON_PA2_ANGLE_DEG);
+            board_uart1_write(
+                "H7,LOCAL_SERVO,POST_ROUTE,INDEX,1,ANGLE_DEG,30.0,RESTORE\r\n");
             route_controller_hold_zero(ROUTE_SERVO_RETURN_SETTLE_MS);
             if (g_run_state == RUN_FAULT) {
                 enter_fault(g_fault_code);
             }
-            board_uart1_write(
-                "H7,AUX_HTD85,POST_ROUTE,ID3,700,HOLD_MS,3000,RESTORE,980\r\n");
 
-            /* After PA2 returns home, mirror the final lateral shift by field:
-             * RED moves right and BLUE moves left, then approach and turn left. */
+            /* After PA2 returns home, RED moves right and BLUE moves left
+             * by 1500 mm, then the chassis advances 500 mm. */
             g_run_state = field_profile.is_red != 0U
                                ? RUN_PLATFORM_SHIFT_RIGHT
                                : RUN_PLATFORM_SHIFT_LEFT;
@@ -817,7 +766,7 @@ route_start:
                     field_profile.is_red != 0U
                         ? ROUTE_RIGHT_STRAFE_SIGN
                         : -ROUTE_RIGHT_STRAFE_SIGN,
-                    ROUTE_POST_ROUTE_FINAL_LEFT_SHIFT_DISTANCE_M,
+                    ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_M,
                     ROUTE_TRANSLATION_SPEED_M_S,
                     ROUTE_TRANSLATION_ACCEL_M_S2)) {
                 enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
@@ -830,14 +779,14 @@ route_start:
             board_uart1_write(
                 field_profile.is_red != 0U
                     ? "H7,ROUTE,TASK3,POST_ROUTE_FINAL_SHIFT,FIELD=RED,"
-                      "DIR=RIGHT,DISTANCE=2500mm\r\n"
+                      "DIR=RIGHT,DISTANCE=1500mm\r\n"
                     : "H7,ROUTE,TASK3,POST_ROUTE_FINAL_SHIFT,FIELD=BLUE,"
-                      "DIR=LEFT,DISTANCE=2500mm\r\n");
+                      "DIR=LEFT,DISTANCE=1500mm\r\n");
 
             g_run_state = RUN_FORWARD;
             if (!route_controller_run_translation_profile(
                     ROUTE_FORWARD_SIGN, 0.0f,
-                    ROUTE_POST_ROUTE_FINAL_FORWARD_DISTANCE_M,
+                    ROUTE_TASK3_POST_FINAL_FORWARD_DISTANCE_M,
                     ROUTE_TRANSLATION_SPEED_M_S,
                     ROUTE_TRANSLATION_ACCEL_M_S2)) {
                 enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
@@ -862,15 +811,15 @@ route_start:
                 enter_fault(g_fault_code);
             }
             board_uart1_write(
-                "H7,ROUTE,TASK3,POST_ROUTE_FINAL_TURN,DIR=LEFT,ANGLE=89deg\r\n");
+                "H7,ROUTE,TASK3,POST_ROUTE_FINAL_TURN,DIR=LEFT,ANGLE=90deg\r\n");
         }
 
             board_uart1_write(
                 field_profile.is_red != 0U
-                    ? "H7,ROUTE,TASK3,COMPLETE,POST_ROUTE_FINAL_TURN_DONE,"
-                      "RIGHT=2500mm,FORWARD=500mm,TURN=LEFT_89deg\r\n"
+                      ? "H7,ROUTE,TASK3,COMPLETE,POST_ROUTE_FINAL_TURN_DONE,"
+                      "RIGHT=1500mm,FORWARD=500mm,TURN=LEFT_90deg\r\n"
                     : "H7,ROUTE,TASK3,COMPLETE,POST_ROUTE_FINAL_TURN_DONE,"
-                      "LEFT=2500mm,FORWARD=500mm,TURN=LEFT_89deg\r\n");
+                      "LEFT=1500mm,FORWARD=500mm,TURN=LEFT_90deg\r\n");
 #endif
 
 #if ROUTE_TASK1_ONLY || ROUTE_STOP_AFTER_WHITE_LINE
