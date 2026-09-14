@@ -31,8 +31,8 @@
 #define WHEEL_RR_SIGN -1.0f
 
 /* Autonomous route: enter the disc station with the mirrored cubic arc
- * (forward endpoint 3.93 m, lateral endpoint 0.65 m), perform DISC_CATCH,
- * then take one diagonal task-two entry of 1.35 m backward and 2.25 m toward
+ * (forward endpoint 3.92 m, lateral endpoint 0.70 m), perform DISC_CATCH,
+ * then take one diagonal task-two entry of 1.60 m backward and 1.98 m toward
  * the selected field side while rotating 180 degrees, and run eight slots.
  * The platform task first locks two distinct A/B/C/D letters with the
  * secondary camera, then uses the main camera for all eight slots. */
@@ -74,16 +74,16 @@
 
 #define ROUTE_REQUIRE_MOTOR_TX_SUCCESS 1U
 
-#define ROUTE_STRAFE_DISTANCE_M 0.530f
-#define ROUTE_FORWARD_DISTANCE_M 3.930f
+#define ROUTE_STRAFE_DISTANCE_M 0.700f
+#define ROUTE_FORWARD_DISTANCE_M 3.920f
 #define ROUTE_DISC_ARC_ENTRY_ENABLED 1U
 /* Cubic entry shaped like the field sketch: acquire most of the lateral
  * offset early, then run almost straight into the disc marker.  The final
  * endpoint remains ROUTE_FORWARD_DISTANCE_M / ROUTE_STRAFE_DISTANCE_M. */
 #define ROUTE_DISC_ARC_CONTROL1_FORWARD_M 0.150f
-#define ROUTE_DISC_ARC_CONTROL1_LATERAL_M 0.083571f
-#define ROUTE_DISC_ARC_CONTROL2_FORWARD_M 0.550f
-#define ROUTE_DISC_ARC_CONTROL2_LATERAL_M 0.626786f
+#define ROUTE_DISC_ARC_CONTROL1_LATERAL_M 0.400f
+#define ROUTE_DISC_ARC_CONTROL2_FORWARD_M 0.500f
+#define ROUTE_DISC_ARC_CONTROL2_LATERAL_M 0.600f
 #define ROUTE_DISC_ARC_MAX_SPEED_M_S 1.400f
 #define ROUTE_DISC_ARC_ACCEL_M_S2 0.500f
 #define ROUTE_DISC_ARC_TIMEOUT_MS 9000U
@@ -129,12 +129,12 @@
 #define ROUTE_DISC_LINE_TIMEOUT_MS 60000U
 #define ROUTE_DISC_LINE_REVERSE_SEARCH_MS 1000U
 #define ROUTE_DISC_LINE_FALLBACK_FORWARD_M 0.000f
-#define ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M 0.070f
+#define ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M 0.050f
 #define ROUTE_DISC_LINE_BYPASS_FORWARD_M 0.0255f
 /* Standalone task-two starts at the task-two area, first translates laterally
  * to the platform line, then approaches the main-camera white-line reference
  * at a deliberately slow speed. After reaching the reference, the standalone
- * test makes one fixed 190 mm forward approach and then stops white-line
+ * test makes one fixed 130 mm forward approach and then stops white-line
  * tracking. Keep these values separate from the formal task-one route above. */
 #define ROUTE_TASK2_TEST_INITIAL_LATERAL_M 0.400f
 #define ROUTE_TASK2_TEST_INITIAL_TRANSLATION_SPEED_M_S 0.200f
@@ -144,10 +144,13 @@
 #define ROUTE_TASK2_TEST_WHITE_LINE_FORWARD_SPEED_M_S 0.100f
 #define ROUTE_TASK2_TEST_WHITE_LINE_ACCEL_M_S2 0.100f
 #define ROUTE_TASK2_TEST_WHITE_LINE_REVERSE_SEARCH_MS 500U
-#define ROUTE_TASK2_TEST_WHITE_LINE_AFTER_CROSSED_FORWARD_M 0.190f
-#define ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M 1.350f
-#define ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M 2.120f
-#define ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M 2.5133444f
+#define ROUTE_TASK2_TEST_WHITE_LINE_AFTER_CROSSED_FORWARD_M 0.130f
+/* Formal task-two uses a shorter fixed approach after the main-camera
+ * white-line reference; keep it independent from the standalone test. */
+#define ROUTE_TASK2_FORMAL_WHITE_LINE_AFTER_CROSSED_FORWARD_M 0.120f
+#define ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M 1.600f
+#define ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M 1.980f
+#define ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M 2.5456630f
 #define ROUTE_TASK2_ENTRY_TURN_ANGLE_RAD 3.1415927f /* 180 deg */
 #define ROUTE_AFTER_PLATFORM_REVERSE_COMPONENT_M 0.900f
 #define ROUTE_AFTER_PLATFORM_LEFT_COMPONENT_M 0.000f
@@ -175,9 +178,11 @@
 #define ROUTE_TASK3_TEST_ORBIT_SPEED_RAMP_RAD_S2 0.500f
 #define ROUTE_TASK3_TEST_STATUS_RETRY_MS 250U
 #define ROUTE_FINAL_REVERSE_DISTANCE_M 0.300f
-#define ROUTE_TASK3_POST_REVERSE_DISTANCE_M 0.720f
+#define ROUTE_TASK3_POST_REVERSE_DISTANCE_M 0.700f
+#define ROUTE_TASK3_POST_REVERSE_DISTANCE_BLUE_M 0.700f
 #define ROUTE_TASK3_POST_FIRST_SHIFT_DISTANCE_M 0.600f
-#define ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_M 1.500f
+#define ROUTE_TASK3_POST_FIRST_SHIFT_BLUE_M 0.200f
+#define ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_M 2.500f
 #define ROUTE_TASK3_POST_FINAL_FORWARD_DISTANCE_M 0.500f
 #define ROUTE_TASK3_POST_ORBIT_TURN_RAD 1.5707963f /* 90 deg */
 #define ROUTE_TASK3_POST_FINAL_TURN_RAD 1.5707963f /* 90 deg */

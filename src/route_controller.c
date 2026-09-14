@@ -4811,10 +4811,10 @@ bool route_controller_run_task2_platform_entry(void)
 
     g_run_state = RUN_DISC_FINAL_APPROACH;
     board_uart1_write(
-        "H7,ROUTE,TASK2_WHITE_LINE,REFERENCE_REACHED,FORWARD=190mm\r\n");
+        "H7,ROUTE,TASK2_WHITE_LINE,REFERENCE_REACHED,FORWARD=120mm\r\n");
     moved = run_translation_profile(
         ROUTE_FORWARD_SIGN, 0.0f,
-        ROUTE_TASK2_TEST_WHITE_LINE_AFTER_CROSSED_FORWARD_M,
+        ROUTE_TASK2_FORMAL_WHITE_LINE_AFTER_CROSSED_FORWARD_M,
         ROUTE_TASK2_TEST_WHITE_LINE_FORWARD_SPEED_M_S,
         ROUTE_TASK2_TEST_WHITE_LINE_ACCEL_M_S2);
     (void)route_motor_send_zero_all();
