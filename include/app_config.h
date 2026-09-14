@@ -54,9 +54,10 @@
 #define LCD_JOYSTICK_DOWN_MAX_RAW 3500UL
 #define LCD_JOYSTICK_MEDIAN_SAMPLES 3U
 #define ROUTE_POWER_ON_SETTLE_MS 50U
-/* Start the chassis route immediately. RK synchronization runs in the
- * background until the first arm station is reached. */
-#define ROUTE_WAIT_RK_READY_ON_BOOT 1U
+/* Start the chassis route immediately after the field key is released.
+ * RK RESET/READY synchronization runs in the background; the first arm
+ * station still requires the matching arm transaction before it proceeds. */
+#define ROUTE_WAIT_RK_READY_ON_BOOT 0U
 #define RK_ARM_BOOT_READY_TIMEOUT_MS 2500U
 #define RK_ARM_PRETASK_SYNC_PERIOD_MS 250U
 #define RK_ARM_RESET_BEFORE_ROUTE_TIMEOUT_MS 3500U
@@ -112,7 +113,7 @@
 #define ROUTE_DISC_LINE_REFERENCE_Y10 3150
 #define ROUTE_DISC_LINE_REFERENCE_TOLERANCE_Y10 100L
 #define ROUTE_DISC_LINE_REFERENCE_A100 0
-#define ROUTE_DISC_LINE_FORWARD_SPEED_M_S 0.080f
+#define ROUTE_DISC_LINE_FORWARD_SPEED_M_S 0.100f
 #define ROUTE_DISC_LINE_ACCEL_M_S2 0.100f
 #define ROUTE_DISC_LINE_ANGLE_DEADBAND_DEG 1.5f
 #define ROUTE_DISC_LINE_ANGLE_ALIGN_TOLERANCE_DEG 2.5f
@@ -126,14 +127,14 @@
 #define ROUTE_DISC_LINE_QUERY_PERIOD_MS 40U
 #define ROUTE_DISC_LINE_STALE_MS 350U
 #define ROUTE_DISC_LINE_TIMEOUT_MS 60000U
-#define ROUTE_DISC_LINE_REVERSE_SEARCH_MS 900U
+#define ROUTE_DISC_LINE_REVERSE_SEARCH_MS 1000U
 #define ROUTE_DISC_LINE_FALLBACK_FORWARD_M 0.000f
 #define ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M 0.070f
 #define ROUTE_DISC_LINE_BYPASS_FORWARD_M 0.0255f
 /* Standalone task-two starts at the task-two area, first translates laterally
  * to the platform line, then approaches the main-camera white-line reference
  * at a deliberately slow speed. After reaching the reference, the standalone
- * test makes one fixed 170 mm forward approach and then stops white-line
+ * test makes one fixed 190 mm forward approach and then stops white-line
  * tracking. Keep these values separate from the formal task-one route above. */
 #define ROUTE_TASK2_TEST_INITIAL_LATERAL_M 0.400f
 #define ROUTE_TASK2_TEST_INITIAL_TRANSLATION_SPEED_M_S 0.200f
@@ -142,14 +143,15 @@
 #define ROUTE_TASK2_TEST_WHITE_LINE_REFERENCE_TOLERANCE_Y10 100L
 #define ROUTE_TASK2_TEST_WHITE_LINE_FORWARD_SPEED_M_S 0.100f
 #define ROUTE_TASK2_TEST_WHITE_LINE_ACCEL_M_S2 0.100f
-#define ROUTE_TASK2_TEST_WHITE_LINE_AFTER_CROSSED_FORWARD_M 0.170f
+#define ROUTE_TASK2_TEST_WHITE_LINE_REVERSE_SEARCH_MS 500U
+#define ROUTE_TASK2_TEST_WHITE_LINE_AFTER_CROSSED_FORWARD_M 0.190f
 #define ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M 1.350f
 #define ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M 2.120f
 #define ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M 2.5133444f
 #define ROUTE_TASK2_ENTRY_TURN_ANGLE_RAD 3.1415927f /* 180 deg */
-#define ROUTE_AFTER_PLATFORM_REVERSE_COMPONENT_M 0.950f
+#define ROUTE_AFTER_PLATFORM_REVERSE_COMPONENT_M 0.900f
 #define ROUTE_AFTER_PLATFORM_LEFT_COMPONENT_M 0.000f
-#define ROUTE_AFTER_PLATFORM_DIAGONAL_DISTANCE_M 0.9500000f
+#define ROUTE_AFTER_PLATFORM_DIAGONAL_DISTANCE_M 0.9000000f
 #define ROUTE_FRONT_CENTER_ORBIT_RADIUS_M 0.450f
 #define ROUTE_FRONT_CENTER_ORBIT_ANGLE_RAD 4.7123890f
 #define ROUTE_FRONT_CENTER_ORBIT_TIMEOUT_MS 12000U
@@ -186,19 +188,9 @@
 #define ROUTE_SERVO_RETURN_SETTLE_MS 700U
 #define ROUTE_SERVO_INITIAL_ANGLE_DEG 0.0f
 
-/* The two end-of-route SG90 units are connected to the ZL ZP20S 24-channel
- * bus board, not to the H7 local PWM outputs.  Keep their fixed pulse values
- * explicit for the whole run: S12 holds 600 and S23 holds 1000. */
-#define ROUTE_AUX_ZP_S12_CHANNEL 12U
-#define ROUTE_AUX_ZP_S23_CHANNEL 23U
-#define ROUTE_AUX_ZP_S12_PULSE 600U
-#define ROUTE_AUX_ZP_S23_PULSE 1000U
-#define ROUTE_TASK3_POST_S23_PULSE 500U
-#define ROUTE_TASK3_POST_S23_RESTORE_PULSE ROUTE_AUX_ZP_S23_PULSE
-#define ROUTE_TASK3_POST_S12_PULSE 1200U
-#define ROUTE_TASK3_POST_S12_RESTORE_PULSE ROUTE_AUX_ZP_S12_PULSE
-#define ROUTE_AUX_ZP_MG90S_TIME_MS 1000U
-#define ROUTE_AUX_ZP_ID3_SERVO_ID 3U
+/* The end-of-route SG90 units use the H7 local PWM outputs.  The only
+ * remaining remote bus action is the dedicated Hiwonder HTD85 ID3. */
+#define ROUTE_HTD85_AUX_ID3_SERVO_ID 3U
 #define ROUTE_TASK3_POST_ID3_TARGET_PULSE 700U
 #define ROUTE_TASK3_POST_ID3_RESTORE_PULSE 980U
 #define ROUTE_TASK3_POST_ID3_TIME_MS 400U

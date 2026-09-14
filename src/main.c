@@ -139,12 +139,10 @@ route_start:
     if (!task2_test && !task3_test) {
         route_controller_begin_pretask_sync();
     }
-#if ROUTE_WAIT_RK_READY_ON_BOOT
-    if (!task2_test && !task3_test &&
-        !route_controller_wait_for_rk_reset_before_route()) {
-        enter_fault(FAULT_ARM_TIMEOUT);
-    }
-#endif
+    /* Formal startup no longer blocks the chassis on a boot-time RK
+     * handshake.  The background sync and the station transaction retain
+     * the real arm safety boundary while allowing the arc to start and the
+     * asynchronous PREP_HIGH request to run during that arc. */
 
     g_run_state = RUN_BOOT;
     if (!route_controller_wait_for_can_startup()) {
@@ -784,7 +782,7 @@ route_start:
              * restores 980, and only then resumes chassis motion. */
             g_run_state = RUN_AUX_HTD85_ID3;
             if (!route_controller_run_htd85_aux(
-                    ROUTE_AUX_ZP_ID3_SERVO_ID,
+                    ROUTE_HTD85_AUX_ID3_SERVO_ID,
                     ROUTE_TASK3_POST_ID3_TARGET_PULSE,
                     ROUTE_TASK3_POST_ID3_TIME_MS)) {
                 enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
@@ -796,7 +794,7 @@ route_start:
             }
             g_run_state = RUN_AUX_HTD85_ID3;
             if (!route_controller_run_htd85_aux(
-                    ROUTE_AUX_ZP_ID3_SERVO_ID,
+                    ROUTE_HTD85_AUX_ID3_SERVO_ID,
                     ROUTE_TASK3_POST_ID3_RESTORE_PULSE,
                     ROUTE_TASK3_POST_ID3_TIME_MS)) {
                 enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
@@ -880,85 +878,15 @@ route_task1_only_shutdown:
 #endif
 route_test_shutdown:
 #if !ROUTE_TASK1_ONLY
-    /* The test shutdown tail repeats the post sequence for the independent
-     * task-two/task-three runs; the formal route already completed it inside
-     * the field branch above, so it must not run twice. */
+    /* Independent H7 tests stop after their own route. The formal route
+     * already owns the local PWM tail, so no remote auxiliary bus request
+     * is sent here. */
     if (task2_test || task3_test) {
         board_uart1_write(
             "H7,ROUTE,TASK3,POST_REVERSE,DONE,DISTANCE=720mm\r\n");
-
-        g_run_state = RUN_AUX_ZP_S23;
-        if (!route_controller_run_zp_aux(
-                ROUTE_AUX_ZP_S23_CHANNEL, ROUTE_TASK3_POST_S23_PULSE,
-                ROUTE_AUX_ZP_MG90S_TIME_MS, 0U)) {
-            enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
-                                                    : g_fault_code);
-        }
-        route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-        if (g_run_state == RUN_FAULT) {
-            enter_fault(g_fault_code);
-        }
-
-        g_run_state = RUN_AUX_ZP_S23;
-        if (!route_controller_run_zp_aux(
-                ROUTE_AUX_ZP_S23_CHANNEL, ROUTE_AUX_ZP_S23_PULSE,
-                ROUTE_AUX_ZP_MG90S_TIME_MS, 0U)) {
-            enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
-                                                    : g_fault_code);
-        }
-        route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-        if (g_run_state == RUN_FAULT) {
-            enter_fault(g_fault_code);
-        }
-
-        if (field_profile.is_red != 0U) {
-            g_run_state = RUN_PLATFORM_SHIFT_LEFT;
-            if (!route_controller_run_translation_profile(
-                    0.0f, field_profile.strafe_sign,
-                    ROUTE_TASK3_POST_RED_LEFT_SHIFT_DISTANCE_M,
-                    ROUTE_TRANSLATION_SPEED_M_S,
-                    ROUTE_TRANSLATION_ACCEL_M_S2)) {
-                enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
-                                                        : g_fault_code);
-            }
-            route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-            if (g_run_state == RUN_FAULT) {
-                enter_fault(g_fault_code);
-            }
-
-            g_run_state = RUN_AUX_ZP_S12;
-            if (!route_controller_run_zp_aux(
-                    ROUTE_AUX_ZP_S12_CHANNEL, ROUTE_TASK3_POST_S12_PULSE,
-                    ROUTE_AUX_ZP_MG90S_TIME_MS, 0U)) {
-                enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
-                                                        : g_fault_code);
-            }
-            route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-            if (g_run_state == RUN_FAULT) {
-                enter_fault(g_fault_code);
-            }
-
-            g_run_state = RUN_AUX_ZP_S12;
-            if (!route_controller_run_zp_aux(
-                    ROUTE_AUX_ZP_S12_CHANNEL,
-                    ROUTE_TASK3_POST_S12_RESTORE_PULSE,
-                    ROUTE_AUX_ZP_MG90S_TIME_MS, 0U)) {
-                enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
-                                                        : g_fault_code);
-            }
-            route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-            if (g_run_state == RUN_FAULT) {
-                enter_fault(g_fault_code);
-            }
-        }
-
-        board_uart1_write(
-            field_profile.is_red != 0U
-                ? "H7,ROUTE,TASK3,POST_DONE,S23=500->1000,LEFT=300mm,S12=1500->600\r\n"
-                : "H7,ROUTE,TASK3,POST_DONE,S23=500->1000\r\n");
+        board_uart1_write("H7,ROUTE,TASK3,POST_DONE,LOCAL_PWM_ONLY\r\n");
     }
 #endif
-
     g_run_state = RUN_STOPPING;
     route_controller_hold_zero(1000U);
     if (g_run_state == RUN_FAULT) {

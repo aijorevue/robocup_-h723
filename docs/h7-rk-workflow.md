@@ -5,7 +5,7 @@
 - H7: LCD joystick field selection, CAN motor control, IMU/odometry, route
   motion, USB CDC requests, RC override, and persistent run log.
 - RK: camera capture, white-line measurement, field-aware target policy, arm
-  poses, direct servo/C8T6 commands, and sequence-aware replies.
+  poses, direct HTD85 bus commands, and sequence-aware replies.
 - Main camera: arm-mounted camera for white-line, ball, ring, and platform
   target recognition.
 - Secondary camera: task-two entry only; records two distinct letters from
@@ -37,35 +37,34 @@ being raised during the disc arc.
 2. The mirrored cubic arc ends at the configured forward endpoint
    `ROUTE_FORWARD_DISTANCE_M=3.930 m` and lateral endpoint `0.650 m`.
    Arc maximum speed is `1.40 m/s`; acceleration is `0.50 m/s^2`.
-3. RK applies `PREP_HIGH`: 85KG ID1/ID2/ID6 are `600/500/350`, ZP splitter
-   ID4 is `1200`, ZP ID5 is `800`, and ZP ID7 is closed at `1300`.
+3. RK applies `PREP_HIGH`: HTD85 ID1/ID2/ID6 are `650/600/350`, replacement
+   HTD85 ID14/ID15/ID17 are `500/500/600`.
 4. After the arc, H7 queries the main camera for the white line. The reference
-   is `Y10=1500 +/- 100` in an `800x600` frame and `A100=0`.
-5. H7 continues at `0.03 m/s` while the line is below the reference. If the
+   is `Y10=3150 +/- 100` in an `800x600` frame and `A100=0`.
+5. H7 continues at `0.10 m/s` while the line is below the reference. If the
    line is not found, H7 uses the configured fallback before continuing. After
-   reaching the reference, the formal route advances a further `250 mm` and
+   reaching the reference, the formal route advances a further `70 mm` and
    stops line tracking.
 6. H7 starts `DISC_CATCH` after the line station is reached. RK filters balls
    by field: RED accepts red/yellow; BLUE accepts blue/yellow. The opponent
    color must not trigger the splitter or gripper.
-7. When DISC_CATCH completes, RK closes ID7 and retracts ZP ID5 plus 85KG
+7. When DISC_CATCH completes, RK closes ID17 and retracts HTD85 ID15 plus 85KG
    ID1/ID2/ID6 to home. H7 keeps that safe retracted state during the formal
-   task-two transfer: one continuous `1.30 m` backward / `2.25 m` lateral /
-   `174 deg` diagonal motion. Only after the transfer completes does H7
-   request PREP_HIGH for task two. RK then raises only 85KG `ID1=600,
-   ID2=500, ID6=350`; ZP ID5 remains at its home value `900` and is not
-   expanded again.
+   task-two transfer: one continuous `1.350 m` backward / `2.120 m` lateral /
+   `180 deg` diagonal motion. Only after the transfer completes does H7
+   request PREP_HIGH for task two. RK then raises the unified high pose
+   `ID1=650, ID2=600, ID6=350, ID14=500, ID15=500, ID17=600`.
 
 ## Task-two route
 
 1. H7 enters task two with one continuous diagonal segment. In the fixed route
-   frame it moves `1.30 m` backward and `2.25 m` toward the selected field side,
-   for a commanded diagonal magnitude of approximately `2.599 m`.
-2. During that diagonal segment, H7 smoothly rotates the chassis through `174
+   frame it moves `1.350 m` backward and `2.120 m` toward the selected field side,
+   for a commanded diagonal magnitude of approximately `2.513 m`.
+2. During that diagonal segment, H7 smoothly rotates the chassis through `180
    degrees`: RED turns left and BLUE turns right. There are no intermediate
    stops for two separate 90-degree turns.
 3. After the diagonal stops, H7 reuses the task-one BMI088 heading correction
-   and closes any residual yaw error to the saved final `174 deg` heading.
+   and closes any residual yaw error to the saved final `180 deg` heading.
    Task-two arm expansion and camera work begin only after this correction.
 3. H7 sends:
 
@@ -87,7 +86,7 @@ RK,ARM,PLATFORM_PICK,PRESELECT_DONE,SEQ,<N>,COUNT,2,LETTER1,<A-D>,LETTER2,<A-D>
 6. H7 first performs the task-two station entry used by the standalone
    commissioning path: field-mirrored lateral shift `400 mm`, then main-camera
    white-line alignment at `Y10=2000 +/- 100` with `0.10 m/s` approach speed
-   and `0.10 m/s^2` acceleration, followed by one fixed `210 mm` forward
+   and `0.10 m/s^2` acceleration, followed by one fixed `190 mm` forward
    approach. White-line tracking is then disabled. H7 runs eight slots.
    Between slots the right/left shifts are `100, 130, 100, 100, 100, 130,
    100 mm`, mirrored by field, at `0.50 m/s`.
@@ -114,11 +113,10 @@ the orbit. H7 sends `STOP` after the orbit and final reverse, then waits for
 RK to retract the arm and return `DONE`. The H7 route log and RK log must
 contain the same task and sequence.
 
-After the formal task-three tail, H7 requests RK to command ZL channels `S12`
-and `S23` to `1500` for `1000 ms`, moves laterally `500 mm` in the mirrored
-direction between them, turns in place `180 deg`, and requests physical ZL
-`ID3` to move from `900` to `1300` in `400 ms`. These requests use
-`ARM,AUX_ZP,SET,SEQ,...`; the standalone tests are excluded from this tail.
+After the formal task-three tail, H7 operates its local PWM outputs PA0/PA2,
+then requests the dedicated HTD85 bus ID3 move through
+`ARM,AUX_HTD85,SET,SEQ,...`. No second servo adapter or legacy auxiliary-bus
+request is part of the route.
 
 ## Protocol contract
 

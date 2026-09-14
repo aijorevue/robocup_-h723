@@ -91,7 +91,8 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                                long reference_y10,
                                                long tolerance_y10,
                                                float acceleration_m_s2,
-                                               route_white_line_phase_t phase);
+                                               route_white_line_phase_t phase,
+                                               uint32_t reverse_search_ms);
 /* A route cycle sends its command first, then samples feedback for the next
  * cycle. The first command in a route (and the first command after a TASK3
  * resume) may proceed without the normal three-fresh-channel gate. */
@@ -145,11 +146,18 @@ uint8_t route_controller_rk_link_ready(void)
 #if ROUTE_WAIT_USER_KEY_ON_BOOT
 static void wait_for_user_start_key_release(const char *status)
 {
+    board_field_t latched_field = BOARD_FIELD_UNKNOWN;
     uint32_t last_status_ms = HAL_GetTick() - 1000U;
 
     while (board_user_start_active() != 0U) {
         const uint32_t now_ms = HAL_GetTick();
 
+        /* Latch the field while the user is holding RIGHT/DOWN.  The old
+         * implementation waited for release first and then sampled the
+         * joystick, so a normal quick tap could be lost completely. */
+        if (board_user_start_pressed() != 0U) {
+            latched_field = board_selected_field();
+        }
         lcd_display_update();
         /* Standalone TASK2/TASK3 START is an independent launch source. Poll
          * it even while the RC key is held so a test never depends on
@@ -173,6 +181,14 @@ static void wait_for_user_start_key_release(const char *status)
         }
         HAL_Delay(10U);
     }
+
+    if (latched_field != BOARD_FIELD_UNKNOWN) {
+        lcd_display_set_start_status("RUN");
+        board_uart1_write(latched_field == BOARD_FIELD_RED
+                              ? "H7,START,USER_KEY,field=RED\r\n"
+                              : "H7,START,USER_KEY,field=BLUE\r\n");
+        return;
+    }
 }
 
 static void wait_for_user_start_key(void)
@@ -184,6 +200,15 @@ static void wait_for_user_start_key(void)
     lcd_display_set_start_status("WAIT");
     board_uart1_write("H7,START,WAIT_FIELD,joystick=RIGHT_RED_OR_DOWN_BLUE\r\n");
     wait_for_user_start_key_release("WAIT");
+    /* A quick RIGHT/DOWN selection is latched before the stick is released.
+     * Do not require the user to hold it through a second polling loop. */
+    if (board_selected_field() != BOARD_FIELD_UNKNOWN) {
+        lcd_display_set_start_status("RUN");
+        board_uart1_write(board_selected_field() == BOARD_FIELD_RED
+                              ? "H7,START,USER_KEY,field=RED\r\n"
+                              : "H7,START,USER_KEY,field=BLUE\r\n");
+        return;
+    }
     for (;;) {
         uint32_t now_ms = HAL_GetTick();
 
@@ -1522,9 +1547,9 @@ static bool line_matches_token_prefix(const char *line, const char *prefix)
     return line[prefix_length] == '\0' || line[prefix_length] == ',';
 }
 
-/* PA0/TIM2_CH1 is a local H7 PWM output, not a ZP20S bus servo.  Accept
- * manual commands only while the chassis is idle or waiting in fault state;
- * the autonomous route never grants this command path control of the servo. */
+/* PA0/TIM2_CH1 is a local H7 PWM output. Accept manual commands only while
+ * the chassis is idle or waiting in fault state; the autonomous route never
+ * grants this command path control of the servo. */
 static bool handle_local_mg90s_command(const char *line)
 {
     char copy[128];
@@ -2403,8 +2428,8 @@ static bool stop_rk_arm_task(const char *task)
     }
 }
 
-static bool run_remote_aux(uint32_t channel, uint32_t pulse, uint32_t time_ms,
-                           uint8_t servo_id, bool htd85)
+static bool run_htd85_remote_aux(uint8_t servo_id, uint32_t pulse,
+                                  uint32_t time_ms)
 {
     uint8_t rx[96];
     char line[160];
@@ -2420,47 +2445,27 @@ static bool run_remote_aux(uint32_t channel, uint32_t pulse, uint32_t time_ms,
     uint32_t last_zero_ms = started_ms - CONTROL_PERIOD_MS;
     const uint32_t sequence = next_rk_task_sequence();
     const char *field_name = g_route_field_is_red != 0U ? "RED" : "BLUE";
-    const bool valid_channel = !htd85 &&
-                               (channel == ROUTE_AUX_ZP_S12_CHANNEL ||
-                                channel == ROUTE_AUX_ZP_S23_CHANNEL);
-    const bool valid_servo = htd85 && servo_id == ROUTE_AUX_ZP_ID3_SERVO_ID;
-    const char *protocol = htd85 ? "AUX_HTD85" : "AUX_ZP";
-    const uint32_t min_pulse = htd85 ? 0U : 500U;
-    const uint32_t max_pulse = htd85 ? 1000U : 2500U;
-    const uint32_t max_time_ms = htd85 ? 30000U : 9999U;
+    const bool valid_servo = servo_id == ROUTE_HTD85_AUX_ID3_SERVO_ID;
 
-    if ((!valid_channel && !valid_servo) || (valid_channel && servo_id != 0U) ||
-        (valid_servo && channel != 0U) || pulse < min_pulse ||
-        pulse > max_pulse || time_ms > max_time_ms) {
+    if (!valid_servo || pulse > 1000U || time_ms > 30000U) {
         g_fault_code = FAULT_KINEMATICS;
         return false;
     }
 
-    if (valid_channel) {
-        (void)snprintf(
-            command, sizeof(command),
-            "ARM,%s,SET,SEQ,%lu,FIELD,%s,CHANNEL,%lu,PULSE,%lu,TIME,%lu\r\n",
-            protocol, (unsigned long)sequence, field_name, (unsigned long)channel,
-            (unsigned long)pulse, (unsigned long)time_ms);
-    } else {
-        (void)snprintf(
-            command, sizeof(command),
-            "ARM,%s,SET,SEQ,%lu,FIELD,%s,SERVO_ID,%u,PULSE,%lu,TIME,%lu\r\n",
-            protocol, (unsigned long)sequence, field_name, (unsigned int)servo_id,
-            (unsigned long)pulse, (unsigned long)time_ms);
-    }
+    (void)snprintf(
+        command, sizeof(command),
+        "ARM,AUX_HTD85,SET,SEQ,%lu,FIELD,%s,SERVO_ID,%u,PULSE,%lu,TIME,%lu\r\n",
+        (unsigned long)sequence, field_name, (unsigned int)servo_id,
+        (unsigned long)pulse, (unsigned long)time_ms);
     (void)snprintf(ack_prefix, sizeof(ack_prefix),
-                   "RK,%s,ACK,SEQ,%lu", protocol, (unsigned long)sequence);
+                   "RK,AUX_HTD85,ACK,SEQ,%lu", (unsigned long)sequence);
     (void)snprintf(done_prefix, sizeof(done_prefix),
-                   "RK,%s,DONE,SEQ,%lu", protocol, (unsigned long)sequence);
+                   "RK,AUX_HTD85,DONE,SEQ,%lu", (unsigned long)sequence);
     (void)snprintf(error_prefix, sizeof(error_prefix),
-                   "RK,%s,ERR,SEQ,%lu", protocol, (unsigned long)sequence);
+                   "RK,AUX_HTD85,ERR,SEQ,%lu", (unsigned long)sequence);
     (void)snprintf(log_line, sizeof(log_line),
-                   "H7,%s,WAIT,SEQ=%lu,TARGET=%s%lu,PULSE=%lu,TIME=%lu\r\n",
-                   protocol, (unsigned long)sequence,
-                   valid_channel ? "S" : "ID", valid_channel
-                       ? (unsigned long)channel
-                       : (unsigned long)servo_id,
+                   "H7,AUX_HTD85,WAIT,SEQ=%lu,TARGET=ID%u,PULSE=%lu,TIME=%lu\r\n",
+                   (unsigned long)sequence, (unsigned int)servo_id,
                    (unsigned long)pulse, (unsigned long)time_ms);
     board_uart1_write(log_line);
 
@@ -2494,19 +2499,13 @@ static bool run_remote_aux(uint32_t channel, uint32_t pulse, uint32_t time_ms,
                     if (line_matches_token_prefix(line, ack_prefix)) {
                         if (ack_ms == 0U) {
                             ack_ms = HAL_GetTick();
-                            (void)snprintf(log_line, sizeof(log_line),
-                                           "H7,%s,ACK\r\n", protocol);
-                            board_uart1_write_only(log_line);
+                            board_uart1_write_only("H7,AUX_HTD85,ACK\r\n");
                         }
                     } else if (line_matches_token_prefix(line, done_prefix)) {
-                        (void)snprintf(log_line, sizeof(log_line),
-                                       "H7,%s,DONE\r\n", protocol);
-                        board_uart1_write(log_line);
+                        board_uart1_write("H7,AUX_HTD85,DONE\r\n");
                         return true;
                     } else if (line_matches_token_prefix(line, error_prefix)) {
-                        (void)snprintf(log_line, sizeof(log_line),
-                                       "H7,%s,REMOTE_ERROR\r\n", protocol);
-                        board_uart1_write(log_line);
+                        board_uart1_write("H7,AUX_HTD85,REMOTE_ERROR\r\n");
                         g_fault_code = FAULT_ARM_REMOTE;
                         return false;
                     }
@@ -2516,24 +2515,18 @@ static bool run_remote_aux(uint32_t channel, uint32_t pulse, uint32_t time_ms,
                 line[line_len++] = c;
             } else {
                 line_len = 0U;
-                (void)snprintf(log_line, sizeof(log_line),
-                               "H7,ERR,%s_LINE_TOO_LONG\r\n", protocol);
-                board_uart1_write(log_line);
+                board_uart1_write("H7,ERR,AUX_HTD85_LINE_TOO_LONG\r\n");
             }
         }
         now_ms = HAL_GetTick();
         if (ack_ms == 0U) {
             if ((uint32_t)(now_ms - started_ms) >= ROUTE_AUX_ACK_TIMEOUT_MS) {
-                (void)snprintf(log_line, sizeof(log_line),
-                               "H7,%s,ACK_TIMEOUT\r\n", protocol);
-                board_uart1_write(log_line);
+                board_uart1_write("H7,AUX_HTD85,ACK_TIMEOUT\r\n");
                 g_fault_code = FAULT_ARM_TIMEOUT;
                 return false;
             }
         } else if ((uint32_t)(now_ms - ack_ms) >= ROUTE_AUX_DONE_TIMEOUT_MS) {
-            (void)snprintf(log_line, sizeof(log_line),
-                           "H7,%s,DONE_TIMEOUT\r\n", protocol);
-            board_uart1_write(log_line);
+            board_uart1_write("H7,AUX_HTD85,DONE_TIMEOUT\r\n");
             g_fault_code = FAULT_ARM_TIMEOUT;
             return false;
         }
@@ -2541,15 +2534,9 @@ static bool run_remote_aux(uint32_t channel, uint32_t pulse, uint32_t time_ms,
     }
 }
 
-static bool run_zp_aux(uint32_t channel, uint32_t pulse, uint32_t time_ms,
-                       uint8_t servo_id)
-{
-    return run_remote_aux(channel, pulse, time_ms, servo_id, false);
-}
-
 static bool run_htd85_aux(uint8_t servo_id, uint32_t pulse, uint32_t time_ms)
 {
-    return run_remote_aux(0U, pulse, time_ms, servo_id, true);
+    return run_htd85_remote_aux(servo_id, pulse, time_ms);
 }
 
 static bool settle_translation_cross_track(float along_x, float along_y,
@@ -3630,7 +3617,8 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                                long reference_y10,
                                                long tolerance_y10,
                                                float acceleration_m_s2,
-                                               route_white_line_phase_t phase)
+                                               route_white_line_phase_t phase,
+                                               uint32_t reverse_search_ms)
 {
     uint8_t rx[64];
     char line[128];
@@ -3872,8 +3860,8 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
         last_control_ms = now_ms;
         {
             float dt = (float)(now_ms - previous_ms) * 0.001f;
-            /* Before a line is acquired, search backward for five seconds,
-             * then search forward. Once acquired, only a fresh line result
+            /* Before a line is acquired, search backward for the configured
+             * duration, then search forward. Once acquired, only a fresh line result
              * is allowed to select the signed correction direction. */
             float desired_forward_speed_m_s = 0.0f;
             float command_vx_m_s;
@@ -3911,19 +3899,24 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                 measurement_valid = false;
                 if (!filtered_y10_valid) {
                     if ((uint32_t)(now_ms - started_ms) <
-                        ROUTE_DISC_LINE_REVERSE_SEARCH_MS) {
+                        reverse_search_ms) {
                         desired_forward_speed_m_s = -forward_speed_m_s;
                         if (!reverse_search_logged) {
+                            char reverse_log[128];
+
                             reverse_search_logged = true;
-                            board_uart1_write_only(
-                                "H7,VISION,WHITE_LINE,SEARCH,DIR=REVERSE,SPEED=0.08,T=900ms\r\n");
+                            (void)snprintf(
+                                reverse_log, sizeof(reverse_log),
+                                "H7,VISION,WHITE_LINE,SEARCH,DIR=REVERSE,SPEED=0.10,T=%lums\r\n",
+                                (unsigned long)reverse_search_ms);
+                            board_uart1_write_only(reverse_log);
                         }
                     } else {
                         desired_forward_speed_m_s = forward_speed_m_s;
                         if (!forward_search_logged) {
                             forward_search_logged = true;
                             board_uart1_write_only(
-                                "H7,VISION,WHITE_LINE,SEARCH,DIR=FORWARD,SPEED=0.08\r\n");
+                                "H7,VISION,WHITE_LINE,SEARCH,DIR=FORWARD,SPEED=0.10\r\n");
                         }
                     }
                 }
@@ -4472,7 +4465,8 @@ static bool run_disc_visual_alignment(void)
         ROUTE_DISC_LINE_REFERENCE_Y10,
         ROUTE_DISC_LINE_REFERENCE_TOLERANCE_Y10,
         ROUTE_DISC_LINE_ACCEL_M_S2,
-        ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC);
+        ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC,
+        ROUTE_DISC_LINE_REVERSE_SEARCH_MS);
 }
 
 void route_controller_set_field(uint8_t is_red)
@@ -4691,7 +4685,8 @@ bool route_controller_run_task2_test(uint32_t sequence, const char *letter1,
                     ROUTE_TASK2_TEST_WHITE_LINE_REFERENCE_Y10,
                     ROUTE_TASK2_TEST_WHITE_LINE_REFERENCE_TOLERANCE_Y10,
                     ROUTE_TASK2_TEST_WHITE_LINE_ACCEL_M_S2,
-                    ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT)) {
+                    ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT,
+                    ROUTE_TASK2_TEST_WHITE_LINE_REVERSE_SEARCH_MS)) {
                 task2_test_send_error("WHITE_LINE", sequence);
                 g_task2_test_active_sequence = 0U;
                 return false;
@@ -4809,13 +4804,14 @@ bool route_controller_run_task2_platform_entry(void)
             ROUTE_TASK2_TEST_WHITE_LINE_REFERENCE_Y10,
             ROUTE_TASK2_TEST_WHITE_LINE_REFERENCE_TOLERANCE_Y10,
             ROUTE_TASK2_TEST_WHITE_LINE_ACCEL_M_S2,
-            ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT)) {
+            ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT,
+            ROUTE_TASK2_TEST_WHITE_LINE_REVERSE_SEARCH_MS)) {
         return false;
     }
 
     g_run_state = RUN_DISC_FINAL_APPROACH;
     board_uart1_write(
-        "H7,ROUTE,TASK2_WHITE_LINE,REFERENCE_REACHED,FORWARD=170mm\r\n");
+        "H7,ROUTE,TASK2_WHITE_LINE,REFERENCE_REACHED,FORWARD=190mm\r\n");
     moved = run_translation_profile(
         ROUTE_FORWARD_SIGN, 0.0f,
         ROUTE_TASK2_TEST_WHITE_LINE_AFTER_CROSSED_FORWARD_M,
@@ -4933,12 +4929,6 @@ bool route_controller_start_rk_arm_task(const char *task)
 bool route_controller_stop_rk_arm_task(const char *task)
 {
     return stop_rk_arm_task(task);
-}
-
-bool route_controller_run_zp_aux(uint32_t channel, uint32_t pulse,
-                                 uint32_t time_ms, uint8_t servo_id)
-{
-    return run_zp_aux(channel, pulse, time_ms, servo_id);
 }
 
 bool route_controller_run_htd85_aux(uint8_t servo_id, uint32_t pulse,

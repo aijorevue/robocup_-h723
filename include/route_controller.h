@@ -44,11 +44,8 @@ typedef enum {
     RUN_DISC_VISUAL_ALIGN = 33,
     RUN_DISC_FINAL_APPROACH = 34,
     RUN_TASK2_DIAGONAL_TURN = 35,
-    RUN_AUX_ZP_S12 = 36,
-    RUN_AUX_ZP_S23 = 37,
-    RUN_AUX_ZP_ID3 = 38,
-    RUN_AUX_HTD85_ID3 = 40,
-    RUN_FINAL_ALIGN_TURN = 39
+    RUN_AUX_HTD85_ID3 = 36,
+    RUN_FINAL_ALIGN_TURN = 37
 } run_state_t;
 
 enum {
@@ -145,9 +142,6 @@ bool route_controller_wait_for_rk_platform_preselect(void);
 bool route_controller_wait_for_rk_platform_slot(uint32_t slot);
 bool route_controller_start_rk_arm_task(const char *task);
 bool route_controller_stop_rk_arm_task(const char *task);
-/* Execute one acknowledged ZP20S auxiliary command over the RK link. */
-bool route_controller_run_zp_aux(uint32_t channel, uint32_t pulse,
-                                 uint32_t time_ms, uint8_t servo_id);
 /* Execute one acknowledged Hiwonder HTD85 auxiliary command over the RK link. */
 bool route_controller_run_htd85_aux(uint8_t servo_id, uint32_t pulse,
                                     uint32_t time_ms);
