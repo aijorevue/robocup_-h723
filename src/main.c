@@ -392,7 +392,7 @@ route_start:
             }
         } else {
             board_uart1_write(
-                "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=100mm\r\n");
+                "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=0mm,SPEED=0.05m/s\r\n");
         }
     }
 #else
@@ -708,7 +708,8 @@ route_start:
 
             /* After the field-specific reverse and first lateral shift, both
              * local MG90S outputs open together, hold for five seconds, then
-             * close together. */
+             * close together. The first shift includes the current 70 mm
+             * route increase before this action. */
             {
                 g_run_state = field_profile.is_red != 0U
                                    ? RUN_PLATFORM_SHIFT_LEFT
@@ -769,7 +770,7 @@ route_start:
 
             /* After both MG90S outputs return home, RED moves 2600 mm and
              * BLUE moves 2100 mm on their mirrored lateral axes, then both
-             * advance 550 mm. */
+             * advance 600 mm. */
             g_run_state = field_profile.is_red != 0U
                                ? RUN_PLATFORM_SHIFT_RIGHT
                                : RUN_PLATFORM_SHIFT_LEFT;
@@ -819,7 +820,7 @@ route_start:
                 enter_fault(g_fault_code);
             }
             board_uart1_write(
-                "H7,ROUTE,TASK3,POST_ROUTE_FINAL_FORWARD,DISTANCE=550mm\r\n");
+                "H7,ROUTE,TASK3,POST_ROUTE_FINAL_FORWARD,DISTANCE=600mm\r\n");
 
             {
                 const uint8_t red_field = field_profile.is_red != 0U;
