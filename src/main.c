@@ -383,6 +383,9 @@ route_start:
     } else {
         g_run_state = RUN_DISC_FINAL_APPROACH;
             if (ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M > 0.0f) {
+            board_uart1_write(
+                "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=52mm,"
+                "SPEED=0.05m/s\r\n");
             if (!route_controller_run_translation_profile(
                     ROUTE_FORWARD_SIGN, 0.0f,
                     ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M,
@@ -392,7 +395,8 @@ route_start:
             }
         } else {
             board_uart1_write(
-                "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=0mm,SPEED=0.05m/s\r\n");
+                "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=0mm,"
+                "SPEED=0.05m/s\r\n");
         }
     }
 #else
@@ -708,8 +712,8 @@ route_start:
 
             /* After the field-specific reverse and first lateral shift, both
              * local MG90S outputs open together, hold for five seconds, then
-             * close together. The first shift includes the current 70 mm
-             * route increase before this action. */
+             * close together. The first shift remains field-specific before
+             * this action. */
             {
                 g_run_state = field_profile.is_red != 0U
                                    ? RUN_PLATFORM_SHIFT_LEFT
@@ -768,9 +772,9 @@ route_start:
                 enter_fault(g_fault_code);
             }
 
-            /* After both MG90S outputs return home, RED moves 2600 mm and
-             * BLUE moves 2100 mm on their mirrored lateral axes, then both
-             * advance 600 mm. */
+            /* After both MG90S outputs return home, RED moves 2600 mm right
+             * and advances 600 mm. BLUE moves 2250 mm left and advances
+             * 670 mm. */
             g_run_state = field_profile.is_red != 0U
                                ? RUN_PLATFORM_SHIFT_RIGHT
                                : RUN_PLATFORM_SHIFT_LEFT;
@@ -806,21 +810,34 @@ route_start:
             board_uart1_write(final_shift_log);
             }
 
-            g_run_state = RUN_FORWARD;
-            if (!route_controller_run_translation_profile(
-                    ROUTE_FORWARD_SIGN, 0.0f,
-                    ROUTE_TASK3_POST_FINAL_FORWARD_DISTANCE_M,
-                    ROUTE_TRANSLATION_SPEED_M_S,
-                    ROUTE_TRANSLATION_ACCEL_M_S2)) {
-                enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
-                                                        : g_fault_code);
+            {
+                const float final_forward_distance_m =
+                    field_profile.is_red != 0U
+                        ? ROUTE_TASK3_POST_FINAL_FORWARD_DISTANCE_RED_M
+                        : ROUTE_TASK3_POST_FINAL_FORWARD_DISTANCE_BLUE_M;
+                char final_forward_log[112];
+
+                g_run_state = RUN_FORWARD;
+                if (!route_controller_run_translation_profile(
+                        ROUTE_FORWARD_SIGN, 0.0f,
+                        final_forward_distance_m,
+                        ROUTE_TRANSLATION_SPEED_M_S,
+                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                            : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                if (g_run_state == RUN_FAULT) {
+                    enter_fault(g_fault_code);
+                }
+                (void)snprintf(
+                    final_forward_log, sizeof(final_forward_log),
+                    "H7,ROUTE,TASK3,POST_ROUTE_FINAL_FORWARD,FIELD=%s,"
+                    "DISTANCE=%umm\r\n",
+                    field_profile.is_red != 0U ? "RED" : "BLUE",
+                    (unsigned)(final_forward_distance_m * 1000.0f + 0.5f));
+                board_uart1_write(final_forward_log);
             }
-            route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-            if (g_run_state == RUN_FAULT) {
-                enter_fault(g_fault_code);
-            }
-            board_uart1_write(
-                "H7,ROUTE,TASK3,POST_ROUTE_FINAL_FORWARD,DISTANCE=600mm\r\n");
 
             {
                 const uint8_t red_field = field_profile.is_red != 0U;
@@ -852,11 +869,15 @@ route_start:
                 (void)snprintf(
                     complete_log, sizeof(complete_log),
                     "H7,ROUTE,TASK3,COMPLETE,POST_ROUTE_FINAL_TURN_DONE,"
-                    "FIELD=%s,FINAL_SHIFT=%umm,FORWARD=550mm,TURN=%s_90deg\r\n",
+                    "FIELD=%s,FINAL_SHIFT=%umm,FORWARD=%umm,TURN=%s_90deg\r\n",
                     field_profile.is_red != 0U ? "RED" : "BLUE",
                     (unsigned)((field_profile.is_red != 0U
                                     ? ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_RED_M
                                     : ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_BLUE_M) *
+                               1000.0f + 0.5f),
+                    (unsigned)((field_profile.is_red != 0U
+                                    ? ROUTE_TASK3_POST_FINAL_FORWARD_DISTANCE_RED_M
+                                    : ROUTE_TASK3_POST_FINAL_FORWARD_DISTANCE_BLUE_M) *
                                1000.0f + 0.5f),
                     field_profile.is_red != 0U ? "LEFT" : "RIGHT");
                 board_uart1_write(complete_log);
