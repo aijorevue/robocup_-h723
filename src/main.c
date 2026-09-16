@@ -138,11 +138,18 @@ route_start:
 
     if (!task2_test && !task3_test) {
         route_controller_begin_pretask_sync();
+        /* RESET is the arm-side readiness barrier for the formal route.  Do
+         * not launch the chassis arc until RK has acknowledged a successful
+         * home/reset cycle; otherwise PREP_HIGH can be lost while RK is still
+         * starting or recovering its servo USB link. */
+        if (!route_controller_wait_for_rk_reset_before_route()) {
+            route_controller_enter_fault_wait_restart(
+                g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
+            goto route_start;
+        }
     }
-    /* Formal startup no longer blocks the chassis on a boot-time RK
-     * handshake.  The background sync and the station transaction retain
-     * the real arm safety boundary while allowing the arc to start and the
-     * asynchronous PREP_HIGH request to run during that arc. */
+    /* PREP_HIGH is started only after the reset barrier above.  The formal
+     * route blocks until RK confirms the high pose before starting the arc. */
 
     g_run_state = RUN_BOOT;
     if (!route_controller_wait_for_can_startup()) {
@@ -273,10 +280,17 @@ route_start:
      * continuous cubic entry.  The field profile mirrors both the side
      * of the obstacle and the final station heading.
      */
-    /* Request the high pose before the first arc command.  The request and
-     * ACK handling are non-blocking; the arc loop services the USB link while
-     * the RK/C8T6 arm moves in parallel with chassis motion. */
+    /* The arm must be physically commanded before the chassis is allowed to
+     * leave the start point.  The old asynchronous request could be rejected
+     * while RK was still opening its USB servo bus, leaving the car moving
+     * with the arm down. */
     route_controller_start_disc_prep_high_async();
+    if (!route_controller_wait_for_disc_prep_high_before_route()) {
+        board_uart1_write(
+            "H7,FAULT,ARM_PREP_HIGH_NOT_CONFIRMED,ROUTE_BLOCKED\r\n");
+        route_controller_enter_fault_wait_restart(FAULT_ARM_TIMEOUT);
+        goto route_start;
+    }
     g_run_state = RUN_DISC_ARC_ENTRY;
     if (!route_controller_run_disc_arc_entry(field_profile.strafe_sign,
                                              field_profile.turn_sign)) {
@@ -378,7 +392,7 @@ route_start:
             }
         } else {
             board_uart1_write(
-                "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=50mm\r\n");
+                "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=100mm\r\n");
         }
     }
 #else
@@ -436,17 +450,17 @@ route_start:
 
     /*
      * Enter task two as one continuous diagonal segment.  The route-frame
-     * components use the 1.60 m reverse and 1.98 m side approach.
+     * components use the 1.58 m reverse and 2.03 m side approach.
      * The chassis rotates smoothly through 180 degrees during the segment,
      * mirrored by field, so there are no intermediate 90-degree stops.
      */
     g_run_state = RUN_TASK2_DIAGONAL_TURN;
     board_uart1_write(
         field_profile.is_red != 0U
-            ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1600mm,"
-              "LATERAL=1980mm,TURN=LEFT180\r\n"
-            : "H7,ROUTE,TASK2_DIAGONAL,FIELD=BLUE,BACKWARD=1600mm,"
-              "LATERAL=1980mm,TURN=RIGHT180\r\n");
+            ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1580mm,"
+              "LATERAL=2030mm,TURN=LEFT180\r\n"
+            : "H7,ROUTE,TASK2_DIAGONAL,FIELD=BLUE,BACKWARD=1580mm,"
+              "LATERAL=2030mm,TURN=RIGHT180\r\n");
     if (!route_controller_run_translation_with_turn(
             -ROUTE_FORWARD_SIGN * ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M,
             field_profile.strafe_sign * ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M,
@@ -692,8 +706,9 @@ route_start:
                 enter_fault(g_fault_code);
             }
 
-            /* After the 700 mm reverse, RED moves left by 600 mm. BLUE moves
-             * right by 200 mm and opens both local MG90S outputs together. */
+            /* After the field-specific reverse and first lateral shift, both
+             * local MG90S outputs open together, hold for five seconds, then
+             * close together. */
             {
                 g_run_state = field_profile.is_red != 0U
                                    ? RUN_PLATFORM_SHIFT_LEFT
@@ -712,80 +727,65 @@ route_start:
                 if (g_run_state == RUN_FAULT) {
                     enter_fault(g_fault_code);
                 }
-                board_uart1_write(
-                    field_profile.is_red != 0U
-                        ? "H7,ROUTE,TASK3,POST_REVERSE_SHIFT,DIR=LEFT,DISTANCE=600mm\r\n"
-                        : "H7,ROUTE,TASK3,POST_REVERSE_SHIFT,DIR=RIGHT,DISTANCE=200mm\r\n");
-            }
+                {
+                    char first_shift_log[128];
 
-            if (field_profile.is_red != 0U) {
-                /* Preserve the established RED sequence: PA0 first, then PA2. */
-                board_servo_set_angle_deg_index(
-                    SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POST_ROUTE_PA0_ANGLE_DEG);
-                board_uart1_write(
-                    "H7,LOCAL_SERVO,POST_ROUTE,INDEX,0,ANGLE_DEG,80.0,HOLD_MS,5000\r\n");
-                route_controller_hold_zero(ROUTE_TASK3_POST_AUX_HOLD_MS);
-                if (g_run_state == RUN_FAULT) {
-                    enter_fault(g_fault_code);
-                }
-
-                board_servo_set_angle_deg_index(
-                    SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POWER_ON_PA0_ANGLE_DEG);
-                board_uart1_write(
-                    "H7,LOCAL_SERVO,POST_ROUTE,INDEX,0,ANGLE_DEG,150.0\r\n");
-                board_servo_set_angle_deg_index(
-                    SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POST_ROUTE_PA2_ANGLE_DEG);
-                board_uart1_write(
-                    "H7,LOCAL_SERVO,POST_ROUTE,INDEX,1,ANGLE_DEG,90.0,HOLD_MS,5000\r\n");
-                route_controller_hold_zero(ROUTE_TASK3_POST_AUX_HOLD_MS);
-                if (g_run_state == RUN_FAULT) {
-                    enter_fault(g_fault_code);
-                }
-                board_servo_set_angle_deg_index(
-                    SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POWER_ON_PA2_ANGLE_DEG);
-                board_uart1_write(
-                    "H7,LOCAL_SERVO,POST_ROUTE,INDEX,1,ANGLE_DEG,30.0,RESTORE\r\n");
-                route_controller_hold_zero(ROUTE_SERVO_RETURN_SETTLE_MS);
-                if (g_run_state == RUN_FAULT) {
-                    enter_fault(g_fault_code);
-                }
-            } else {
-                /* BLUE opens both local MG90S outputs in the same hold window. */
-                board_servo_set_angle_deg_index(
-                    SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POST_ROUTE_PA0_ANGLE_DEG);
-                board_servo_set_angle_deg_index(
-                    SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POST_ROUTE_PA2_ANGLE_DEG);
-                board_uart1_write(
-                    "H7,LOCAL_SERVO,POST_ROUTE,BLUE_BOTH_OPEN,"
-                    "PA0=80.0,PA2=90.0,HOLD_MS=5000\r\n");
-                route_controller_hold_zero(ROUTE_TASK3_POST_AUX_HOLD_MS);
-                if (g_run_state == RUN_FAULT) {
-                    enter_fault(g_fault_code);
-                }
-                board_servo_set_angle_deg_index(
-                    SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POWER_ON_PA0_ANGLE_DEG);
-                board_servo_set_angle_deg_index(
-                    SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POWER_ON_PA2_ANGLE_DEG);
-                board_uart1_write(
-                    "H7,LOCAL_SERVO,POST_ROUTE,BLUE_BOTH_RESTORE,"
-                    "PA0=150.0,PA2=30.0\r\n");
-                route_controller_hold_zero(ROUTE_SERVO_RETURN_SETTLE_MS);
-                if (g_run_state == RUN_FAULT) {
-                    enter_fault(g_fault_code);
+                    (void)snprintf(
+                        first_shift_log, sizeof(first_shift_log),
+                        "H7,ROUTE,TASK3,POST_REVERSE_SHIFT,FIELD=%s,DIR=%s,"
+                        "DISTANCE=%umm\r\n",
+                        field_profile.is_red != 0U ? "RED" : "BLUE",
+                        field_profile.is_red != 0U ? "LEFT" : "RIGHT",
+                        (unsigned)((field_profile.is_red != 0U
+                                        ? ROUTE_TASK3_POST_FIRST_SHIFT_DISTANCE_M
+                                        : ROUTE_TASK3_POST_FIRST_SHIFT_BLUE_M) *
+                                   1000.0f + 0.5f));
+                    board_uart1_write(first_shift_log);
                 }
             }
 
-            /* After PA2 returns home, RED moves right and BLUE moves left
-             * by 2500 mm, then the chassis advances 500 mm. */
+            board_servo_set_angle_deg_index(
+                SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POST_ROUTE_PA0_ANGLE_DEG);
+            board_servo_set_angle_deg_index(
+                SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POST_ROUTE_PA2_ANGLE_DEG);
+            board_uart1_write(
+                "H7,LOCAL_SERVO,POST_ROUTE,BOTH_OPEN,"
+                "PA0=80.0,PA2=90.0,HOLD_MS=5000\r\n");
+            route_controller_hold_zero(ROUTE_TASK3_POST_AUX_HOLD_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
+            board_servo_set_angle_deg_index(
+                SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POWER_ON_PA0_ANGLE_DEG);
+            board_servo_set_angle_deg_index(
+                SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POWER_ON_PA2_ANGLE_DEG);
+            board_uart1_write(
+                "H7,LOCAL_SERVO,POST_ROUTE,BOTH_CLOSE,"
+                "PA0=150.0,PA2=30.0\r\n");
+            route_controller_hold_zero(ROUTE_SERVO_RETURN_SETTLE_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
+
+            /* After both MG90S outputs return home, RED moves 2600 mm and
+             * BLUE moves 2100 mm on their mirrored lateral axes, then both
+             * advance 550 mm. */
             g_run_state = field_profile.is_red != 0U
                                ? RUN_PLATFORM_SHIFT_RIGHT
                                : RUN_PLATFORM_SHIFT_LEFT;
+            {
+                const float final_shift_distance_m =
+                    field_profile.is_red != 0U
+                        ? ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_RED_M
+                        : ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_BLUE_M;
+                char final_shift_log[128];
+
             if (!route_controller_run_translation_profile(
                     0.0f,
                     field_profile.is_red != 0U
                         ? ROUTE_RIGHT_STRAFE_SIGN
                         : -ROUTE_RIGHT_STRAFE_SIGN,
-                    ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_M,
+                    final_shift_distance_m,
                     ROUTE_TRANSLATION_SPEED_M_S,
                     ROUTE_TRANSLATION_ACCEL_M_S2)) {
                 enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
@@ -795,12 +795,15 @@ route_start:
             if (g_run_state == RUN_FAULT) {
                 enter_fault(g_fault_code);
             }
-            board_uart1_write(
-                field_profile.is_red != 0U
-                    ? "H7,ROUTE,TASK3,POST_ROUTE_FINAL_SHIFT,FIELD=RED,"
-                       "DIR=RIGHT,DISTANCE=2500mm\r\n"
-                    : "H7,ROUTE,TASK3,POST_ROUTE_FINAL_SHIFT,FIELD=BLUE,"
-                       "DIR=LEFT,DISTANCE=2500mm\r\n");
+            (void)snprintf(
+                final_shift_log, sizeof(final_shift_log),
+                "H7,ROUTE,TASK3,POST_ROUTE_FINAL_SHIFT,FIELD=%s,DIR=%s,"
+                "DISTANCE=%umm\r\n",
+                field_profile.is_red != 0U ? "RED" : "BLUE",
+                field_profile.is_red != 0U ? "RIGHT" : "LEFT",
+                (unsigned)(final_shift_distance_m * 1000.0f + 0.5f));
+            board_uart1_write(final_shift_log);
+            }
 
             g_run_state = RUN_FORWARD;
             if (!route_controller_run_translation_profile(
@@ -816,7 +819,7 @@ route_start:
                 enter_fault(g_fault_code);
             }
             board_uart1_write(
-                "H7,ROUTE,TASK3,POST_ROUTE_FINAL_FORWARD,DISTANCE=500mm\r\n");
+                "H7,ROUTE,TASK3,POST_ROUTE_FINAL_FORWARD,DISTANCE=550mm\r\n");
 
             {
                 const uint8_t red_field = field_profile.is_red != 0U;
@@ -842,12 +845,21 @@ route_start:
             }
         }
 
-            board_uart1_write(
-                field_profile.is_red != 0U
-                      ? "H7,ROUTE,TASK3,COMPLETE,POST_ROUTE_FINAL_TURN_DONE,"
-                      "RIGHT=2500mm,FORWARD=500mm,TURN=LEFT_90deg\r\n"
-                    : "H7,ROUTE,TASK3,COMPLETE,POST_ROUTE_FINAL_TURN_DONE,"
-                      "LEFT=2500mm,FORWARD=500mm,TURN=RIGHT_90deg\r\n");
+            {
+                char complete_log[160];
+
+                (void)snprintf(
+                    complete_log, sizeof(complete_log),
+                    "H7,ROUTE,TASK3,COMPLETE,POST_ROUTE_FINAL_TURN_DONE,"
+                    "FIELD=%s,FINAL_SHIFT=%umm,FORWARD=550mm,TURN=%s_90deg\r\n",
+                    field_profile.is_red != 0U ? "RED" : "BLUE",
+                    (unsigned)((field_profile.is_red != 0U
+                                    ? ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_RED_M
+                                    : ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_BLUE_M) *
+                               1000.0f + 0.5f),
+                    field_profile.is_red != 0U ? "LEFT" : "RIGHT");
+                board_uart1_write(complete_log);
+            }
 #endif
 
 #if ROUTE_TASK1_ONLY || ROUTE_STOP_AFTER_WHITE_LINE
@@ -859,9 +871,8 @@ route_test_shutdown:
      * already owns the local PWM tail, so no remote auxiliary bus request
      * is sent here. */
     if (task2_test || task3_test) {
-        board_uart1_write(
-            "H7,ROUTE,TASK3,POST_REVERSE,DONE,DISTANCE=700mm\r\n");
-        board_uart1_write("H7,ROUTE,TASK3,POST_DONE,LOCAL_PWM_ONLY\r\n");
+        board_uart1_write("H7,ROUTE,TEST,POST_ROUTE,DONE\r\n");
+        board_uart1_write("H7,ROUTE,TEST,POST_DONE,LOCAL_PWM_ONLY\r\n");
     }
 #endif
     g_run_state = RUN_STOPPING;

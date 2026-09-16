@@ -82,6 +82,9 @@ typedef enum {
 
 static void service_rk_link_before_first_station(void);
 static bool service_disc_prep_high_during_arc(void);
+static bool wait_for_disc_prep_high_with_timeout(uint32_t timeout_ms,
+                                                 const char *wait_log,
+                                                 const char *ack_log);
 static bool service_task2_test_command(void);
 static bool service_task3_test_command(void);
 static bool service_formal_task3_command(void);
@@ -1626,7 +1629,6 @@ static void rk_arm_handle_line(const char *line)
     }
     if (line_starts_with(line, "RK,ARM,RESET,DONE")) {
         g_rk_reset_pending = 0U;
-        g_rk_arm_link_ready = 1U;
         board_uart1_write_only("H7,ARM,RK_RESET_DONE\r\n");
         return;
     }
@@ -3146,21 +3148,23 @@ static float smoothstep01(float value)
     return u * u * (3.0f - 2.0f * u);
 }
 
-bool route_controller_wait_for_disc_prep_high(void)
+static bool wait_for_disc_prep_high_with_timeout(uint32_t timeout_ms,
+                                                 const char *wait_log,
+                                                 const char *ack_log)
 {
     const uint32_t wait_started_ms = HAL_GetTick();
 
     (void)service_disc_prep_high_during_arc();
     if (g_rk_disc_prep_high_ack != 0U) {
-        board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_ACKED_DURING_ARC\r\n");
+        board_uart1_write(ack_log);
         return true;
     }
 
-    board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_WAIT_AFTER_ARC\r\n");
+    board_uart1_write(wait_log);
     while ((uint32_t)(HAL_GetTick() - wait_started_ms) <
-           RK_ARM_ACK_TIMEOUT_MS) {
+           timeout_ms) {
         if (service_disc_prep_high_during_arc()) {
-            board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_ACKED_AFTER_ARC\r\n");
+            board_uart1_write(ack_log);
             return true;
         }
         if (!keep_chassis_stopped_for_arm_task()) {
@@ -3173,6 +3177,22 @@ bool route_controller_wait_for_disc_prep_high(void)
     board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_TIMEOUT\r\n");
     g_fault_code = FAULT_ARM_TIMEOUT;
     return false;
+}
+
+bool route_controller_wait_for_disc_prep_high(void)
+{
+    return wait_for_disc_prep_high_with_timeout(
+        RK_ARM_ACK_TIMEOUT_MS,
+        "H7,ARM,DISC_CATCH,PREP_HIGH_WAIT_AFTER_ARC\r\n",
+        "H7,ARM,DISC_CATCH,PREP_HIGH_ACKED_AFTER_ARC\r\n");
+}
+
+bool route_controller_wait_for_disc_prep_high_before_route(void)
+{
+    return wait_for_disc_prep_high_with_timeout(
+        RK_ARM_PREP_HIGH_BEFORE_ROUTE_TIMEOUT_MS,
+        "H7,ARM,DISC_CATCH,PREP_HIGH_WAIT_BEFORE_ARC\r\n",
+        "H7,ARM,DISC_CATCH,PREP_HIGH_ACKED_BEFORE_ARC\r\n");
 }
 
 bool route_controller_run_task2_prep_high(void)
@@ -3645,6 +3665,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
     uint32_t not_found_samples = 0U;
     bool reverse_search_logged = false;
     bool forward_search_logged = false;
+    bool stale_recovery_logged = false;
     float measured_wheel_speed[4] = {0.0f};
     float wheel_speed[4] = {0.0f};
     bool first_feedback_cycle = true;
@@ -3748,6 +3769,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                         if (accept_y10) {
                             last_accepted_y10 = y10;
                             have_accepted_y10 = true;
+                            stale_recovery_logged = false;
                             y10_history[y10_history_count %
                                         ROUTE_DISC_LINE_Y10_FILTER_SAMPLES] = y10;
                             ++y10_history_count;
@@ -3816,8 +3838,29 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                             if (reference_stable_samples >=
                                 ROUTE_DISC_LINE_REFERENCE_STABLE_SAMPLES) {
                                 g_route_heading_target_rad = g_yaw_rad;
+                                g_command_speed_m_s = 0.0f;
+                                g_heading_correction_rad_s = 0.0f;
+                                g_cross_track_command_m_s = 0.0f;
+                                g_actual_cross_speed_m_s = 0.0f;
+                                /* Both formal line-entry stages use the same
+                                 * contract: once the filtered line is stable,
+                                 * stop the chassis before the caller performs
+                                 * its calibrated fixed approach. Without an
+                                 * explicit zero command here, task one could
+                                 * return with the previous wheel command still
+                                 * active and appear to ignore the line. */
+                                if (!route_motor_send_zero_all()) {
+                                    preserve_rc_or_set_motor_fault();
+                                    g_task2_test_white_line_active = 0U;
+                                    return false;
+                                }
+                                hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                                if (g_run_state == RUN_FAULT) {
+                                    g_task2_test_white_line_active = 0U;
+                                    return false;
+                                }
                                 board_uart1_write(
-                                    "H7,VISION,WHITE_LINE,CROSSED,CONTINUE\r\n");
+                                    "H7,VISION,WHITE_LINE,CROSSED,STOPPED\r\n");
                                 g_task2_test_white_line_active = 0U;
                                 return true;
                             }
@@ -3885,8 +3928,13 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                         -ROUTE_DISC_LINE_MAX_TURN_RAD_S,
                         ROUTE_DISC_LINE_MAX_TURN_RAD_S);
                 }
-                if (filtered_y10_valid) {
-                    const long y10_error = filtered_y10 - reference_y10;
+                if (filtered_y10_valid || have_accepted_y10) {
+                    /* Rebuild control from the latest accepted sample while
+                     * the median filter is being refilled after a stale gap. */
+                    const long control_y10 = filtered_y10_valid
+                                                 ? filtered_y10
+                                                 : last_accepted_y10;
+                    const long y10_error = control_y10 - reference_y10;
                     if (y10_error > tolerance_y10) {
                         desired_forward_speed_m_s = -forward_speed_m_s;
                     } else if (y10_error < -tolerance_y10) {
@@ -3896,28 +3944,44 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                     }
                 }
             } else {
+                const bool had_stale_observation =
+                    measurement_valid || filtered_y10_valid ||
+                    have_accepted_y10;
+                if (had_stale_observation && !stale_recovery_logged) {
+                    board_uart1_write_only(
+                        "H7,VISION,WHITE_LINE,STALE_RESET,SEARCH_RESUME\r\n");
+                    stale_recovery_logged = true;
+                }
+                /* Clear every state derived from the stale line.  Keeping
+                 * filtered_y10_valid set here makes the search branch leave
+                 * the chassis at zero speed indefinitely. */
                 measurement_valid = false;
-                if (!filtered_y10_valid) {
-                    if ((uint32_t)(now_ms - started_ms) <
-                        reverse_search_ms) {
-                        desired_forward_speed_m_s = -forward_speed_m_s;
-                        if (!reverse_search_logged) {
-                            char reverse_log[128];
+                filtered_y10_valid = false;
+                have_accepted_y10 = false;
+                last_accepted_y10 = 0L;
+                y10_history_count = 0U;
+                reference_stable_samples = 0U;
+                angle_stable_samples = 0U;
+                angle_aligned = false;
+                error_angle_deg = 0.0f;
+                if ((uint32_t)(now_ms - started_ms) < reverse_search_ms) {
+                    desired_forward_speed_m_s = -forward_speed_m_s;
+                    if (!reverse_search_logged) {
+                        char reverse_log[128];
 
-                            reverse_search_logged = true;
-                            (void)snprintf(
-                                reverse_log, sizeof(reverse_log),
-                                "H7,VISION,WHITE_LINE,SEARCH,DIR=REVERSE,SPEED=0.10,T=%lums\r\n",
-                                (unsigned long)reverse_search_ms);
-                            board_uart1_write_only(reverse_log);
-                        }
-                    } else {
-                        desired_forward_speed_m_s = forward_speed_m_s;
-                        if (!forward_search_logged) {
-                            forward_search_logged = true;
-                            board_uart1_write_only(
-                                "H7,VISION,WHITE_LINE,SEARCH,DIR=FORWARD,SPEED=0.10\r\n");
-                        }
+                        reverse_search_logged = true;
+                        (void)snprintf(
+                            reverse_log, sizeof(reverse_log),
+                            "H7,VISION,WHITE_LINE,SEARCH,DIR=REVERSE,SPEED=0.10,T=%lums\r\n",
+                            (unsigned long)reverse_search_ms);
+                        board_uart1_write_only(reverse_log);
+                    }
+                } else {
+                    desired_forward_speed_m_s = forward_speed_m_s;
+                    if (!forward_search_logged) {
+                        forward_search_logged = true;
+                        board_uart1_write_only(
+                            "H7,VISION,WHITE_LINE,SEARCH,DIR=FORWARD,SPEED=0.10\r\n");
                     }
                 }
             }
@@ -4526,6 +4590,11 @@ bool route_controller_wait_for_rk_reset_before_route(void)
         return true;
     }
     board_uart1_write("H7,ARM,RESET_BYPASS_NO_RK_BEFORE_ROUTE\r\n");
+    /* A formal route without a confirmed RK reset can start the chassis arc
+     * while PREP_HIGH is still rejected as BUSY/STARTUP.  Stop at the start
+     * gate instead of silently running with the arm in its old pose. */
+    g_fault_code = FAULT_ARM_TIMEOUT;
+    board_uart1_write("H7,ARM,RESET_BLOCKED_BEFORE_ROUTE\r\n");
     return false;
 }
 
@@ -4810,8 +4879,16 @@ bool route_controller_run_task2_platform_entry(void)
     }
 
     g_run_state = RUN_DISC_FINAL_APPROACH;
-    board_uart1_write(
-        "H7,ROUTE,TASK2_WHITE_LINE,REFERENCE_REACHED,FORWARD=120mm\r\n");
+    {
+        char reference_log[96];
+
+        (void)snprintf(
+            reference_log, sizeof(reference_log),
+            "H7,ROUTE,TASK2_WHITE_LINE,REFERENCE_REACHED,FORWARD=%umm\r\n",
+            (unsigned)(ROUTE_TASK2_FORMAL_WHITE_LINE_AFTER_CROSSED_FORWARD_M *
+                       1000.0f + 0.5f));
+        board_uart1_write(reference_log);
+    }
     moved = run_translation_profile(
         ROUTE_FORWARD_SIGN, 0.0f,
         ROUTE_TASK2_FORMAL_WHITE_LINE_AFTER_CROSSED_FORWARD_M,

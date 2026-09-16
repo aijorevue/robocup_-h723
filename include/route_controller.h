@@ -94,8 +94,9 @@ bool route_controller_wait_for_rk_reset_before_route(void);
 void route_controller_mark_first_arm_station(void);
 void route_controller_request_rk_reset(void);
 void route_controller_service_rk_link(void);
-/* Start PREP_HIGH asynchronously before the disc arc; never waits for ACK. */
+/* Start PREP_HIGH before the formal disc arc; the caller waits for its ACK. */
 void route_controller_start_disc_prep_high_async(void);
+bool route_controller_wait_for_disc_prep_high_before_route(void);
 void route_controller_reset_pose(void);
 void route_controller_set_heading_target(float heading_rad);
 uint8_t route_controller_last_arm_task_bypassed(void);
