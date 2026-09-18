@@ -846,6 +846,25 @@ route_start:
                     enter_fault(g_fault_code);
                 }
 
+                /* After the gyro-closed 180-degree turn, move forward 50 mm
+                 * before lowering ID3.  This is a separate segment from the
+                 * existing 100 mm approach before the turn. */
+                g_run_state = RUN_FORWARD;
+                if (!route_controller_run_translation_profile(
+                        ROUTE_FORWARD_SIGN, 0.0f,
+                        ROUTE_TASK3_BLUE_POST_TURN_FORWARD_DISTANCE_M,
+                        ROUTE_TRANSLATION_SPEED_M_S,
+                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                            : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                if (g_run_state == RUN_FAULT) {
+                    enter_fault(g_fault_code);
+                }
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,POST_AUX_TURN_FORWARD,DISTANCE=50mm\r\n");
+
                 if (!route_controller_run_htd85_aux(
                         ROUTE_HTD85_AUX_ID3_SERVO_ID,
                         ROUTE_TASK3_BLUE_ID3_OPEN_PULSE,
