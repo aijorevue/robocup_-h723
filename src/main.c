@@ -462,9 +462,9 @@ route_start:
     board_uart1_write(
         field_profile.is_red != 0U
             ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1580mm,"
-              "LATERAL=2030mm,TURN=LEFT180\r\n"
+              "LATERAL=2090mm,TURN=LEFT180\r\n"
             : "H7,ROUTE,TASK2_DIAGONAL,FIELD=BLUE,BACKWARD=1580mm,"
-              "LATERAL=2030mm,TURN=RIGHT180\r\n");
+              "LATERAL=2090mm,TURN=RIGHT180\r\n");
     if (!route_controller_run_translation_with_turn(
             -ROUTE_FORWARD_SIGN * ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M,
             field_profile.strafe_sign * ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M,
@@ -887,6 +887,36 @@ route_start:
                 }
                 board_uart1_write(
                     "H7,ROUTE,TASK3,BLUE,ID3_RETRACT,PULSE=300\r\n");
+
+                /* Move the blue-field ring drop station to the left before
+                 * handing the deterministic arm sequence to RK.  The RK
+                 * transaction owns all ID1/ID2/ID6/ID17 moves and must finish
+                 * before the chassis resumes its final route. */
+                g_run_state = RUN_PLATFORM_SHIFT_LEFT;
+                if (!route_controller_run_translation_profile(
+                        0.0f, ROUTE_LEFT_STRAFE_SIGN,
+                        ROUTE_TASK3_BLUE_RING_PREPLACE_SHIFT_DISTANCE_M,
+                        ROUTE_TRANSLATION_SPEED_M_S,
+                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                            : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                if (g_run_state == RUN_FAULT) {
+                    enter_fault(g_fault_code);
+                }
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,RING_PREPLACE_SHIFT,DIR=LEFT," 
+                    "DISTANCE=400mm\r\n");
+
+                g_run_state = RUN_ARM_PLATFORM_PICK;
+                if (!route_controller_wait_for_rk_arm_task("TASK3_RING_PLACE")) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
+                                                            : g_fault_code);
+                }
+                if (g_run_state == RUN_FAULT) {
+                    enter_fault(g_fault_code);
+                }
 
                 g_run_state = RUN_PLATFORM_SHIFT_RIGHT;
                 if (!route_controller_run_translation_profile(
