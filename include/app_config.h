@@ -32,7 +32,7 @@
 
 /* Autonomous route: enter the disc station with the mirrored cubic arc
  * (forward endpoint 3.925 m, lateral endpoint 0.70 m), perform DISC_CATCH,
- * then take one diagonal task-two entry of 1.60 m backward and 2.03 m toward
+ * then take one diagonal task-two entry of 1.58 m backward and 2.06 m toward
  * the selected field side while rotating 180 degrees, and run eight slots.
  * The platform task first locks two distinct A/B/C/D letters with the
  * secondary camera, then uses the main camera for all eight slots. */
@@ -154,12 +154,12 @@
 #define ROUTE_TASK2_TEST_WHITE_LINE_ACCEL_M_S2 0.100f
 #define ROUTE_TASK2_TEST_WHITE_LINE_REVERSE_SEARCH_MS 500U
 #define ROUTE_TASK2_TEST_WHITE_LINE_AFTER_CROSSED_FORWARD_M 0.130f
-/* Formal task-two makes a fixed 150 mm approach after the main-camera
+/* Formal task-two makes a fixed 170 mm approach after the main-camera
  * white-line reference; keep it independent from the standalone test. */
-#define ROUTE_TASK2_FORMAL_WHITE_LINE_AFTER_CROSSED_FORWARD_M 0.150f
+#define ROUTE_TASK2_FORMAL_WHITE_LINE_AFTER_CROSSED_FORWARD_M 0.170f
 #define ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M 1.580f
-#define ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M 2.080f
-#define ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M 2.6120490f
+#define ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M 2.060f
+#define ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M 2.5961510f
 #define ROUTE_TASK2_ENTRY_TURN_ANGLE_RAD 3.1415927f /* 180 deg */
 #define ROUTE_AFTER_PLATFORM_REVERSE_COMPONENT_M 0.900f
 #define ROUTE_AFTER_PLATFORM_MIRRORED_LATERAL_COMPONENT_M 0.050f

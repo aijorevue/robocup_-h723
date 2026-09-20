@@ -454,7 +454,7 @@ route_start:
 
     /*
      * Enter task two as one continuous diagonal segment.  The route-frame
-     * components use the 1.58 m reverse and 2.03 m side approach.
+     * components use the 1.58 m reverse and 2.06 m side approach.
      * The chassis rotates smoothly through 180 degrees during the segment,
      * mirrored by field, so there are no intermediate 90-degree stops.
      */
@@ -462,9 +462,9 @@ route_start:
     board_uart1_write(
         field_profile.is_red != 0U
             ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1580mm,"
-              "LATERAL=2080mm,TURN=LEFT180\r\n"
+              "LATERAL=2060mm,TURN=LEFT180\r\n"
             : "H7,ROUTE,TASK2_DIAGONAL,FIELD=BLUE,BACKWARD=1580mm,"
-              "LATERAL=2080mm,TURN=RIGHT180\r\n");
+              "LATERAL=2060mm,TURN=RIGHT180\r\n");
     if (!route_controller_run_translation_with_turn(
             -ROUTE_FORWARD_SIGN * ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M,
             field_profile.strafe_sign * ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M,
