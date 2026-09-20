@@ -462,9 +462,9 @@ route_start:
     board_uart1_write(
         field_profile.is_red != 0U
             ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1580mm,"
-              "LATERAL=2090mm,TURN=LEFT180\r\n"
+              "LATERAL=2080mm,TURN=LEFT180\r\n"
             : "H7,ROUTE,TASK2_DIAGONAL,FIELD=BLUE,BACKWARD=1580mm,"
-              "LATERAL=2090mm,TURN=RIGHT180\r\n");
+              "LATERAL=2080mm,TURN=RIGHT180\r\n");
     if (!route_controller_run_translation_with_turn(
             -ROUTE_FORWARD_SIGN * ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M,
             field_profile.strafe_sign * ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M,
