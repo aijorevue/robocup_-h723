@@ -595,8 +595,8 @@ route_start:
 #endif
 
     g_run_state = RUN_DIAGONAL_AFTER_PLATFORM;
-    /* Keep the full 0.9 m reverse component in both fields and combine it
-     * with a mirrored 50 mm lateral component in one diagonal move. */
+    /* Keep the full 0.95 m reverse component in both fields and combine it
+     * with a mirrored 30 mm lateral component in one diagonal move. */
     if (!route_controller_run_translation(
             -ROUTE_FORWARD_SIGN * ROUTE_AFTER_PLATFORM_REVERSE_COMPONENT_M,
             -field_profile.strafe_sign *
