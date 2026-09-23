@@ -8894,53 +8894,54 @@ LOAD D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../li
                 0x08006c5c        0x4 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/route_controller.c.obj
                 0x08006c5c                Error_Handler
  .text.startup.main
-                0x08006c60     0x1a84 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/main.c.obj
+                0x08006c60     0x1a80 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/main.c.obj
                 0x08006c60                main
  .text.adc1_read_channel_raw
-                0x080086e4       0xd0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x080086e0       0xd0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
  .text.fdcan1_configure_and_start
-                0x080087b4       0x88 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x080087b0       0x88 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
  .text.uart5_restart_receive
-                0x0800883c       0x44 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x08008838       0x44 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
  .text.board_read_bus_voltage
-                0x08008880       0x48 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x08008880                board_read_bus_voltage
+                0x0800887c       0x48 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800887c                board_read_bus_voltage
  .text.board_lcd_joystick_raw
-                0x080088c8        0xc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x080088c8                board_lcd_joystick_raw
+                0x080088c4        0xc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x080088c4                board_lcd_joystick_raw
  .text.board_lcd_joystick_direction
-                0x080088d4       0x60 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x080088d4                board_lcd_joystick_direction
+                0x080088d0       0x60 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x080088d0                board_lcd_joystick_direction
  .text.board_selected_field
-                0x08008934        0xc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x08008934                board_selected_field
+                0x08008930        0xc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x08008930                board_selected_field
  .text.board_clear_selected_field
-                0x08008940        0xc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x08008940                board_clear_selected_field
+                0x0800893c        0xc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800893c                board_clear_selected_field
  .text.board_user_start_active
-                0x0800894c       0x40 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800894c                board_user_start_active
+                0x08008948       0x40 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x08008948                board_user_start_active
  .text.board_user_start_pressed
-                0x0800898c       0x4c CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800898c                board_user_start_pressed
+                0x08008988       0x4c CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x08008988                board_user_start_pressed
  .text.board_init
-                0x080089d8      0x7ac CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x080089d8                board_init
+                0x080089d4      0x7ac CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x080089d4                board_init
  .text.board_servo_set_angle_deg_index
-                0x08009184       0x84 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x08009184                board_servo_set_angle_deg_index
+                0x08009180       0x84 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x08009180                board_servo_set_angle_deg_index
  .text.board_servo_apply_power_on_pose
-                0x08009208       0x18 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x08009208                board_servo_apply_power_on_pose
+                0x08009204       0x18 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x08009204                board_servo_apply_power_on_pose
  .text.board_uart1_write_only
-                0x08009220       0x30 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x08009220                board_uart1_write_only
+                0x0800921c       0x30 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800921c                board_uart1_write_only
  .text.board_usb_write
-                0x08009250       0x68 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x08009250                board_usb_write
+                0x0800924c       0x68 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800924c                board_usb_write
  .text.board_uart1_write
-                0x080092b8       0x30 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x080092b8                board_uart1_write
+                0x080092b4       0x30 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x080092b4                board_uart1_write
+ *fill*         0x080092e4        0x4 
  .text.HAL_UART_MspInit
                 0x080092e8      0x114 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
                 0x080092e8                HAL_UART_MspInit
@@ -11248,53 +11249,53 @@ LOAD D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../li
 LOAD D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/thumb/v7e-m+dp/hard\libm.a
 LOAD D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7e-m+dp/hard\libgcc.a
 
-.debug_line     0x00000000    0x4c542
+.debug_line     0x00000000    0x4c53e
  .debug_line    0x00000000       0x7a CMakeFiles/DM_MC02_Gyro_3m.elf.dir/startup_stm32h723xx.s.obj
  .debug_line    0x0000007a      0x7e7 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/exit_run0_mode.c.obj
  .debug_line    0x00000861     0x8194 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/route_controller.c.obj
- .debug_line    0x000089f5     0x2592 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/main.c.obj
- .debug_line    0x0000af87     0x2685 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
- .debug_line    0x0000d60c      0x2db CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/mecanum.c.obj
- .debug_line    0x0000d8e7      0xbfd CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/motor_output.c.obj
- .debug_line    0x0000e4e4     0x1262 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/rc_override.c.obj
- .debug_line    0x0000f746      0x556 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/rc_control.c.obj
- .debug_line    0x0000fc9c      0x945 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/rc_protocol.c.obj
- .debug_line    0x000105e1     0x157b CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/run_log.c.obj
- .debug_line    0x00011b5c      0xc08 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/lcd_display.c.obj
- .debug_line    0x00012764     0x2fcb CMakeFiles/DM_MC02_Gyro_3m.elf.dir/lcd/lcd.c.obj
- .debug_line    0x0001572f      0x248 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/lcd/lcd_background.c.obj
- .debug_line    0x00015977      0xa43 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/app/usb_device.c.obj
- .debug_line    0x000163ba      0xb4d CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/app/usbd_cdc_if.c.obj
- .debug_line    0x00016f07      0xb21 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/app/usbd_desc.c.obj
- .debug_line    0x00017a28      0xf61 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/target/usbd_conf.c.obj
- .debug_line    0x00018989      0xcb7 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/bmi088/BMI088driver.c.obj
- .debug_line    0x00019640      0x989 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/bmi088/BMI088Middleware.c.obj
- .debug_line    0x00019fc9      0xadb CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/dm_motor/dm_motor_protocol.c.obj
- .debug_line    0x0001aaa4      0xa1e CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/system_stm32h7xx.c.obj
- .debug_line    0x0001b4c2     0x1044 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal.c.obj
- .debug_line    0x0001c506     0x358a CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_adc.c.obj
- .debug_line    0x0001fa90     0x3257 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_adc_ex.c.obj
- .debug_line    0x00022ce7      0xe52 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_cortex.c.obj
- .debug_line    0x00023b39     0x2958 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_dma.c.obj
- .debug_line    0x00026491     0x3a66 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_fdcan.c.obj
- .debug_line    0x00029ef7      0xf5e CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash.c.obj
- .debug_line    0x0002ae55     0x1293 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash_ex.c.obj
- .debug_line    0x0002c0e8      0xdac CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_gpio.c.obj
- .debug_line    0x0002ce94     0x1037 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr_ex.c.obj
- .debug_line    0x0002decb     0x1c85 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd.c.obj
- .debug_line    0x0002fb50      0xb41 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd_ex.c.obj
- .debug_line    0x00030691     0x19e6 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc.c.obj
- .debug_line    0x00032077     0x26fa CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc_ex.c.obj
- .debug_line    0x00034771     0x2b85 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_spi.c.obj
- .debug_line    0x000372f6     0x5af3 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim.c.obj
- .debug_line    0x0003cde9     0x23aa CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim_ex.c.obj
- .debug_line    0x0003f193     0x5bcc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart.c.obj
- .debug_line    0x00044d5f     0x1119 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart_ex.c.obj
- .debug_line    0x00045e78     0x27c7 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_ll_usb.c.obj
- .debug_line    0x0004863f     0x115e CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c.obj
- .debug_line    0x0004979d     0x12a0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c.obj
- .debug_line    0x0004aa3d      0xa67 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c.obj
- .debug_line    0x0004b4a4     0x109e CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c.obj
+ .debug_line    0x000089f5     0x258e CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/main.c.obj
+ .debug_line    0x0000af83     0x2685 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+ .debug_line    0x0000d608      0x2db CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/mecanum.c.obj
+ .debug_line    0x0000d8e3      0xbfd CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/motor_output.c.obj
+ .debug_line    0x0000e4e0     0x1262 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/rc_override.c.obj
+ .debug_line    0x0000f742      0x556 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/rc_control.c.obj
+ .debug_line    0x0000fc98      0x945 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/rc_protocol.c.obj
+ .debug_line    0x000105dd     0x157b CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/run_log.c.obj
+ .debug_line    0x00011b58      0xc08 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/lcd_display.c.obj
+ .debug_line    0x00012760     0x2fcb CMakeFiles/DM_MC02_Gyro_3m.elf.dir/lcd/lcd.c.obj
+ .debug_line    0x0001572b      0x248 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/lcd/lcd_background.c.obj
+ .debug_line    0x00015973      0xa43 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/app/usb_device.c.obj
+ .debug_line    0x000163b6      0xb4d CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/app/usbd_cdc_if.c.obj
+ .debug_line    0x00016f03      0xb21 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/app/usbd_desc.c.obj
+ .debug_line    0x00017a24      0xf61 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/target/usbd_conf.c.obj
+ .debug_line    0x00018985      0xcb7 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/bmi088/BMI088driver.c.obj
+ .debug_line    0x0001963c      0x989 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/bmi088/BMI088Middleware.c.obj
+ .debug_line    0x00019fc5      0xadb CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/dm_motor/dm_motor_protocol.c.obj
+ .debug_line    0x0001aaa0      0xa1e CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/system_stm32h7xx.c.obj
+ .debug_line    0x0001b4be     0x1044 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal.c.obj
+ .debug_line    0x0001c502     0x358a CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_adc.c.obj
+ .debug_line    0x0001fa8c     0x3257 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_adc_ex.c.obj
+ .debug_line    0x00022ce3      0xe52 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_cortex.c.obj
+ .debug_line    0x00023b35     0x2958 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_dma.c.obj
+ .debug_line    0x0002648d     0x3a66 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_fdcan.c.obj
+ .debug_line    0x00029ef3      0xf5e CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash.c.obj
+ .debug_line    0x0002ae51     0x1293 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash_ex.c.obj
+ .debug_line    0x0002c0e4      0xdac CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_gpio.c.obj
+ .debug_line    0x0002ce90     0x1037 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr_ex.c.obj
+ .debug_line    0x0002dec7     0x1c85 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd.c.obj
+ .debug_line    0x0002fb4c      0xb41 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd_ex.c.obj
+ .debug_line    0x0003068d     0x19e6 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc.c.obj
+ .debug_line    0x00032073     0x26fa CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc_ex.c.obj
+ .debug_line    0x0003476d     0x2b85 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_spi.c.obj
+ .debug_line    0x000372f2     0x5af3 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim.c.obj
+ .debug_line    0x0003cde5     0x23aa CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim_ex.c.obj
+ .debug_line    0x0003f18f     0x5bcc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart.c.obj
+ .debug_line    0x00044d5b     0x1119 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart_ex.c.obj
+ .debug_line    0x00045e74     0x27c7 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_ll_usb.c.obj
+ .debug_line    0x0004863b     0x115e CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c.obj
+ .debug_line    0x00049799     0x12a0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c.obj
+ .debug_line    0x0004aa39      0xa67 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c.obj
+ .debug_line    0x0004b4a0     0x109e CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c.obj
 
 .debug_line_str
                 0x00000000      0x232
@@ -11320,53 +11321,53 @@ LOAD D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../li
                 0x00000232        0x0 D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/thumb/v7e-m+dp/hard\libgcc.a(_dvmd_tls.o)
                                  0xcd (size before relaxing)
 
-.debug_info     0x00000000    0x575d8
+.debug_info     0x00000000    0x575d0
  .debug_info    0x00000000       0x30 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/startup_stm32h723xx.s.obj
  .debug_info    0x00000030      0x15d CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/exit_run0_mode.c.obj
  .debug_info    0x0000018d     0xc458 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/route_controller.c.obj
- .debug_info    0x0000c5e5     0x3f34 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/main.c.obj
- .debug_info    0x00010519     0x614c CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
- .debug_info    0x00016665      0x283 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/mecanum.c.obj
- .debug_info    0x000168e8      0x9a2 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/motor_output.c.obj
- .debug_info    0x0001728a     0x1726 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/rc_override.c.obj
- .debug_info    0x000189b0      0x6a2 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/rc_control.c.obj
- .debug_info    0x00019052      0x9e8 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/rc_protocol.c.obj
- .debug_info    0x00019a3a     0x1d4b CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/run_log.c.obj
- .debug_info    0x0001b785      0xc08 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/lcd_display.c.obj
- .debug_info    0x0001c38d     0x71e1 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/lcd/lcd.c.obj
- .debug_info    0x0002356e       0xbd CMakeFiles/DM_MC02_Gyro_3m.elf.dir/lcd/lcd_background.c.obj
- .debug_info    0x0002362b      0x7fa CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/app/usb_device.c.obj
- .debug_info    0x00023e25      0xa5b CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/app/usbd_cdc_if.c.obj
- .debug_info    0x00024880      0x67f CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/app/usbd_desc.c.obj
- .debug_info    0x00024eff     0x2b0a CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/target/usbd_conf.c.obj
- .debug_info    0x00027a09      0xba3 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/bmi088/BMI088driver.c.obj
- .debug_info    0x000285ac      0xbc1 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/bmi088/BMI088Middleware.c.obj
- .debug_info    0x0002916d      0xcd0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/dm_motor/dm_motor_protocol.c.obj
- .debug_info    0x00029e3d      0xb60 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/system_stm32h7xx.c.obj
- .debug_info    0x0002a99d     0x17cf CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal.c.obj
- .debug_info    0x0002c16c     0x37fd CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_adc.c.obj
- .debug_info    0x0002f969     0x3928 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_adc_ex.c.obj
- .debug_info    0x00033291     0x12ef CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_cortex.c.obj
- .debug_info    0x00034580      0xe38 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_dma.c.obj
- .debug_info    0x000353b8     0x318f CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_fdcan.c.obj
- .debug_info    0x00038547      0xa1f CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash.c.obj
- .debug_info    0x00038f66     0x11d0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash_ex.c.obj
- .debug_info    0x0003a136      0xca5 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_gpio.c.obj
- .debug_info    0x0003addb      0xee4 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr_ex.c.obj
- .debug_info    0x0003bcbf     0x1d67 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd.c.obj
- .debug_info    0x0003da26      0xa2a CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd_ex.c.obj
- .debug_info    0x0003e450     0x10f7 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc.c.obj
- .debug_info    0x0003f547     0x2387 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc_ex.c.obj
- .debug_info    0x000418ce     0x199d CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_spi.c.obj
- .debug_info    0x0004326b     0x48dc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim.c.obj
- .debug_info    0x00047b47     0x1fa7 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim_ex.c.obj
- .debug_info    0x00049aee     0x607e CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart.c.obj
- .debug_info    0x0004fb6c     0x1307 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart_ex.c.obj
- .debug_info    0x00050e73     0x21af CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_ll_usb.c.obj
- .debug_info    0x00053022     0x1275 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c.obj
- .debug_info    0x00054297     0x12f2 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c.obj
- .debug_info    0x00055589      0x900 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c.obj
- .debug_info    0x00055e89     0x174f CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c.obj
+ .debug_info    0x0000c5e5     0x3f2c CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/main.c.obj
+ .debug_info    0x00010511     0x614c CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+ .debug_info    0x0001665d      0x283 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/mecanum.c.obj
+ .debug_info    0x000168e0      0x9a2 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/motor_output.c.obj
+ .debug_info    0x00017282     0x1726 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/rc_override.c.obj
+ .debug_info    0x000189a8      0x6a2 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/rc_control.c.obj
+ .debug_info    0x0001904a      0x9e8 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/rc_protocol.c.obj
+ .debug_info    0x00019a32     0x1d4b CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/run_log.c.obj
+ .debug_info    0x0001b77d      0xc08 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/lcd_display.c.obj
+ .debug_info    0x0001c385     0x71e1 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/lcd/lcd.c.obj
+ .debug_info    0x00023566       0xbd CMakeFiles/DM_MC02_Gyro_3m.elf.dir/lcd/lcd_background.c.obj
+ .debug_info    0x00023623      0x7fa CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/app/usb_device.c.obj
+ .debug_info    0x00023e1d      0xa5b CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/app/usbd_cdc_if.c.obj
+ .debug_info    0x00024878      0x67f CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/app/usbd_desc.c.obj
+ .debug_info    0x00024ef7     0x2b0a CMakeFiles/DM_MC02_Gyro_3m.elf.dir/usb_device/target/usbd_conf.c.obj
+ .debug_info    0x00027a01      0xba3 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/bmi088/BMI088driver.c.obj
+ .debug_info    0x000285a4      0xbc1 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/bmi088/BMI088Middleware.c.obj
+ .debug_info    0x00029165      0xcd0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/dm_motor/dm_motor_protocol.c.obj
+ .debug_info    0x00029e35      0xb60 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/system_stm32h7xx.c.obj
+ .debug_info    0x0002a995     0x17cf CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal.c.obj
+ .debug_info    0x0002c164     0x37fd CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_adc.c.obj
+ .debug_info    0x0002f961     0x3928 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_adc_ex.c.obj
+ .debug_info    0x00033289     0x12ef CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_cortex.c.obj
+ .debug_info    0x00034578      0xe38 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_dma.c.obj
+ .debug_info    0x000353b0     0x318f CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_fdcan.c.obj
+ .debug_info    0x0003853f      0xa1f CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash.c.obj
+ .debug_info    0x00038f5e     0x11d0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash_ex.c.obj
+ .debug_info    0x0003a12e      0xca5 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_gpio.c.obj
+ .debug_info    0x0003add3      0xee4 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr_ex.c.obj
+ .debug_info    0x0003bcb7     0x1d67 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd.c.obj
+ .debug_info    0x0003da1e      0xa2a CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd_ex.c.obj
+ .debug_info    0x0003e448     0x10f7 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc.c.obj
+ .debug_info    0x0003f53f     0x2387 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc_ex.c.obj
+ .debug_info    0x000418c6     0x199d CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_spi.c.obj
+ .debug_info    0x00043263     0x48dc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim.c.obj
+ .debug_info    0x00047b3f     0x1fa7 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim_ex.c.obj
+ .debug_info    0x00049ae6     0x607e CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart.c.obj
+ .debug_info    0x0004fb64     0x1307 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart_ex.c.obj
+ .debug_info    0x00050e6b     0x21af CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_ll_usb.c.obj
+ .debug_info    0x0005301a     0x1275 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c.obj
+ .debug_info    0x0005428f     0x12f2 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c.obj
+ .debug_info    0x00055581      0x900 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c.obj
+ .debug_info    0x00055e81     0x174f CMakeFiles/DM_MC02_Gyro_3m.elf.dir/vendor/stm32/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c.obj
 
 .debug_abbrev   0x00000000     0x8ee7
  .debug_abbrev  0x00000000       0x24 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/startup_stm32h723xx.s.obj
