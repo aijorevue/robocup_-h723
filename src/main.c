@@ -907,7 +907,7 @@ route_start:
                 }
                 board_uart1_write(
                     "H7,ROUTE,TASK3,BLUE,RING_PREPLACE_SHIFT,DIR=LEFT," 
-                    "DISTANCE=400mm\r\n");
+                    "DISTANCE=430mm\r\n");
 
                 g_run_state = RUN_ARM_PLATFORM_PICK;
                 if (!route_controller_wait_for_rk_arm_task("TASK3_RING_PLACE")) {

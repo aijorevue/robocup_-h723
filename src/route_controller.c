@@ -932,13 +932,21 @@ static bool service_task2_test_command(void)
                     g_task2_test_is_red == stop_is_red) {
                     g_task2_test_stop_requested = 1U;
                 } else {
+                    const char *task_name =
+                        strstr(line, "RK,TEST,TASK3,") != NULL ? "TASK3"
+                                                               : "TASK2";
                     /* Keep malformed/irrelevant input diagnosable without
                      * echoing it through the USB protocol channel. */
-                    board_uart1_write_only("H7,TEST,TASK2,ERR,REASON,PARSE\r\n");
+                    char uart_error[96];
+                    (void)snprintf(uart_error, sizeof(uart_error),
+                                   "H7,TEST,%s,ERR,REASON,PARSE\r\n",
+                                   task_name);
+                    board_uart1_write_only(uart_error);
                     {
                         char response[96];
                         (void)snprintf(response, sizeof(response),
-                                       "H7,TEST,TASK2,ERR,REASON,PARSE,LEN,%lu\r\n",
+                                       "H7,TEST,%s,ERR,REASON,PARSE,LEN,%lu\r\n",
+                                       task_name,
                                        (unsigned long)line_len);
                         board_usb_write(response);
                     }
@@ -4933,9 +4941,9 @@ bool route_controller_run_task3_test(uint32_t sequence)
     task3_test_send_status("RUNNING", sequence);
     board_uart1_write_only(g_task3_test_is_red != 0U
                                ? "H7,TEST,TASK3,ORBIT_START,DIR=LEFT,"
-                                 "RADIUS=400mm,ANGLE=360deg\r\n"
+                                 "RADIUS=450mm,ANGLE=360deg\r\n"
                                : "H7,TEST,TASK3,ORBIT_START,DIR=RIGHT,"
-                                 "RADIUS=400mm,ANGLE=360deg\r\n");
+                                 "RADIUS=450mm,ANGLE=360deg\r\n");
     moved = run_front_center_orbit(
         orbit_angle_rad,
         ROUTE_TASK3_TEST_ORBIT_RADIUS_M);
