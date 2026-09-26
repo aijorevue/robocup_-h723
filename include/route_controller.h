@@ -115,6 +115,12 @@ bool route_controller_run_translation_profile(float vx_direction,
                                                float target_distance_m,
                                                float maximum_speed_m_s,
                                                float acceleration_m_s2);
+/* Explicit final-tail endpoint capture; other translations retain their policy. */
+bool route_controller_run_final_translation(float vx_direction,
+                                             float vy_direction,
+                                             float target_distance_m,
+                                             float maximum_speed_m_s,
+                                             float acceleration_m_s2);
 bool route_controller_run_timed_forward(float speed_m_s,
                                         uint32_t duration_ms);
 bool route_controller_run_translation(float vx_direction,

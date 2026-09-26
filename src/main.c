@@ -454,7 +454,9 @@ route_start:
 
     /*
      * Enter task two as one continuous diagonal segment.  The route-frame
-     * components use the 1.6007 m reverse and 2.06 m side approach.
+     * components use the 1.6007 m reverse and 2.06 m side approach. The
+     * controller captures the measured two-dimensional endpoint early in the
+     * final segment and settles there before handing off to task two.
      * The chassis rotates smoothly through 180 degrees during the segment,
      * mirrored by field, so there are no intermediate 90-degree stops.
      */
@@ -462,9 +464,9 @@ route_start:
     board_uart1_write(
         field_profile.is_red != 0U
             ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1600.7mm,"
-              "LATERAL=2060mm,TURN=LEFT180,CONTROL=ARC_STYLE_2D\r\n"
+              "LATERAL=2050mm,TURN=LEFT180,CONTROL=ENDPOINT_CAPTURE_2D\r\n"
             : "H7,ROUTE,TASK2_DIAGONAL,FIELD=BLUE,BACKWARD=1600.7mm,"
-              "LATERAL=2060mm,TURN=RIGHT180,CONTROL=ARC_STYLE_2D\r\n");
+              "LATERAL=2050mm,TURN=RIGHT180,CONTROL=ENDPOINT_CAPTURE_2D\r\n");
     if (!route_controller_run_translation_with_turn(
             -ROUTE_FORWARD_SIGN * ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M,
             field_profile.strafe_sign * ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M,
@@ -516,10 +518,21 @@ route_start:
         if (!route_controller_run_task2_platform_entry()) {
             enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
         }
+        /* The fixed white-line approach establishes position, but the chassis
+         * can retain yaw error from the preceding diagonal. Correct heading
+         * before the first platform grasp transaction starts. */
+        board_uart1_write(
+            "H7,ROUTE,TASK2_PLATFORM,GYRO_ALIGN,START,TARGET=WHITE_LINE_FINAL\r\n");
+        if (!route_controller_run_relative_turn(0.0f)) {
+            enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
+                                                   : g_fault_code);
+        }
         route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
         if (g_run_state == RUN_FAULT) {
             enter_fault(g_fault_code);
         }
+        board_uart1_write(
+            "H7,ROUTE,TASK2_PLATFORM,GYRO_ALIGN,DONE,TARGET=WHITE_LINE_FINAL\r\n");
 
         for (platform_index = 0U;
              platform_index < ROUTE_TASK2_PLATFORM_PICK_COUNT;
@@ -659,6 +672,25 @@ route_start:
                                            : RUN_LOG_EVENT_ARM_BYPASS);
 #endif
 
+            /* Add the requested 30 mm approach immediately before the formal
+             * task-three orbit.  The standalone TASK3 test starts at its own
+             * orbit entry and is intentionally unchanged. */
+            g_run_state = RUN_FORWARD;
+            if (!route_controller_run_translation_profile(
+                    ROUTE_FORWARD_SIGN, 0.0f,
+                    ROUTE_FORMAL_TASK3_PRE_ORBIT_FORWARD_DISTANCE_M,
+                    ROUTE_TRANSLATION_SPEED_M_S,
+                    ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                        : g_fault_code);
+            }
+            route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
+            board_uart1_write(
+                "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=30mm\r\n");
+
             g_run_state = RUN_FRONT_CENTER_ORBIT;
             /* Formal COLUMN_CATCH owns its own pause/resume channel.  Do not
              * enable the standalone TEST,TASK3 sentinel here: doing so makes
@@ -687,6 +719,23 @@ route_start:
 #else
             (void)orbit_arm_started;
 #endif
+
+            /* After the formal orbit, back up 30 mm before the mirrored
+             * post-orbit 90-degree turn.  The later final reverse remains
+             * the configured 750 mm segment. */
+            g_run_state = RUN_FINAL_REVERSE;
+            if (!route_controller_run_translation(
+                    -ROUTE_FORWARD_SIGN, 0.0f,
+                    ROUTE_FORMAL_TASK3_POST_ORBIT_REVERSE_DISTANCE_M)) {
+                enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                        : g_fault_code);
+            }
+            route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+            if (g_run_state == RUN_FAULT) {
+                enter_fault(g_fault_code);
+            }
+            board_uart1_write(
+                "H7,ROUTE,TASK3,POST_ORBIT_REVERSE,DISTANCE=30mm\r\n");
 
             /* Mirror the post-orbit transition by field: RED turns right and
              * BLUE turns left, both by the configured 90 degrees. */
@@ -816,7 +865,7 @@ route_start:
             if (field_profile.is_red != 0U) {
                 /* Red keeps the existing final right shift and forward move. */
                 g_run_state = RUN_PLATFORM_SHIFT_RIGHT;
-                if (!route_controller_run_translation_profile(
+                if (!route_controller_run_final_translation(
                         0.0f, ROUTE_RIGHT_STRAFE_SIGN,
                         ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_RED_M,
                         ROUTE_TRANSLATION_SPEED_M_S,
@@ -828,12 +877,18 @@ route_start:
                 if (g_run_state == RUN_FAULT) {
                     enter_fault(g_fault_code);
                 }
-                board_uart1_write(
-                    "H7,ROUTE,TASK3,POST_ROUTE_FINAL_SHIFT,FIELD=RED,"
-                    "DIR=RIGHT,DISTANCE=2700mm\r\n");
+                {
+                    char shift_log[128];
+                    (void)snprintf(shift_log, sizeof(shift_log),
+                        "H7,ROUTE,TASK3,POST_ROUTE_FINAL_SHIFT,FIELD=RED,"
+                        "DIR=RIGHT,DISTANCE=%umm\r\n",
+                        (unsigned)(ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_RED_M *
+                                   1000.0f + 0.5f));
+                    board_uart1_write(shift_log);
+                }
 
                 g_run_state = RUN_FORWARD;
-                if (!route_controller_run_translation_profile(
+                if (!route_controller_run_final_translation(
                         ROUTE_FORWARD_SIGN, 0.0f,
                         ROUTE_TASK3_POST_FINAL_FORWARD_DISTANCE_RED_M,
                         ROUTE_TRANSLATION_SPEED_M_S,
@@ -845,9 +900,15 @@ route_start:
                 if (g_run_state == RUN_FAULT) {
                     enter_fault(g_fault_code);
                 }
-                board_uart1_write(
-                    "H7,ROUTE,TASK3,POST_ROUTE_FINAL_FORWARD,FIELD=RED,"
-                    "DISTANCE=700mm\r\n");
+                {
+                    char forward_log[128];
+                    (void)snprintf(forward_log, sizeof(forward_log),
+                        "H7,ROUTE,TASK3,POST_ROUTE_FINAL_FORWARD,FIELD=RED,"
+                        "DISTANCE=%umm\r\n",
+                        (unsigned)(ROUTE_TASK3_POST_FINAL_FORWARD_DISTANCE_RED_M *
+                                   1000.0f + 0.5f));
+                    board_uart1_write(forward_log);
+                }
             } else {
                 char blue_log[160];
 
@@ -901,7 +962,7 @@ route_start:
                     enter_fault(g_fault_code);
                 }
                 board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,POST_AUX_TURN_FORWARD,DISTANCE=80mm\r\n");
+                    "H7,ROUTE,TASK3,BLUE,POST_AUX_TURN_FORWARD,DISTANCE=88mm\r\n");
 
                 if (!route_controller_run_htd85_aux(
                         ROUTE_HTD85_AUX_ID3_SERVO_ID,
@@ -946,6 +1007,20 @@ route_start:
                 if (g_run_state == RUN_FAULT) {
                     enter_fault(g_fault_code);
                 }
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,ID3_POST_SHIFT,GYRO_ALIGN,"
+                    "START,TARGET=ID3_POST_SHIFT_FINAL\r\n");
+                if (!route_controller_run_relative_turn(0.0f)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
+                                                           : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                if (g_run_state == RUN_FAULT) {
+                    enter_fault(g_fault_code);
+                }
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,ID3_POST_SHIFT,GYRO_ALIGN,"
+                    "DONE,TARGET=ID3_POST_SHIFT_FINAL\r\n");
                 (void)snprintf(
                     blue_log, sizeof(blue_log),
                     "H7,ROUTE,TASK3,BLUE,RING_PREPLACE_SHIFT,DIR=LEFT,"
@@ -964,7 +1039,7 @@ route_start:
                 }
 
                 g_run_state = RUN_PLATFORM_SHIFT_RIGHT;
-                if (!route_controller_run_translation_profile(
+                if (!route_controller_run_final_translation(
                         0.0f, ROUTE_RIGHT_STRAFE_SIGN,
                         ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_BLUE_M,
                         ROUTE_TRANSLATION_SPEED_M_S,
@@ -985,7 +1060,7 @@ route_start:
                 board_uart1_write(blue_log);
 
                 g_run_state = RUN_FINAL_REVERSE;
-                if (!route_controller_run_translation_profile(
+                if (!route_controller_run_final_translation(
                         -ROUTE_FORWARD_SIGN, 0.0f,
                         ROUTE_TASK3_POST_FINAL_REVERSE_DISTANCE_BLUE_M,
                         ROUTE_TRANSLATION_SPEED_M_S,

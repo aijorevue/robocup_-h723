@@ -2712,7 +2712,8 @@ static bool run_translation_profile_with_turn(float vx_direction,
                                               float target_distance_m,
                                               float maximum_speed_m_s,
                                               float acceleration_m_s2,
-                                              float heading_delta_rad)
+                                              float heading_delta_rad,
+                                              bool precise_endpoint)
 {
     float wheel_speed[4] = {0.0f};
     float measured_wheel_speed[4] = {0.0f};
@@ -2742,6 +2743,14 @@ static bool run_translation_profile_with_turn(float vx_direction,
     const bool task2_endpoint_capture_enabled =
         fabsf(target_distance_m - ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M) <=
         0.010f;
+    const float endpoint_tolerance_m = precise_endpoint
+        ? ODOM_ALONG_POSITION_TOLERANCE_M
+        : ROUTE_TASK2_ENTRY_ENDPOINT_TOLERANCE_M;
+    const float endpoint_speed_limit_m_s = fminf(
+        maximum_speed_m_s, ROUTE_TASK2_ENTRY_ENDPOINT_MAX_SPEED_M_S);
+    float previous_route_command_x_m_s = 0.0f;
+    float previous_route_command_y_m_s = 0.0f;
+    bool precise_capture_started = false;
     const bool is_strafe = fabsf(vy_direction) > fabsf(vx_direction);
     const float heading_kp = is_strafe ? STRAFE_HEADING_KP : HEADING_KP;
     const float heading_kd = is_strafe ? STRAFE_HEADING_KD : HEADING_KD;
@@ -2754,7 +2763,8 @@ static bool run_translation_profile_with_turn(float vx_direction,
     bool heading_settle_logged = false;
     bool endpoint_capture_logged = false;
 
-    if (direction_norm < 0.001f || maximum_speed_m_s <= 0.0f ||
+    if (direction_norm < 0.001f || target_distance_m <= 0.0f ||
+        maximum_speed_m_s <= 0.0f ||
         acceleration_m_s2 <= 0.0f) {
         g_fault_code = FAULT_KINEMATICS;
         return false;
@@ -2943,12 +2953,14 @@ static bool run_translation_profile_with_turn(float vx_direction,
             -ODOM_ALONG_CORRECTION_MAX_M_S, maximum_speed_m_s);
         g_command_speed_m_s = along_speed_command_m_s;
 
-        if (fabsf(heading_delta_rad) > 0.0001f) {
+        if (fabsf(heading_delta_rad) > 0.0001f || precise_endpoint) {
             /* A combined translation/turn must still be able to finish its
              * heading after the distance profile decelerates to zero. The
              * old speed-proportional limit collapsed to zero at the endpoint,
              * leaving the final turn for the following settle loop. */
-            correction_limit_rad_s = HEADING_MAX_CORRECTION_RAD_S;
+            correction_limit_rad_s = precise_endpoint
+                ? TRANSLATION_SETTLE_HEADING_MAX_CORRECTION_RAD_S
+                : HEADING_MAX_CORRECTION_RAD_S;
         } else {
             correction_limit_rad_s =
                 fabsf(along_speed_command_m_s) * HEADING_CORRECTION_SPEED_RATIO /
@@ -2977,14 +2989,17 @@ static bool run_translation_profile_with_turn(float vx_direction,
             along_speed_command_m_s * along_y +
             cross_track_command_m_s * cross_y;
 
-        /* The task-two transfer needs the same measured endpoint behavior as
-         * the task-one arc.  The nominal line remains unchanged; only the
-         * final part uses the absolute route-frame error so independent
-         * backward and lateral drift are both corrected before the turn. */
+        /* Final tail moves share the diagonal's route-frame endpoint loop.
+         * Latch measured progress so overshoot recovery cannot exit capture. */
+        if (precise_endpoint && segment_distance_m >=
+                target_distance_m * ROUTE_TASK2_ENTRY_ENDPOINT_CAPTURE_U) {
+            precise_capture_started = true;
+        }
         endpoint_capture_active =
-            task2_endpoint_capture_enabled &&
-            commanded_distance_m >=
-                target_distance_m * ROUTE_TASK2_ENTRY_ENDPOINT_CAPTURE_U;
+            precise_endpoint ? precise_capture_started :
+            (task2_endpoint_capture_enabled &&
+             commanded_distance_m >=
+                 target_distance_m * ROUTE_TASK2_ENTRY_ENDPOINT_CAPTURE_U);
         endpoint_error_x_m = endpoint_x_m - route_x_m;
         endpoint_error_y_m = endpoint_y_m - route_y_m;
         endpoint_distance_m = sqrtf(
@@ -2997,10 +3012,11 @@ static bool run_translation_profile_with_turn(float vx_direction,
             if (!endpoint_capture_logged) {
                 endpoint_capture_logged = true;
                 board_uart1_write(
-                    "H7,ROUTE,TASK2_DIAGONAL,ENDPOINT_CAPTURE,"
-                    "MODE=ARC_STYLE_2D\r\n");
+                    precise_endpoint
+                        ? "H7,ROUTE,FINAL_TRANSLATION,ENDPOINT_CAPTURE,MODE=ARC_STYLE_2D\r\n"
+                        : "H7,ROUTE,TASK2_DIAGONAL,ENDPOINT_CAPTURE,MODE=ARC_STYLE_2D\r\n");
             }
-            if (endpoint_distance_m > ROUTE_TASK2_ENTRY_ENDPOINT_TOLERANCE_M) {
+            if (endpoint_distance_m > endpoint_tolerance_m) {
                 command_route_vx_m_s =
                     ROUTE_TASK2_ENTRY_ENDPOINT_KP * endpoint_error_x_m;
                 command_route_vy_m_s =
@@ -3009,21 +3025,24 @@ static bool run_translation_profile_with_turn(float vx_direction,
                     command_route_vx_m_s * command_route_vx_m_s +
                     command_route_vy_m_s * command_route_vy_m_s);
                 if (endpoint_command_norm_m_s >
-                    ROUTE_TASK2_ENTRY_ENDPOINT_MAX_SPEED_M_S) {
+                    endpoint_speed_limit_m_s) {
                     const float scale =
-                        ROUTE_TASK2_ENTRY_ENDPOINT_MAX_SPEED_M_S /
+                        endpoint_speed_limit_m_s /
                         endpoint_command_norm_m_s;
                     command_route_vx_m_s *= scale;
                     command_route_vy_m_s *= scale;
                 } else if (endpoint_command_norm_m_s <
                            ROUTE_TASK2_ENTRY_ENDPOINT_MIN_SPEED_M_S) {
                     const float scale =
-                        ROUTE_TASK2_ENTRY_ENDPOINT_MIN_SPEED_M_S /
+                        fminf(ROUTE_TASK2_ENTRY_ENDPOINT_MIN_SPEED_M_S,
+                              endpoint_speed_limit_m_s) /
                         endpoint_command_norm_m_s;
                     command_route_vx_m_s *= scale;
                     command_route_vy_m_s *= scale;
                 }
-                g_command_speed_m_s = endpoint_command_norm_m_s;
+                g_command_speed_m_s = sqrtf(
+                    command_route_vx_m_s * command_route_vx_m_s +
+                    command_route_vy_m_s * command_route_vy_m_s);
             } else {
                 command_route_vx_m_s = 0.0f;
                 command_route_vy_m_s = 0.0f;
@@ -3034,7 +3053,7 @@ static bool run_translation_profile_with_turn(float vx_direction,
         translation_endpoint_done =
             endpoint_capture_active
                 ? (endpoint_distance_m <=
-                       ROUTE_TASK2_ENTRY_ENDPOINT_TOLERANCE_M &&
+                       endpoint_tolerance_m &&
                    actual_route_speed_m_s <=
                        ROUTE_TASK2_ENTRY_ENDPOINT_SPEED_TOLERANCE_M_S)
                 : (fabsf(target_distance_m - segment_distance_m) <=
@@ -3046,14 +3065,15 @@ static bool run_translation_profile_with_turn(float vx_direction,
                 ROUTE_TURN_TOLERANCE_RAD &&
             fabsf(g_gyro_z_rad_s) <= ROUTE_TURN_RATE_TOLERANCE_RAD_S;
         segment_done = translation_endpoint_done &&
-                       (fabsf(heading_delta_rad) <= 0.0001f ||
+                       (!precise_endpoint || endpoint_capture_active) &&
+                       ((!precise_endpoint && fabsf(heading_delta_rad) <= 0.0001f) ||
                         heading_endpoint_done);
 
         /* Freeze translation at its endpoint while the requested heading is
          * still pending. The angular command continues in this same segment,
          * so the following route segment cannot inherit a partial turn. */
         if (translation_endpoint_done && !heading_endpoint_done &&
-            fabsf(heading_delta_rad) > 0.0001f) {
+            (fabsf(heading_delta_rad) > 0.0001f || precise_endpoint)) {
             command_route_vx_m_s = 0.0f;
             command_route_vy_m_s = 0.0f;
             g_command_speed_m_s = 0.0f;
@@ -3064,6 +3084,27 @@ static bool run_translation_profile_with_turn(float vx_direction,
                     "H7,ROUTE,TRANSLATION_WITH_TURN,TRANSLATION_DONE,"
                     "HEADING_SETTLE\r\n");
             }
+        }
+
+        if (precise_endpoint) {
+            const float delta_x = command_route_vx_m_s - previous_route_command_x_m_s;
+            const float delta_y = command_route_vy_m_s - previous_route_command_y_m_s;
+            const float delta_norm = sqrtf(delta_x * delta_x + delta_y * delta_y);
+            if (delta_norm > max_delta) {
+                command_route_vx_m_s = previous_route_command_x_m_s +
+                    delta_x * max_delta / delta_norm;
+                command_route_vy_m_s = previous_route_command_y_m_s +
+                    delta_y * max_delta / delta_norm;
+            }
+            previous_route_command_x_m_s = command_route_vx_m_s;
+            previous_route_command_y_m_s = command_route_vy_m_s;
+            g_command_speed_m_s = sqrtf(
+                command_route_vx_m_s * command_route_vx_m_s +
+                command_route_vy_m_s * command_route_vy_m_s);
+            g_cross_track_command_m_s = command_route_vx_m_s * cross_x +
+                                       command_route_vy_m_s * cross_y;
+            segment_done = segment_done && g_command_speed_m_s <=
+                ROUTE_TASK2_ENTRY_ENDPOINT_SPEED_TOLERANCE_M_S;
         }
 
         /* Convert the fixed-frame command back to the current body frame. */
@@ -3111,6 +3152,20 @@ static bool run_translation_profile_with_turn(float vx_direction,
     }
     g_command_speed_m_s = 0.0f;
     g_route_heading_target_rad = final_heading_target_rad;
+    if (precise_endpoint) {
+        char endpoint_log[160];
+        (void)snprintf(endpoint_log, sizeof(endpoint_log),
+                       "H7,ROUTE,FINAL_TRANSLATION,DONE,EX_MM=%.1f,EY_MM=%.1f\r\n",
+                       (double)((endpoint_x_m - route_x_m) * 1000.0f),
+                       (double)((endpoint_y_m - route_y_m) * 1000.0f));
+        board_uart1_write(endpoint_log);
+        /* Do not undo the joint XY/yaw settle with a second cross-only move. */
+        if (!route_motor_send_zero_all()) {
+            preserve_rc_or_set_motor_fault();
+            return false;
+        }
+        return true;
+    }
     return settle_translation_cross_track(along_x, along_y,
                                           route_frame_heading_rad,
                                           final_heading_target_rad, heading_kp,
@@ -3124,7 +3179,7 @@ static bool run_translation_profile(float vx_direction, float vy_direction,
 {
     return run_translation_profile_with_turn(
         vx_direction, vy_direction, target_distance_m, maximum_speed_m_s,
-        acceleration_m_s2, 0.0f);
+        acceleration_m_s2, 0.0f, false);
 }
 
 #define DISC_ARC_LENGTH_SAMPLES 64U
@@ -4059,7 +4114,8 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                         reverse_search_logged = true;
                         (void)snprintf(
                             reverse_log, sizeof(reverse_log),
-                            "H7,VISION,WHITE_LINE,SEARCH,DIR=REVERSE,SPEED=0.10,T=%lums\r\n",
+                            "H7,VISION,WHITE_LINE,SEARCH,DIR=REVERSE,SPEED=%.2f,T=%lums\r\n",
+                            (double)forward_speed_m_s,
                             (unsigned long)reverse_search_ms);
                         board_uart1_write_only(reverse_log);
                     }
@@ -4067,8 +4123,13 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                     desired_forward_speed_m_s = forward_speed_m_s;
                     if (!forward_search_logged) {
                         forward_search_logged = true;
-                        board_uart1_write_only(
-                            "H7,VISION,WHITE_LINE,SEARCH,DIR=FORWARD,SPEED=0.10\r\n");
+                        char forward_log[128];
+
+                        (void)snprintf(
+                            forward_log, sizeof(forward_log),
+                            "H7,VISION,WHITE_LINE,SEARCH,DIR=FORWARD,SPEED=%.2f\r\n",
+                            (double)forward_speed_m_s);
+                        board_uart1_write_only(forward_log);
                     }
                 }
             }
@@ -4612,7 +4673,7 @@ bool route_controller_wait_for_task2_test_next(uint32_t sequence)
 static bool run_disc_visual_alignment(void)
 {
     return run_disc_visual_alignment_at_speed(
-        ROUTE_DISC_LINE_FORWARD_SPEED_M_S,
+        ROUTE_DISC_LINE_SEARCH_SPEED_M_S,
         ROUTE_DISC_LINE_REFERENCE_Y10,
         ROUTE_DISC_LINE_REFERENCE_TOLERANCE_Y10,
         ROUTE_DISC_LINE_ACCEL_M_S2,
@@ -4770,6 +4831,17 @@ bool route_controller_run_translation_profile(float vx_direction,
                                    acceleration_m_s2);
 }
 
+bool route_controller_run_final_translation(float vx_direction,
+                                             float vy_direction,
+                                             float target_distance_m,
+                                             float maximum_speed_m_s,
+                                             float acceleration_m_s2)
+{
+    return run_translation_profile_with_turn(
+        vx_direction, vy_direction, target_distance_m, maximum_speed_m_s,
+        acceleration_m_s2, 0.0f, true);
+}
+
 bool route_controller_run_timed_forward(float speed_m_s, uint32_t duration_ms)
 {
     return run_timed_forward(speed_m_s, duration_ms);
@@ -4790,7 +4862,7 @@ bool route_controller_run_translation_with_turn(float vx_direction,
 {
     return run_translation_profile_with_turn(
         vx_direction, vy_direction, target_distance_m, maximum_speed_m_s,
-        acceleration_m_s2, heading_delta_rad);
+        acceleration_m_s2, heading_delta_rad, false);
 }
 
 bool route_controller_run_task2_test(uint32_t sequence, const char *letter1,
@@ -4818,8 +4890,8 @@ bool route_controller_run_task2_test(uint32_t sequence, const char *letter1,
                           : RUN_PLATFORM_SHIFT_RIGHT;
         board_uart1_write(
             g_task2_test_is_red != 0U
-                ? "H7,TEST,TASK2,INITIAL_SHIFT,LEFT=390mm\r\n"
-                : "H7,TEST,TASK2,INITIAL_SHIFT,RIGHT=390mm\r\n");
+                ? "H7,TEST,TASK2,INITIAL_SHIFT,LEFT=370mm\r\n"
+                : "H7,TEST,TASK2,INITIAL_SHIFT,RIGHT=370mm\r\n");
         (void)run_log_save_event((uint32_t)g_run_state, g_fault_code,
                                  RUN_LOG_EVENT_TASK2_INITIAL_SHIFT_START);
         moved = run_translation_profile(
@@ -4867,6 +4939,21 @@ bool route_controller_run_task2_test(uint32_t sequence, const char *letter1,
                     ROUTE_TASK2_TEST_WHITE_LINE_AFTER_CROSSED_FORWARD_M,
                     ROUTE_TASK2_TEST_WHITE_LINE_FORWARD_SPEED_M_S,
                     ROUTE_TASK2_TEST_WHITE_LINE_ACCEL_M_S2);
+            }
+            if (moved) {
+                /* Match the formal task-two entry: remove residual yaw error
+                 * after the fixed approach before reporting station ready. */
+                board_uart1_write(
+                    "H7,TEST,TASK2,WHITE_LINE,GYRO_ALIGN,"
+                    "START,TARGET=WHITE_LINE_FINAL\r\n");
+                if (!route_controller_run_relative_turn(0.0f)) {
+                    moved = false;
+                } else {
+                    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                    board_uart1_write(
+                        "H7,TEST,TASK2,WHITE_LINE,GYRO_ALIGN,"
+                        "DONE,TARGET=WHITE_LINE_FINAL\r\n");
+                }
             }
         }
     } else {
@@ -4941,8 +5028,8 @@ bool route_controller_run_task2_platform_entry(void)
                       : RUN_PLATFORM_SHIFT_RIGHT;
     board_uart1_write(
         g_route_field_is_red != 0U
-            ? "H7,ROUTE,TASK2_INITIAL_SHIFT,LEFT=390mm,MODE=TASK2_WHITE_LINE\r\n"
-            : "H7,ROUTE,TASK2_INITIAL_SHIFT,RIGHT=390mm,MODE=TASK2_WHITE_LINE\r\n");
+            ? "H7,ROUTE,TASK2_INITIAL_SHIFT,LEFT=370mm,MODE=TASK2_WHITE_LINE\r\n"
+            : "H7,ROUTE,TASK2_INITIAL_SHIFT,RIGHT=370mm,MODE=TASK2_WHITE_LINE\r\n");
     moved = run_translation_profile(
         0.0f, lateral_sign, ROUTE_TASK2_TEST_INITIAL_LATERAL_M,
         ROUTE_TASK2_TEST_INITIAL_TRANSLATION_SPEED_M_S,
