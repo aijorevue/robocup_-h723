@@ -2725,16 +2725,23 @@ static bool run_translation_profile_with_turn(float vx_direction,
     float profile_speed_m_s = 0.0f;
     float along_speed_integral_m_s = 0.0f;
     float cross_track_m = 0.0f;
+    float route_x_m = 0.0f;
+    float route_y_m = 0.0f;
     const float direction_norm = sqrtf(vx_direction * vx_direction +
                                        vy_direction * vy_direction);
     float along_x;
     float along_y;
     float cross_x;
     float cross_y;
+    float endpoint_x_m;
+    float endpoint_y_m;
     const float route_frame_heading_rad = g_yaw_rad;
     const float start_heading_target_rad = g_route_heading_target_rad;
     const float final_heading_target_rad =
         start_heading_target_rad + heading_delta_rad;
+    const bool task2_endpoint_capture_enabled =
+        fabsf(target_distance_m - ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M) <=
+        0.010f;
     const bool is_strafe = fabsf(vy_direction) > fabsf(vx_direction);
     const float heading_kp = is_strafe ? STRAFE_HEADING_KP : HEADING_KP;
     const float heading_kd = is_strafe ? STRAFE_HEADING_KD : HEADING_KD;
@@ -2745,6 +2752,7 @@ static bool run_translation_profile_with_turn(float vx_direction,
     uint32_t settled_since_ms = 0U;
     bool first_feedback_cycle = true;
     bool heading_settle_logged = false;
+    bool endpoint_capture_logged = false;
 
     if (direction_norm < 0.001f || maximum_speed_m_s <= 0.0f ||
         acceleration_m_s2 <= 0.0f) {
@@ -2755,6 +2763,8 @@ static bool run_translation_profile_with_turn(float vx_direction,
     along_y = vy_direction / direction_norm;
     cross_x = -along_y;
     cross_y = along_x;
+    endpoint_x_m = along_x * target_distance_m;
+    endpoint_y_m = along_y * target_distance_m;
 
     g_command_speed_m_s = 0.0f;
     g_heading_correction_rad_s = 0.0f;
@@ -2792,6 +2802,12 @@ static bool run_translation_profile_with_turn(float vx_direction,
         float command_body_vx_m_s;
         float command_body_vy_m_s;
         float heading_rate_feedforward_rad_s;
+        float endpoint_error_x_m;
+        float endpoint_error_y_m;
+        float endpoint_distance_m;
+        float endpoint_command_norm_m_s;
+        float actual_route_speed_m_s;
+        bool endpoint_capture_active;
         bool translation_endpoint_done;
         bool heading_endpoint_done;
         bool segment_done;
@@ -2855,6 +2871,8 @@ static bool run_translation_profile_with_turn(float vx_direction,
         actual_cross_speed_m_s =
             velocity_observer.route_vx_m_s * cross_x +
             velocity_observer.route_vy_m_s * cross_y;
+        route_x_m += velocity_observer.route_vx_m_s * dt * DRIVE_DISTANCE_SCALE;
+        route_y_m += velocity_observer.route_vy_m_s * dt * DRIVE_DISTANCE_SCALE;
         segment_distance_m +=
             actual_translation_speed_m_s * dt * DRIVE_DISTANCE_SCALE;
         g_estimated_distance_m +=
@@ -2959,11 +2977,70 @@ static bool run_translation_profile_with_turn(float vx_direction,
             along_speed_command_m_s * along_y +
             cross_track_command_m_s * cross_y;
 
+        /* The task-two transfer needs the same measured endpoint behavior as
+         * the task-one arc.  The nominal line remains unchanged; only the
+         * final part uses the absolute route-frame error so independent
+         * backward and lateral drift are both corrected before the turn. */
+        endpoint_capture_active =
+            task2_endpoint_capture_enabled &&
+            commanded_distance_m >=
+                target_distance_m * ROUTE_TASK2_ENTRY_ENDPOINT_CAPTURE_U;
+        endpoint_error_x_m = endpoint_x_m - route_x_m;
+        endpoint_error_y_m = endpoint_y_m - route_y_m;
+        endpoint_distance_m = sqrtf(
+            endpoint_error_x_m * endpoint_error_x_m +
+            endpoint_error_y_m * endpoint_error_y_m);
+        actual_route_speed_m_s = sqrtf(
+            velocity_observer.route_vx_m_s * velocity_observer.route_vx_m_s +
+            velocity_observer.route_vy_m_s * velocity_observer.route_vy_m_s);
+        if (endpoint_capture_active) {
+            if (!endpoint_capture_logged) {
+                endpoint_capture_logged = true;
+                board_uart1_write(
+                    "H7,ROUTE,TASK2_DIAGONAL,ENDPOINT_CAPTURE,"
+                    "MODE=ARC_STYLE_2D\r\n");
+            }
+            if (endpoint_distance_m > ROUTE_TASK2_ENTRY_ENDPOINT_TOLERANCE_M) {
+                command_route_vx_m_s =
+                    ROUTE_TASK2_ENTRY_ENDPOINT_KP * endpoint_error_x_m;
+                command_route_vy_m_s =
+                    ROUTE_TASK2_ENTRY_ENDPOINT_KP * endpoint_error_y_m;
+                endpoint_command_norm_m_s = sqrtf(
+                    command_route_vx_m_s * command_route_vx_m_s +
+                    command_route_vy_m_s * command_route_vy_m_s);
+                if (endpoint_command_norm_m_s >
+                    ROUTE_TASK2_ENTRY_ENDPOINT_MAX_SPEED_M_S) {
+                    const float scale =
+                        ROUTE_TASK2_ENTRY_ENDPOINT_MAX_SPEED_M_S /
+                        endpoint_command_norm_m_s;
+                    command_route_vx_m_s *= scale;
+                    command_route_vy_m_s *= scale;
+                } else if (endpoint_command_norm_m_s <
+                           ROUTE_TASK2_ENTRY_ENDPOINT_MIN_SPEED_M_S) {
+                    const float scale =
+                        ROUTE_TASK2_ENTRY_ENDPOINT_MIN_SPEED_M_S /
+                        endpoint_command_norm_m_s;
+                    command_route_vx_m_s *= scale;
+                    command_route_vy_m_s *= scale;
+                }
+                g_command_speed_m_s = endpoint_command_norm_m_s;
+            } else {
+                command_route_vx_m_s = 0.0f;
+                command_route_vy_m_s = 0.0f;
+                g_command_speed_m_s = 0.0f;
+            }
+        }
+
         translation_endpoint_done =
-            fabsf(target_distance_m - segment_distance_m) <=
-                ODOM_ALONG_POSITION_TOLERANCE_M &&
-            fabsf(actual_translation_speed_m_s) <=
-                ODOM_ALONG_SPEED_TOLERANCE_M_S;
+            endpoint_capture_active
+                ? (endpoint_distance_m <=
+                       ROUTE_TASK2_ENTRY_ENDPOINT_TOLERANCE_M &&
+                   actual_route_speed_m_s <=
+                       ROUTE_TASK2_ENTRY_ENDPOINT_SPEED_TOLERANCE_M_S)
+                : (fabsf(target_distance_m - segment_distance_m) <=
+                       ODOM_ALONG_POSITION_TOLERANCE_M &&
+                   fabsf(actual_translation_speed_m_s) <=
+                       ODOM_ALONG_SPEED_TOLERANCE_M_S);
         heading_endpoint_done =
             fabsf(final_heading_target_rad - g_yaw_rad) <=
                 ROUTE_TURN_TOLERANCE_RAD &&
@@ -3020,10 +3097,12 @@ static bool run_translation_profile_with_turn(float vx_direction,
         lcd_display_update();
 
         if (segment_done) {
+            const uint32_t hold_ms = endpoint_capture_active
+                                         ? ROUTE_TASK2_ENTRY_ENDPOINT_DONE_HOLD_MS
+                                         : ODOM_ALONG_SETTLE_MS;
             if (settled_since_ms == 0U) {
                 settled_since_ms = now_ms;
-            } else if ((uint32_t)(now_ms - settled_since_ms) >=
-                       ODOM_ALONG_SETTLE_MS) {
+            } else if ((uint32_t)(now_ms - settled_since_ms) >= hold_ms) {
                 break;
             }
         } else {
@@ -4739,8 +4818,8 @@ bool route_controller_run_task2_test(uint32_t sequence, const char *letter1,
                           : RUN_PLATFORM_SHIFT_RIGHT;
         board_uart1_write(
             g_task2_test_is_red != 0U
-                ? "H7,TEST,TASK2,INITIAL_SHIFT,LEFT=400mm\r\n"
-                : "H7,TEST,TASK2,INITIAL_SHIFT,RIGHT=400mm\r\n");
+                ? "H7,TEST,TASK2,INITIAL_SHIFT,LEFT=390mm\r\n"
+                : "H7,TEST,TASK2,INITIAL_SHIFT,RIGHT=390mm\r\n");
         (void)run_log_save_event((uint32_t)g_run_state, g_fault_code,
                                  RUN_LOG_EVENT_TASK2_INITIAL_SHIFT_START);
         moved = run_translation_profile(
@@ -4862,8 +4941,8 @@ bool route_controller_run_task2_platform_entry(void)
                       : RUN_PLATFORM_SHIFT_RIGHT;
     board_uart1_write(
         g_route_field_is_red != 0U
-            ? "H7,ROUTE,TASK2_INITIAL_SHIFT,LEFT=400mm,MODE=TASK2_WHITE_LINE\r\n"
-            : "H7,ROUTE,TASK2_INITIAL_SHIFT,RIGHT=400mm,MODE=TASK2_WHITE_LINE\r\n");
+            ? "H7,ROUTE,TASK2_INITIAL_SHIFT,LEFT=390mm,MODE=TASK2_WHITE_LINE\r\n"
+            : "H7,ROUTE,TASK2_INITIAL_SHIFT,RIGHT=390mm,MODE=TASK2_WHITE_LINE\r\n");
     moved = run_translation_profile(
         0.0f, lateral_sign, ROUTE_TASK2_TEST_INITIAL_LATERAL_M,
         ROUTE_TASK2_TEST_INITIAL_TRANSLATION_SPEED_M_S,

@@ -454,17 +454,17 @@ route_start:
 
     /*
      * Enter task two as one continuous diagonal segment.  The route-frame
-     * components use the 1.58 m reverse and 2.06 m side approach.
+     * components use the 1.6007 m reverse and 2.06 m side approach.
      * The chassis rotates smoothly through 180 degrees during the segment,
      * mirrored by field, so there are no intermediate 90-degree stops.
      */
     g_run_state = RUN_TASK2_DIAGONAL_TURN;
     board_uart1_write(
         field_profile.is_red != 0U
-            ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1580mm,"
-              "LATERAL=2060mm,TURN=LEFT180\r\n"
-            : "H7,ROUTE,TASK2_DIAGONAL,FIELD=BLUE,BACKWARD=1580mm,"
-              "LATERAL=2060mm,TURN=RIGHT180\r\n");
+            ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1600.7mm,"
+              "LATERAL=2060mm,TURN=LEFT180,CONTROL=ARC_STYLE_2D\r\n"
+            : "H7,ROUTE,TASK2_DIAGONAL,FIELD=BLUE,BACKWARD=1600.7mm,"
+              "LATERAL=2060mm,TURN=RIGHT180,CONTROL=ARC_STYLE_2D\r\n");
     if (!route_controller_run_translation_with_turn(
             -ROUTE_FORWARD_SIGN * ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M,
             field_profile.strafe_sign * ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M,
@@ -591,12 +591,24 @@ route_start:
                 }
             }
         }
+        board_uart1_write(
+            "H7,ROUTE,TASK2_COMPLETE,SLOTS=8,ARM_DONE,HOLD\r\n");
+        route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+        if (g_run_state == RUN_FAULT) {
+            enter_fault(g_fault_code);
+        }
     }
 #endif
 
     g_run_state = RUN_DIAGONAL_AFTER_PLATFORM;
     /* Keep the full 0.95 m reverse component in both fields and combine it
-     * with a mirrored 30 mm lateral component in one diagonal move. */
+     * with a mirrored 50 mm lateral component in one diagonal move. */
+    board_uart1_write(
+        field_profile.is_red != 0U
+            ? "H7,ROUTE,TASK2_TO_TASK3,FIELD=RED,BACKWARD=950mm,"
+              "LATERAL=RIGHT50mm,DISTANCE=951.315mm\r\n"
+            : "H7,ROUTE,TASK2_TO_TASK3,FIELD=BLUE,BACKWARD=950mm,"
+              "LATERAL=LEFT50mm,DISTANCE=951.315mm\r\n");
     if (!route_controller_run_translation(
             -ROUTE_FORWARD_SIGN * ROUTE_AFTER_PLATFORM_REVERSE_COMPONENT_M,
             -field_profile.strafe_sign *
@@ -618,8 +630,12 @@ route_start:
             g_run_state = field_profile.is_red != 0U
                                ? RUN_LAST_TURN_LEFT
                                : RUN_LAST_TURN_RIGHT;
+            board_uart1_write(
+                field_profile.is_red != 0U
+                    ? "H7,ROUTE,TASK3_ENTRY_TURN,FIELD=RED,DIR=LEFT,ANGLE=89deg\r\n"
+                    : "H7,ROUTE,TASK3_ENTRY_TURN,FIELD=BLUE,DIR=RIGHT,ANGLE=89deg\r\n");
             if (!route_controller_run_relative_turn(
-                    field_profile.turn_sign * ROUTE_STANDARD_QUARTER_TURN_RAD *
+                    field_profile.turn_sign * ROUTE_AFTER_PLATFORM_TURN_ANGLE_RAD *
                     ROUTE_GYRO_TURN_SCALE)) {
                 enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT : g_fault_code);
             }
@@ -697,6 +713,28 @@ route_start:
                     enter_fault(g_fault_code);
                 }
             }
+
+            /* Re-zero the stationary gyro bias at the post-orbit 90-degree
+             * pose before the final reverse and lateral route.  Keep the
+             * accumulated yaw angle: this updates only the bias used by the
+             * remaining closed-loop motion. */
+            g_run_state = RUN_GYRO_CALIBRATION;
+            board_uart1_write(
+                field_profile.is_red != 0U
+                    ? "H7,ROUTE,TASK3,POST_ORBIT_GYRO_CALIBRATION,START,"
+                      "POSE=INITIAL_RIGHT_90_EQUIVALENT\r\n"
+                    : "H7,ROUTE,TASK3,POST_ORBIT_GYRO_CALIBRATION,START,"
+                      "POSE=INITIAL_LEFT_90_EQUIVALENT\r\n");
+            if (!route_controller_calibrate_gyro()) {
+                enter_fault(g_fault_code == FAULT_RC_OVERRIDE ? FAULT_RC_OVERRIDE
+                                                               : FAULT_IMU_MOVING);
+            }
+            board_uart1_write(
+                field_profile.is_red != 0U
+                    ? "H7,ROUTE,TASK3,POST_ORBIT_GYRO_CALIBRATION,DONE,"
+                      "POSE=INITIAL_RIGHT_90_EQUIVALENT\r\n"
+                    : "H7,ROUTE,TASK3,POST_ORBIT_GYRO_CALIBRATION,DONE,"
+                      "POSE=INITIAL_LEFT_90_EQUIVALENT\r\n");
 
             /* The RK STOP handler retracts the arm before this reverse. */
             g_run_state = RUN_FINAL_REVERSE;
@@ -846,7 +884,7 @@ route_start:
                     enter_fault(g_fault_code);
                 }
 
-                /* After the gyro-closed 180-degree turn, move forward 50 mm
+                /* After the gyro-closed 180-degree turn, move forward 80 mm
                  * before lowering ID3.  This is a separate segment from the
                  * existing 100 mm approach before the turn. */
                 g_run_state = RUN_FORWARD;
@@ -863,12 +901,12 @@ route_start:
                     enter_fault(g_fault_code);
                 }
                 board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,POST_AUX_TURN_FORWARD,DISTANCE=50mm\r\n");
+                    "H7,ROUTE,TASK3,BLUE,POST_AUX_TURN_FORWARD,DISTANCE=80mm\r\n");
 
                 if (!route_controller_run_htd85_aux(
                         ROUTE_HTD85_AUX_ID3_SERVO_ID,
                         ROUTE_TASK3_BLUE_ID3_OPEN_PULSE,
-                        ROUTE_TASK3_BLUE_ID3_MOVE_TIME_MS)) {
+                        ROUTE_TASK3_BLUE_ID3_OPEN_MOVE_TIME_MS)) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
                                                             : g_fault_code);
                 }
@@ -881,12 +919,15 @@ route_start:
                 if (!route_controller_run_htd85_aux(
                         ROUTE_HTD85_AUX_ID3_SERVO_ID,
                         ROUTE_TASK3_BLUE_ID3_RETRACT_PULSE,
-                        ROUTE_TASK3_BLUE_ID3_MOVE_TIME_MS)) {
+                        ROUTE_TASK3_BLUE_ID3_RETRACT_MOVE_TIME_MS)) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
                                                             : g_fault_code);
                 }
-                board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,ID3_RETRACT,PULSE=300\r\n");
+                (void)snprintf(
+                    blue_log, sizeof(blue_log),
+                    "H7,ROUTE,TASK3,BLUE,ID3_RETRACT,PULSE=300,TIME_MS=%lu\r\n",
+                    (unsigned long)ROUTE_TASK3_BLUE_ID3_RETRACT_MOVE_TIME_MS);
+                board_uart1_write(blue_log);
 
                 /* Move the blue-field ring drop station to the left before
                  * handing the deterministic arm sequence to RK.  The RK
@@ -905,9 +946,13 @@ route_start:
                 if (g_run_state == RUN_FAULT) {
                     enter_fault(g_fault_code);
                 }
-                board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,RING_PREPLACE_SHIFT,DIR=LEFT," 
-                    "DISTANCE=430mm\r\n");
+                (void)snprintf(
+                    blue_log, sizeof(blue_log),
+                    "H7,ROUTE,TASK3,BLUE,RING_PREPLACE_SHIFT,DIR=LEFT,"
+                    "DISTANCE=%umm\r\n",
+                    (unsigned)(ROUTE_TASK3_BLUE_RING_PREPLACE_SHIFT_DISTANCE_M *
+                               1000.0f + 0.5f));
+                board_uart1_write(blue_log);
 
                 g_run_state = RUN_ARM_PLATFORM_PICK;
                 if (!route_controller_wait_for_rk_arm_task("TASK3_RING_PLACE")) {
