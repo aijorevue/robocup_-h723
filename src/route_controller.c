@@ -2743,6 +2743,15 @@ static bool run_translation_profile_with_turn(float vx_direction,
     const bool task2_endpoint_capture_enabled =
         fabsf(target_distance_m - ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M) <=
         0.010f;
+    const float cross_track_kp = task2_endpoint_capture_enabled
+        ? ROUTE_TASK2_ENTRY_CROSS_TRACK_KP
+        : TRANSLATION_CROSS_TRACK_KP;
+    const float cross_track_kd = task2_endpoint_capture_enabled
+        ? ROUTE_TASK2_ENTRY_CROSS_TRACK_KD
+        : TRANSLATION_CROSS_TRACK_KD;
+    const float cross_track_max_speed = task2_endpoint_capture_enabled
+        ? ROUTE_TASK2_ENTRY_CROSS_TRACK_MAX_M_S
+        : TRANSLATION_CROSS_TRACK_MAX_M_S;
     const float endpoint_tolerance_m = precise_endpoint
         ? ODOM_ALONG_POSITION_TOLERANCE_M
         : ROUTE_TASK2_ENTRY_ENDPOINT_TOLERANCE_M;
@@ -2977,10 +2986,10 @@ static bool run_translation_profile_with_turn(float vx_direction,
             correction_limit_rad_s);
 
         cross_track_command_m_s = clampf(
-            -TRANSLATION_CROSS_TRACK_KP * cross_track_m -
-                TRANSLATION_CROSS_TRACK_KD * actual_cross_speed_m_s,
-            -TRANSLATION_CROSS_TRACK_MAX_M_S,
-            TRANSLATION_CROSS_TRACK_MAX_M_S);
+            -cross_track_kp * cross_track_m -
+                cross_track_kd * actual_cross_speed_m_s,
+            -cross_track_max_speed,
+            cross_track_max_speed);
         g_cross_track_command_m_s = cross_track_command_m_s;
         command_route_vx_m_s =
             along_speed_command_m_s * along_x +
@@ -4842,6 +4851,17 @@ bool route_controller_run_final_translation(float vx_direction,
         acceleration_m_s2, 0.0f, true);
 }
 
+bool route_controller_run_task2_to_task3_translation(
+    float vx_direction,
+    float vy_direction,
+    float target_distance_m)
+{
+    return run_translation_profile_with_turn(
+        vx_direction, vy_direction, target_distance_m,
+        ROUTE_TRANSLATION_SPEED_M_S, ROUTE_TRANSLATION_ACCEL_M_S2,
+        0.0f, true);
+}
+
 bool route_controller_run_timed_forward(float speed_m_s, uint32_t duration_ms)
 {
     return run_timed_forward(speed_m_s, duration_ms);
@@ -4863,6 +4883,19 @@ bool route_controller_run_translation_with_turn(float vx_direction,
     return run_translation_profile_with_turn(
         vx_direction, vy_direction, target_distance_m, maximum_speed_m_s,
         acceleration_m_s2, heading_delta_rad, false);
+}
+
+bool route_controller_run_task2_entry_translation_with_turn(
+    float vx_direction,
+    float vy_direction,
+    float target_distance_m,
+    float maximum_speed_m_s,
+    float acceleration_m_s2,
+    float heading_delta_rad)
+{
+    return run_translation_profile_with_turn(
+        vx_direction, vy_direction, target_distance_m, maximum_speed_m_s,
+        acceleration_m_s2, heading_delta_rad, true);
 }
 
 bool route_controller_run_task2_test(uint32_t sequence, const char *letter1,

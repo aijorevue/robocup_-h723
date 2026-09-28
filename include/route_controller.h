@@ -121,6 +121,12 @@ bool route_controller_run_final_translation(float vx_direction,
                                              float target_distance_m,
                                              float maximum_speed_m_s,
                                              float acceleration_m_s2);
+/* Formal task-two -> task-three transfer: strict measured XY endpoint capture
+ * for the 950 mm reverse / 50 mm mirrored lateral move. */
+bool route_controller_run_task2_to_task3_translation(
+    float vx_direction,
+    float vy_direction,
+    float target_distance_m);
 bool route_controller_run_timed_forward(float speed_m_s,
                                         uint32_t duration_ms);
 bool route_controller_run_translation(float vx_direction,
@@ -132,6 +138,15 @@ bool route_controller_run_translation_with_turn(float vx_direction,
                                                 float maximum_speed_m_s,
                                                 float acceleration_m_s2,
                                                 float heading_delta_rad);
+/* Formal task-one -> task-two diagonal: use the strict measured XY endpoint
+ * capture while retaining the integrated heading turn. */
+bool route_controller_run_task2_entry_translation_with_turn(
+    float vx_direction,
+    float vy_direction,
+    float target_distance_m,
+    float maximum_speed_m_s,
+    float acceleration_m_s2,
+    float heading_delta_rad);
 bool route_controller_run_disc_arc_entry(float lateral_sign,
                                          float turn_sign);
 bool route_controller_run_disc_visual_alignment(void);
