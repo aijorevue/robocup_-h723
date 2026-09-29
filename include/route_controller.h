@@ -127,6 +127,9 @@ bool route_controller_run_task2_to_task3_translation(
     float vx_direction,
     float vy_direction,
     float target_distance_m);
+bool route_controller_run_task2_exit_white_line_calibration(
+    float *consumed_reverse_m,
+    float *consumed_lateral_m);
 bool route_controller_run_timed_forward(float speed_m_s,
                                         uint32_t duration_ms);
 bool route_controller_run_translation(float vx_direction,
