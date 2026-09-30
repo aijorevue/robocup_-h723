@@ -8769,11 +8769,12 @@ LOAD D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../li
  .text.run_disc_arc_entry
                 0x080033c0      0xa20 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/route_controller.c.obj
  .text.run_translation_profile_with_turn
-                0x08003de0     0x11b4 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/route_controller.c.obj
+                0x08003de0     0x11b0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/route_controller.c.obj
  .text.service_task3_test_command.isra.0
-                0x08004f94      0x2cc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/route_controller.c.obj
+                0x08004f90      0x2cc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/route_controller.c.obj
  .text.run_front_center_orbit
-                0x08005260      0x8f0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/route_controller.c.obj
+                0x0800525c      0x8f0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/route_controller.c.obj
+ *fill*         0x08005b4c        0x4 
  .text.run_disc_visual_alignment_at_speed.constprop.0
                 0x08005b50      0xae0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/route_controller.c.obj
  .text.route_controller_rk_link_ready
