@@ -4782,6 +4782,7 @@ static bool run_front_center_orbit(float angle_rad, float center_distance_m)
     uint32_t last_log_ms = previous_ms - RUN_LOG_SAMPLE_PERIOD_MS;
     uint32_t settled_since_ms = 0U;
     const uint32_t started_ms = previous_ms;
+    uint32_t paused_ms = 0U;
     bool first_feedback_cycle = true;
     const uint8_t task3_test =
         g_task3_test_active_sequence != 0U ? 1U : 0U;
@@ -4827,14 +4828,15 @@ static bool run_front_center_orbit(float angle_rad, float center_distance_m)
         float stopping_speed_rad_s;
         float desired_speed_rad_s;
         float max_delta_rad_s;
-        float orbit_vy_m_s;
         float requested_speed_limit_rad_s;
+        float orbit_vy_m_s;
 
-        if ((uint32_t)(now_ms - started_ms) >= timeout_ms) {
+        if ((uint32_t)(now_ms - started_ms - paused_ms) >= timeout_ms) {
             g_fault_code = FAULT_TURN_TIMEOUT;
             return false;
         }
         if (orbit_task3_control != 0U) {
+            const uint32_t service_started_ms = HAL_GetTick();
             const int pause_action = formal_task3 != 0U
                                          ? formal_task3_service_orbit_pause(
                                                g_formal_task3_active_sequence)
@@ -4851,6 +4853,11 @@ static bool run_front_center_orbit(float angle_rad, float center_distance_m)
             if (pause_action == 2) {
                 /* The first command after RESUME must be emitted before the
                  * normal fresh-feedback gate is reinstated. */
+                paused_ms += HAL_GetTick() - service_started_ms;
+                now_ms = HAL_GetTick();
+                previous_ms = now_ms;
+                last_control_ms = now_ms - CONTROL_PERIOD_MS;
+                turn_command_rad_s = 0.0f;
                 first_feedback_cycle = true;
             }
         }
@@ -4918,7 +4925,6 @@ static bool run_front_center_orbit(float angle_rad, float center_distance_m)
                                     turn_command_rad_s - max_delta_rad_s,
                                     turn_command_rad_s + max_delta_rad_s);
         orbit_vy_m_s = -center_distance_m * turn_command_rad_s;
-
         g_command_speed_m_s = fabsf(orbit_vy_m_s);
         g_heading_correction_rad_s = turn_command_rad_s;
 

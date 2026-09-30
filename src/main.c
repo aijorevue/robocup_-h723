@@ -679,15 +679,15 @@ route_start:
     }
 #else
     g_run_state = RUN_DIAGONAL_AFTER_PLATFORM;
-    /* Keep the full 0.94 m reverse component in both fields and combine it
+    /* Keep the full 0.93 m reverse component in both fields and combine it
      * with a mirrored 50 mm lateral component in one diagonal move. Use the
      * strict measured XY endpoint controller to prevent lateral drift. */
     board_uart1_write(
         field_profile.is_red != 0U
-            ? "H7,ROUTE,TASK2_TO_TASK3,FIELD=RED,BACKWARD=940mm,"
-              "LATERAL=RIGHT50mm,DISTANCE=941.329mm\r\n"
-            : "H7,ROUTE,TASK2_TO_TASK3,FIELD=BLUE,BACKWARD=940mm,"
-              "LATERAL=LEFT50mm,DISTANCE=941.329mm\r\n");
+            ? "H7,ROUTE,TASK2_TO_TASK3,FIELD=RED,BACKWARD=930mm,"
+              "LATERAL=RIGHT50mm,DISTANCE=931.343mm\r\n"
+            : "H7,ROUTE,TASK2_TO_TASK3,FIELD=BLUE,BACKWARD=930mm,"
+              "LATERAL=LEFT50mm,DISTANCE=931.343mm\r\n");
     if (!route_controller_run_task2_to_task3_translation(
             -ROUTE_FORWARD_SIGN * ROUTE_AFTER_PLATFORM_REVERSE_COMPONENT_M,
             -field_profile.strafe_sign *
@@ -807,8 +807,7 @@ route_start:
 #endif
 
             /* After the formal orbit, back up 10 mm before the mirrored
-             * post-orbit 90-degree turn.  The later final reverse remains
-             * the configured 760 mm segment. */
+             * post-orbit 90-degree turn. The later post-turn reverse is 750 mm. */
             g_run_state = RUN_FINAL_REVERSE;
             if (!route_controller_run_final_translation(
                     -ROUTE_FORWARD_SIGN, 0.0f,
