@@ -2711,6 +2711,478 @@ static bool settle_translation_cross_track(float along_x, float along_y,
     }
 }
 
+typedef struct {
+    float point[7][2];
+    float cumulative_m[ROUTE_TASK2_ENTRY_BEZIER_LENGTH_SAMPLES + 1U];
+    float total_m;
+} task2_entry_bezier_t;
+
+static void task2_entry_bezier_eval(const task2_entry_bezier_t *path,
+                                   float u, float *x, float *y,
+                                   float *dx, float *dy)
+{
+    float work[7][2];
+    float derivative[6][2];
+    uint32_t i;
+    uint32_t level;
+
+    for (i = 0U; i < 7U; ++i) {
+        work[i][0] = path->point[i][0];
+        work[i][1] = path->point[i][1];
+    }
+    for (i = 0U; i < 6U; ++i) {
+        derivative[i][0] = 6.0f *
+            (path->point[i + 1U][0] - path->point[i][0]);
+        derivative[i][1] = 6.0f *
+            (path->point[i + 1U][1] - path->point[i][1]);
+    }
+    for (level = 6U; level > 0U; --level) {
+        for (i = 0U; i < level; ++i) {
+            work[i][0] = (1.0f - u) * work[i][0] + u * work[i + 1U][0];
+            work[i][1] = (1.0f - u) * work[i][1] + u * work[i + 1U][1];
+        }
+    }
+    for (level = 5U; level > 0U; --level) {
+        for (i = 0U; i < level; ++i) {
+            derivative[i][0] = (1.0f - u) * derivative[i][0] +
+                               u * derivative[i + 1U][0];
+            derivative[i][1] = (1.0f - u) * derivative[i][1] +
+                               u * derivative[i + 1U][1];
+        }
+    }
+    *x = work[0][0];
+    *y = work[0][1];
+    *dx = derivative[0][0];
+    *dy = derivative[0][1];
+}
+
+static bool task2_entry_bezier_build(task2_entry_bezier_t *path,
+                                     float vx_direction,
+                                     float vy_direction,
+                                     float endpoint_distance_m)
+{
+    static const float control_u[5] = {
+        ROUTE_TASK2_ENTRY_BEZIER_CONTROL1_U,
+        ROUTE_TASK2_ENTRY_BEZIER_CONTROL2_U,
+        ROUTE_TASK2_ENTRY_BEZIER_CONTROL3_U,
+        ROUTE_TASK2_ENTRY_BEZIER_CONTROL4_U,
+        ROUTE_TASK2_ENTRY_BEZIER_CONTROL5_U
+    };
+    static const float control_offset_m[5] = {
+        ROUTE_TASK2_ENTRY_BEZIER_CONTROL1_OFFSET_M,
+        ROUTE_TASK2_ENTRY_BEZIER_CONTROL2_OFFSET_M,
+        ROUTE_TASK2_ENTRY_BEZIER_CONTROL3_OFFSET_M,
+        ROUTE_TASK2_ENTRY_BEZIER_CONTROL4_OFFSET_M,
+        ROUTE_TASK2_ENTRY_BEZIER_CONTROL5_OFFSET_M
+    };
+    const float direction_norm = sqrtf(vx_direction * vx_direction +
+                                       vy_direction * vy_direction);
+    const float along_x = vx_direction / direction_norm;
+    const float along_y = vy_direction / direction_norm;
+    const float normal_x = -along_y;
+    const float normal_y = along_x;
+    float previous_x = 0.0f;
+    float previous_y = 0.0f;
+    uint32_t i;
+
+    path->point[0][0] = 0.0f;
+    path->point[0][1] = 0.0f;
+    for (i = 0U; i < 5U; ++i) {
+        path->point[i + 1U][0] =
+            endpoint_distance_m * control_u[i] * along_x +
+            control_offset_m[i] * normal_x;
+        path->point[i + 1U][1] =
+            endpoint_distance_m * control_u[i] * along_y +
+            control_offset_m[i] * normal_y;
+    }
+    path->point[6][0] = endpoint_distance_m * along_x;
+    path->point[6][1] = endpoint_distance_m * along_y;
+    path->cumulative_m[0] = 0.0f;
+    for (i = 1U; i <= ROUTE_TASK2_ENTRY_BEZIER_LENGTH_SAMPLES; ++i) {
+        float x;
+        float y;
+        float dx;
+        float dy;
+        const float u = (float)i /
+                        (float)ROUTE_TASK2_ENTRY_BEZIER_LENGTH_SAMPLES;
+
+        task2_entry_bezier_eval(path, u, &x, &y, &dx, &dy);
+        path->cumulative_m[i] = path->cumulative_m[i - 1U] +
+            sqrtf((x - previous_x) * (x - previous_x) +
+                  (y - previous_y) * (y - previous_y));
+        previous_x = x;
+        previous_y = y;
+    }
+    path->total_m = path->cumulative_m[ROUTE_TASK2_ENTRY_BEZIER_LENGTH_SAMPLES];
+    return path->total_m > endpoint_distance_m && path->total_m > 0.001f;
+}
+
+static float task2_entry_bezier_u_at_distance(
+    const task2_entry_bezier_t *path, float distance_m)
+{
+    uint32_t i;
+
+    if (distance_m <= 0.0f) {
+        return 0.0f;
+    }
+    if (distance_m >= path->total_m) {
+        return 1.0f;
+    }
+    for (i = 1U; i <= ROUTE_TASK2_ENTRY_BEZIER_LENGTH_SAMPLES; ++i) {
+        if (path->cumulative_m[i] >= distance_m) {
+            const float segment_m = path->cumulative_m[i] -
+                                    path->cumulative_m[i - 1U];
+            const float fraction = segment_m > 0.000001f
+                ? (distance_m - path->cumulative_m[i - 1U]) / segment_m
+                : 0.0f;
+            return ((float)(i - 1U) + fraction) /
+                   (float)ROUTE_TASK2_ENTRY_BEZIER_LENGTH_SAMPLES;
+        }
+    }
+    return 1.0f;
+}
+
+static bool run_task2_entry_bezier(float vx_direction,
+                                   float vy_direction,
+                                   float endpoint_distance_m,
+                                   float maximum_speed_m_s,
+                                   float acceleration_m_s2,
+                                   float heading_delta_rad)
+{
+    task2_entry_bezier_t path;
+    float wheel_speed[4] = {0.0f};
+    float measured_wheel_speed[4] = {0.0f};
+    translation_velocity_observer_t velocity_observer = {0};
+    float route_x_m = 0.0f;
+    float route_y_m = 0.0f;
+    float commanded_distance_m = 0.0f;
+    float segment_distance_m = 0.0f;
+    float profile_speed_m_s = 0.0f;
+    float previous_command_x_m_s = 0.0f;
+    float previous_command_y_m_s = 0.0f;
+    float along_speed_integral_m_s = 0.0f;
+    const float route_frame_heading_rad = g_yaw_rad;
+    const float start_heading_target_rad = g_route_heading_target_rad;
+    const float final_heading_target_rad =
+        start_heading_target_rad + heading_delta_rad;
+    uint32_t previous_ms = HAL_GetTick();
+    uint32_t last_control_ms = previous_ms;
+    uint32_t last_log_ms = previous_ms - RUN_LOG_SAMPLE_PERIOD_MS;
+    const uint32_t started_ms = previous_ms;
+    uint32_t settled_since_ms = 0U;
+    bool first_feedback_cycle = true;
+
+    if (endpoint_distance_m <= 0.0f || maximum_speed_m_s <= 0.0f ||
+        acceleration_m_s2 <= 0.0f ||
+        !task2_entry_bezier_build(&path, vx_direction, vy_direction,
+                                  endpoint_distance_m)) {
+        g_fault_code = FAULT_KINEMATICS;
+        return false;
+    }
+    board_uart1_write(
+        "H7,ROUTE,TASK2_DIAGONAL,PATH=7_POINT_BEZIER,"
+        "CLOSED_LOOP=XY_HEADING_ENDPOINT\r\n");
+    g_command_speed_m_s = 0.0f;
+    g_heading_correction_rad_s = 0.0f;
+    g_cross_track_m = 0.0f;
+    g_cross_track_command_m_s = 0.0f;
+    g_actual_cross_speed_m_s = 0.0f;
+
+    for (;;) {
+        const uint32_t now_ms = HAL_GetTick();
+        float dt;
+        float heading_progress;
+        float heading_smooth;
+        float u;
+        float path_x_m;
+        float path_y_m;
+        float tangent_x;
+        float tangent_y;
+        float normal_x;
+        float normal_y;
+        float derivative_x;
+        float derivative_y;
+        float heading_error_for_transform;
+        float heading_cos;
+        float heading_sin;
+        float actual_vx_m_s;
+        float actual_vy_m_s;
+        float actual_wz_rad_s;
+        float actual_route_vx_m_s;
+        float actual_route_vy_m_s;
+        float actual_translation_speed_m_s;
+        float actual_cross_speed_m_s;
+        float feedback_remaining;
+        float command_remaining;
+        float remaining;
+        float desired_speed;
+        float stopping_speed;
+        float max_delta;
+        float path_error_x_m;
+        float path_error_y_m;
+        float along_error_m;
+        float cross_error_m;
+        float along_speed_reference_m_s;
+        float along_speed_error_m_s;
+        float along_speed_command_m_s;
+        float cross_command_m_s;
+        float command_route_vx_m_s;
+        float command_route_vy_m_s;
+        float command_body_vx_m_s;
+        float command_body_vy_m_s;
+        float endpoint_error_x_m;
+        float endpoint_error_y_m;
+        float endpoint_distance_error_m;
+        float actual_route_speed_m_s;
+        float heading_target_rad;
+        float heading_rate_feedforward_rad_s;
+        float heading_correction_limit_rad_s;
+        float command_norm_m_s;
+        bool endpoint_capture_active;
+        bool segment_done;
+
+        if ((uint32_t)(now_ms - started_ms) >= ROUTE_TRANSLATION_TIMEOUT_MS) {
+            g_fault_code = FAULT_MOTOR_COMMAND;
+            (void)route_motor_send_zero_all();
+            return false;
+        }
+        if ((uint32_t)(now_ms - last_control_ms) < CONTROL_PERIOD_MS) {
+            HAL_Delay(1U);
+            continue;
+        }
+        last_control_ms += CONTROL_PERIOD_MS;
+        if ((uint32_t)(now_ms - last_control_ms) >= CONTROL_PERIOD_MS) {
+            last_control_ms = now_ms;
+        }
+        dt = clampf((float)(now_ms - previous_ms) * 0.001f,
+                    0.001f, 0.050f);
+        previous_ms = now_ms;
+
+        heading_progress = clampf(commanded_distance_m / path.total_m,
+                                  0.0f, 1.0f);
+        heading_smooth = heading_progress * heading_progress *
+                         (3.0f - 2.0f * heading_progress);
+        heading_target_rad = start_heading_target_rad +
+                             heading_delta_rad * heading_smooth;
+        g_route_heading_target_rad = heading_target_rad;
+        u = task2_entry_bezier_u_at_distance(&path, commanded_distance_m);
+        task2_entry_bezier_eval(&path, u, &path_x_m, &path_y_m,
+                                &derivative_x, &derivative_y);
+        command_norm_m_s = sqrtf(derivative_x * derivative_x +
+                                 derivative_y * derivative_y);
+        if (command_norm_m_s < 0.0001f) {
+            g_fault_code = FAULT_KINEMATICS;
+            (void)route_motor_send_zero_all();
+            return false;
+        }
+        tangent_x = derivative_x / command_norm_m_s;
+        tangent_y = derivative_y / command_norm_m_s;
+        normal_x = -tangent_y;
+        normal_y = tangent_x;
+
+        update_imu(dt);
+        if (!mecanum_forward(&chassis, measured_wheel_speed,
+                             &actual_vx_m_s, &actual_vy_m_s,
+                             &actual_wz_rad_s)) {
+            g_fault_code = FAULT_KINEMATICS;
+            return false;
+        }
+        (void)actual_wz_rad_s;
+        heading_error_for_transform = g_yaw_rad - route_frame_heading_rad;
+        heading_cos = cosf(heading_error_for_transform);
+        heading_sin = sinf(heading_error_for_transform);
+        actual_route_vx_m_s = heading_cos * actual_vx_m_s +
+                              heading_sin * actual_vy_m_s;
+        actual_route_vy_m_s = -heading_sin * actual_vx_m_s +
+                              heading_cos * actual_vy_m_s;
+        update_translation_velocity_observer(
+            &velocity_observer, actual_route_vx_m_s, actual_route_vy_m_s,
+            heading_cos, heading_sin, dt);
+        route_x_m += velocity_observer.route_vx_m_s * dt * DRIVE_DISTANCE_SCALE;
+        route_y_m += velocity_observer.route_vy_m_s * dt * DRIVE_DISTANCE_SCALE;
+        actual_translation_speed_m_s =
+            velocity_observer.route_vx_m_s * tangent_x +
+            velocity_observer.route_vy_m_s * tangent_y;
+        actual_cross_speed_m_s =
+            velocity_observer.route_vx_m_s * normal_x +
+            velocity_observer.route_vy_m_s * normal_y;
+        segment_distance_m += actual_translation_speed_m_s * dt *
+                              DRIVE_DISTANCE_SCALE;
+        g_estimated_distance_m += fabsf(actual_translation_speed_m_s) * dt *
+                                  DRIVE_DISTANCE_SCALE;
+        path_error_x_m = path_x_m - route_x_m;
+        path_error_y_m = path_y_m - route_y_m;
+        along_error_m = path_error_x_m * tangent_x +
+                        path_error_y_m * tangent_y;
+        cross_error_m = path_error_x_m * normal_x +
+                        path_error_y_m * normal_y;
+        g_cross_track_m = cross_error_m;
+        g_actual_cross_speed_m_s = actual_cross_speed_m_s;
+
+        feedback_remaining = path.total_m - segment_distance_m;
+        command_remaining = path.total_m - commanded_distance_m;
+        if (feedback_remaining < 0.0f) feedback_remaining = 0.0f;
+        if (command_remaining < 0.0f) command_remaining = 0.0f;
+        remaining = fminf(feedback_remaining, command_remaining);
+        stopping_speed = sqrtf(2.0f * acceleration_m_s2 * remaining);
+        desired_speed = fminf(maximum_speed_m_s, stopping_speed);
+        max_delta = acceleration_m_s2 * dt;
+        if (profile_speed_m_s < desired_speed) {
+            profile_speed_m_s = fminf(profile_speed_m_s + max_delta,
+                                      desired_speed);
+        } else {
+            profile_speed_m_s = fmaxf(profile_speed_m_s - max_delta,
+                                      desired_speed);
+        }
+        commanded_distance_m = fminf(path.total_m,
+            commanded_distance_m + profile_speed_m_s * dt);
+        along_speed_reference_m_s = profile_speed_m_s + clampf(
+            ROUTE_TASK2_ENTRY_BEZIER_POSITION_KP * along_error_m,
+            -ODOM_ALONG_CORRECTION_MAX_M_S,
+            ODOM_ALONG_CORRECTION_MAX_M_S);
+        along_speed_reference_m_s = clampf(
+            along_speed_reference_m_s, -ODOM_ALONG_CORRECTION_MAX_M_S,
+            maximum_speed_m_s);
+        along_speed_error_m_s = along_speed_reference_m_s -
+                                actual_translation_speed_m_s;
+        along_speed_integral_m_s = clampf(
+            along_speed_integral_m_s + ODOM_ALONG_SPEED_KI *
+                along_speed_error_m_s * dt,
+            -ODOM_ALONG_SPEED_INTEGRAL_MAX_M_S,
+            ODOM_ALONG_SPEED_INTEGRAL_MAX_M_S);
+        along_speed_command_m_s = clampf(
+            along_speed_reference_m_s + ODOM_ALONG_SPEED_KP *
+                along_speed_error_m_s + along_speed_integral_m_s,
+            -ODOM_ALONG_CORRECTION_MAX_M_S, maximum_speed_m_s);
+        cross_command_m_s = clampf(
+            ROUTE_TASK2_ENTRY_BEZIER_POSITION_KP * cross_error_m -
+                ROUTE_TASK2_ENTRY_BEZIER_CROSS_KD * actual_cross_speed_m_s,
+            -ROUTE_TASK2_ENTRY_BEZIER_MAX_CROSS_SPEED_M_S,
+            ROUTE_TASK2_ENTRY_BEZIER_MAX_CROSS_SPEED_M_S);
+        command_route_vx_m_s = along_speed_command_m_s * tangent_x +
+                               cross_command_m_s * normal_x;
+        command_route_vy_m_s = along_speed_command_m_s * tangent_y +
+                               cross_command_m_s * normal_y;
+        endpoint_capture_active = heading_progress >=
+            ROUTE_TASK2_ENTRY_BEZIER_ENDPOINT_CAPTURE_U;
+        if (endpoint_capture_active) {
+            endpoint_error_x_m = path.point[6][0] - route_x_m;
+            endpoint_error_y_m = path.point[6][1] - route_y_m;
+            endpoint_distance_error_m = sqrtf(
+                endpoint_error_x_m * endpoint_error_x_m +
+                endpoint_error_y_m * endpoint_error_y_m);
+            if (endpoint_distance_error_m >
+                ROUTE_TASK2_ENTRY_ENDPOINT_TOLERANCE_M) {
+                command_route_vx_m_s =
+                    ROUTE_TASK2_ENTRY_ENDPOINT_KP * endpoint_error_x_m;
+                command_route_vy_m_s =
+                    ROUTE_TASK2_ENTRY_ENDPOINT_KP * endpoint_error_y_m;
+            }
+        } else {
+            endpoint_error_x_m = path.point[6][0] - route_x_m;
+            endpoint_error_y_m = path.point[6][1] - route_y_m;
+            endpoint_distance_error_m = sqrtf(
+                endpoint_error_x_m * endpoint_error_x_m +
+                endpoint_error_y_m * endpoint_error_y_m);
+        }
+        command_norm_m_s = sqrtf(command_route_vx_m_s * command_route_vx_m_s +
+                                 command_route_vy_m_s * command_route_vy_m_s);
+        {
+            const float speed_cap = endpoint_capture_active
+                ? fminf(maximum_speed_m_s,
+                        ROUTE_TASK2_ENTRY_ENDPOINT_MAX_SPEED_M_S)
+                : maximum_speed_m_s;
+            if (command_norm_m_s > speed_cap && command_norm_m_s > 0.0001f) {
+                const float scale = speed_cap / command_norm_m_s;
+                command_route_vx_m_s *= scale;
+                command_route_vy_m_s *= scale;
+            }
+        }
+        heading_rate_feedforward_rad_s = heading_delta_rad * 6.0f *
+            heading_progress * (1.0f - heading_progress) *
+            profile_speed_m_s / path.total_m;
+        heading_correction_limit_rad_s = HEADING_MAX_CORRECTION_RAD_S;
+        g_heading_correction_rad_s = clampf(
+            heading_rate_feedforward_rad_s -
+                HEADING_KP * (g_yaw_rad - heading_target_rad) -
+                HEADING_KD * g_gyro_z_rad_s,
+            -heading_correction_limit_rad_s,
+            heading_correction_limit_rad_s);
+        g_command_speed_m_s = sqrtf(command_route_vx_m_s *
+                                    command_route_vx_m_s +
+                                    command_route_vy_m_s *
+                                    command_route_vy_m_s);
+        g_cross_track_command_m_s = cross_command_m_s;
+        actual_route_speed_m_s = sqrtf(
+            velocity_observer.route_vx_m_s * velocity_observer.route_vx_m_s +
+            velocity_observer.route_vy_m_s * velocity_observer.route_vy_m_s);
+        segment_done = endpoint_distance_error_m <=
+                           ROUTE_TASK2_ENTRY_ENDPOINT_TOLERANCE_M &&
+                       actual_route_speed_m_s <=
+                           ROUTE_TASK2_ENTRY_ENDPOINT_SPEED_TOLERANCE_M_S &&
+                       fabsf(g_yaw_rad - final_heading_target_rad) <=
+                           ROUTE_TURN_TOLERANCE_RAD &&
+                       fabsf(g_gyro_z_rad_s) <=
+                           ROUTE_TURN_RATE_TOLERANCE_RAD_S;
+
+        max_delta = acceleration_m_s2 * dt;
+        {
+            const float delta_x = command_route_vx_m_s -
+                                  previous_command_x_m_s;
+            const float delta_y = command_route_vy_m_s -
+                                  previous_command_y_m_s;
+            const float delta_norm = sqrtf(delta_x * delta_x + delta_y * delta_y);
+            if (delta_norm > max_delta && delta_norm > 0.0001f) {
+                command_route_vx_m_s = previous_command_x_m_s +
+                                       delta_x * max_delta / delta_norm;
+                command_route_vy_m_s = previous_command_y_m_s +
+                                       delta_y * max_delta / delta_norm;
+            }
+        }
+        previous_command_x_m_s = command_route_vx_m_s;
+        previous_command_y_m_s = command_route_vy_m_s;
+        command_body_vx_m_s = heading_cos * command_route_vx_m_s -
+                              heading_sin * command_route_vy_m_s;
+        command_body_vy_m_s = heading_sin * command_route_vx_m_s +
+                              heading_cos * command_route_vy_m_s;
+        if (!mecanum_inverse(&chassis, command_body_vx_m_s,
+                             command_body_vy_m_s,
+                             g_heading_correction_rad_s, wheel_speed)) {
+            g_fault_code = FAULT_KINEMATICS;
+            return false;
+        }
+        if (!route_motor_send_wheel_speeds(wheel_speed)) {
+            preserve_rc_or_set_motor_fault();
+            return false;
+        }
+        if (!route_motor_feedback_update_after_command(
+                measured_wheel_speed, &first_feedback_cycle)) {
+            g_fault_code = FAULT_MOTOR_COMMAND;
+            return false;
+        }
+        if ((uint32_t)(now_ms - last_log_ms) >= RUN_LOG_SAMPLE_PERIOD_MS) {
+            last_log_ms = now_ms;
+            log_route_sample(now_ms, measured_wheel_speed);
+        }
+        lcd_display_update();
+        if (segment_done) {
+            if (settled_since_ms == 0U) {
+                settled_since_ms = now_ms;
+            } else if ((uint32_t)(now_ms - settled_since_ms) >=
+                       ROUTE_TASK2_ENTRY_ENDPOINT_DONE_HOLD_MS) {
+                break;
+            }
+        } else {
+            settled_since_ms = 0U;
+        }
+    }
+    g_command_speed_m_s = 0.0f;
+    g_route_heading_target_rad = final_heading_target_rad;
+    board_uart1_write(
+        "H7,ROUTE,TASK2_DIAGONAL,BEZIER_ENDPOINT,DONE\r\n");
+    return route_motor_send_zero_all();
+}
+
 static bool run_translation_profile_with_turn(float vx_direction,
                                               float vy_direction,
                                               float target_distance_m,
@@ -5298,9 +5770,9 @@ bool route_controller_run_task2_entry_translation_with_turn(
     float acceleration_m_s2,
     float heading_delta_rad)
 {
-    return run_translation_profile_with_turn(
+    return run_task2_entry_bezier(
         vx_direction, vy_direction, target_distance_m, maximum_speed_m_s,
-        acceleration_m_s2, heading_delta_rad, true);
+        acceleration_m_s2, heading_delta_rad);
 }
 
 bool route_controller_run_task2_test(uint32_t sequence, const char *letter1,
