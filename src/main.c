@@ -687,12 +687,16 @@ route_start:
             ? "H7,ROUTE,TASK2_TO_TASK3,FIELD=RED,BACKWARD=930mm,"
               "LATERAL=RIGHT50mm,DISTANCE=931.343mm\r\n"
             : "H7,ROUTE,TASK2_TO_TASK3,FIELD=BLUE,BACKWARD=930mm,"
-              "LATERAL=LEFT50mm,DISTANCE=931.343mm\r\n");
+              "LATERAL=LEFT100mm,DISTANCE=935.356mm\r\n");
     if (!route_controller_run_task2_to_task3_translation(
             -ROUTE_FORWARD_SIGN * ROUTE_AFTER_PLATFORM_REVERSE_COMPONENT_M,
             -field_profile.strafe_sign *
-                ROUTE_AFTER_PLATFORM_MIRRORED_LATERAL_COMPONENT_M,
-            ROUTE_AFTER_PLATFORM_DIAGONAL_DISTANCE_M)) {
+                (field_profile.is_red != 0U
+                     ? ROUTE_AFTER_PLATFORM_MIRRORED_LATERAL_COMPONENT_M
+                     : ROUTE_AFTER_PLATFORM_BLUE_LATERAL_COMPONENT_M),
+            field_profile.is_red != 0U
+                ? ROUTE_AFTER_PLATFORM_DIAGONAL_DISTANCE_M
+                : ROUTE_AFTER_PLATFORM_BLUE_DIAGONAL_DISTANCE_M)) {
         enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
     }
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
@@ -764,7 +768,9 @@ route_start:
             g_run_state = RUN_FORWARD;
             if (!route_controller_run_translation_profile(
                     ROUTE_FORWARD_SIGN, 0.0f,
-                    ROUTE_FORMAL_TASK3_PRE_ORBIT_FORWARD_DISTANCE_M,
+                    field_profile.is_red != 0U
+                        ? ROUTE_FORMAL_TASK3_PRE_ORBIT_FORWARD_DISTANCE_M
+                        : ROUTE_FORMAL_TASK3_BLUE_PRE_ORBIT_FORWARD_DISTANCE_M,
                     ROUTE_TRANSLATION_SPEED_M_S,
                     ROUTE_TRANSLATION_ACCEL_M_S2)) {
                 enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
@@ -775,7 +781,9 @@ route_start:
                 enter_fault(g_fault_code);
             }
             board_uart1_write(
-                "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=15mm\r\n");
+                field_profile.is_red != 0U
+                    ? "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=15mm\r\n"
+                    : "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=65mm\r\n");
 
             g_run_state = RUN_FRONT_CENTER_ORBIT;
             /* Formal COLUMN_CATCH owns its own pause/resume channel.  Do not
@@ -797,7 +805,11 @@ route_start:
             if (orbit_arm_started) {
                 g_run_state = RUN_ARM_COLUMN_CATCH;
                 route_controller_log_event(RUN_LOG_EVENT_ARM_STOP);
-                if (!route_controller_stop_rk_arm_task(ROUTE_TASK3_RK_ARM_TASK)) {
+                if (field_profile.is_red == 0U
+                    ? !route_controller_hold_rk_arm_task(
+                          ROUTE_TASK3_RK_ARM_TASK)
+                    : !route_controller_stop_rk_arm_task(
+                          ROUTE_TASK3_RK_ARM_TASK)) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
                 }
                 route_controller_log_event(RUN_LOG_EVENT_ARM_STOP_DONE);
@@ -805,6 +817,189 @@ route_start:
 #else
             (void)orbit_arm_started;
 #endif
+
+            /* BLUE uses a dedicated post-orbit handoff. The legacy RED block
+             * below remains unchanged and is intentionally isolated from it. */
+            if (field_profile.is_red == 0U) {
+                bool blue_route_ok = true;
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,POST_ORBIT_SPECIAL,ARM_STOP_DONE\r\n");
+                g_run_state = RUN_FINAL_REVERSE;
+                blue_route_ok = route_controller_run_final_translation(
+                    -ROUTE_FORWARD_SIGN, 0.0f,
+                    ROUTE_FORMAL_TASK3_BLUE_POST_ORBIT_REVERSE_DISTANCE_M,
+                    ROUTE_TRANSLATION_SPEED_M_S,
+                    ROUTE_TRANSLATION_ACCEL_M_S2);
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                if (!blue_route_ok || g_run_state == RUN_FAULT) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                           : g_fault_code);
+                }
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,POST_ORBIT_REVERSE,DISTANCE=60mm\r\n");
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,POST_ORBIT_GYRO_ALIGN,START\r\n");
+                if (!route_controller_run_relative_turn(0.0f)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
+                                                           : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,POST_ORBIT_GYRO_ALIGN,DONE\r\n");
+                g_run_state = RUN_TURN_RIGHT;
+                if (!route_controller_run_relative_turn(
+                        ROUTE_RIGHT_TURN_SIGN * ROUTE_TASK3_POST_ORBIT_TURN_RAD)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
+                                                           : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,POST_ORBIT_TURN,DIR=RIGHT,ANGLE=90deg\r\n");
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,POST_TURN_GYRO_ALIGN,START\r\n");
+                if (!route_controller_run_relative_turn(0.0f)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
+                                                           : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,POST_TURN_GYRO_ALIGN,DONE\r\n");
+                if (!route_controller_run_task3_blue_white_line()) {
+                    enter_fault(g_fault_code == FAULT_NONE
+                                    ? FAULT_WHITE_LINE_NOT_FOUND
+                                    : g_fault_code);
+                }
+                if (!route_controller_retract_rk_arm_task(
+                        ROUTE_TASK3_RK_ARM_TASK)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
+                                                           : g_fault_code);
+                }
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,WHITE_LINE_ARM_RETRACT,DONE\r\n");
+                g_run_state = RUN_FINAL_REVERSE;
+                if (!route_controller_run_final_translation(
+                        -ROUTE_FORWARD_SIGN, 0.0f,
+                        ROUTE_FORMAL_TASK3_BLUE_RETRACT_REVERSE_DISTANCE_M,
+                        ROUTE_TRANSLATION_SPEED_M_S,
+                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                           : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                if (!route_controller_run_relative_turn(
+                        ROUTE_FORMAL_TASK3_BLUE_RETRACT_TURN_RAD)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
+                                                           : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                if (!route_controller_run_final_translation(
+                        -ROUTE_FORWARD_SIGN, 0.0f,
+                        ROUTE_FORMAL_TASK3_BLUE_RETRACT_REVERSE_DISTANCE_M,
+                        ROUTE_TRANSLATION_SPEED_M_S,
+                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                           : g_fault_code);
+                }
+                if (!route_controller_run_final_translation(
+                        0.0f, ROUTE_RIGHT_STRAFE_SIGN,
+                        ROUTE_FORMAL_TASK3_BLUE_RETRACT_RIGHT_SHIFT_DISTANCE_M,
+                        ROUTE_TRANSLATION_SPEED_M_S,
+                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                           : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                board_servo_set_angle_deg_index(
+                    SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POST_ROUTE_PA0_ANGLE_DEG);
+                board_servo_set_angle_deg_index(
+                    SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POST_ROUTE_PA2_ANGLE_DEG);
+                board_uart1_write(
+                    "H7,LOCAL_SERVO,TASK3_BLUE,BOTH_OPEN,PA0=80.0,PA2=90.0,HOLD_MS=5000\r\n");
+                route_controller_hold_zero(ROUTE_TASK3_POST_AUX_HOLD_MS);
+                board_servo_set_angle_deg_index(
+                    SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POWER_ON_PA0_ANGLE_DEG);
+                board_servo_set_angle_deg_index(
+                    SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POWER_ON_PA2_ANGLE_DEG);
+                route_controller_hold_zero(ROUTE_SERVO_RETURN_SETTLE_MS);
+                g_run_state = RUN_FORWARD;
+                if (!route_controller_run_final_translation(
+                        ROUTE_FORWARD_SIGN, 0.0f,
+                        ROUTE_TASK3_BLUE_POST_AUX_FORWARD_DISTANCE_M,
+                        ROUTE_TRANSLATION_SPEED_M_S,
+                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                           : g_fault_code);
+                }
+                if (!route_controller_run_relative_turn(
+                        ROUTE_RIGHT_TURN_SIGN * ROUTE_TASK3_BLUE_POST_AUX_TURN_RAD)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
+                                                           : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                if (!route_controller_run_relative_turn(0.0f)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
+                                                           : g_fault_code);
+                }
+                if (!route_controller_run_final_translation(
+                        ROUTE_FORWARD_SIGN, 0.0f,
+                        ROUTE_TASK3_BLUE_POST_TURN_FORWARD_DISTANCE_M,
+                        ROUTE_TRANSLATION_SPEED_M_S,
+                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                           : g_fault_code);
+                }
+                if (!route_controller_run_relative_turn(0.0f)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
+                                                           : g_fault_code);
+                }
+                if (!route_controller_run_htd85_aux(
+                        ROUTE_HTD85_AUX_ID3_SERVO_ID,
+                        ROUTE_TASK3_BLUE_ID3_OPEN_PULSE,
+                        ROUTE_TASK3_BLUE_ID3_OPEN_MOVE_TIME_MS)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
+                                                           : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_TASK3_BLUE_ID3_HOLD_MS);
+                if (!route_controller_run_htd85_aux(
+                        ROUTE_HTD85_AUX_ID3_SERVO_ID,
+                        ROUTE_TASK3_BLUE_ID3_RETRACT_PULSE,
+                        ROUTE_TASK3_BLUE_ID3_RETRACT_MOVE_TIME_MS)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
+                                                           : g_fault_code);
+                }
+                if (!route_controller_run_final_translation(
+                        0.0f, ROUTE_LEFT_STRAFE_SIGN,
+                        ROUTE_TASK3_BLUE_RING_PREPLACE_SHIFT_DISTANCE_M,
+                        ROUTE_TRANSLATION_SPEED_M_S,
+                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                           : g_fault_code);
+                }
+                if (!route_controller_run_relative_turn(0.0f)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
+                                                           : g_fault_code);
+                }
+                if (!route_controller_wait_for_rk_arm_task("TASK3_RING_PLACE")) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
+                                                           : g_fault_code);
+                }
+                if (!route_controller_run_final_translation(
+                        0.0f, ROUTE_RIGHT_STRAFE_SIGN,
+                        ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_BLUE_M,
+                        ROUTE_TRANSLATION_SPEED_M_S,
+                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                           : g_fault_code);
+                }
+                if (!route_controller_run_final_translation(
+                        -ROUTE_FORWARD_SIGN, 0.0f,
+                        ROUTE_TASK3_POST_FINAL_REVERSE_DISTANCE_BLUE_M,
+                        ROUTE_TRANSLATION_SPEED_M_S,
+                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                           : g_fault_code);
+                }
+            } else {
 
             /* After the formal orbit, back up 10 mm before the mirrored
              * post-orbit 90-degree turn. The later post-turn reverse is 750 mm. */
@@ -1218,6 +1413,8 @@ route_start:
                     (unsigned)(ROUTE_TASK3_POST_FINAL_REVERSE_DISTANCE_BLUE_M *
                                1000.0f + 0.5f));
                 board_uart1_write(blue_log);
+            }
+
             }
 
             {

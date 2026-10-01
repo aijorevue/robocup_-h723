@@ -153,6 +153,7 @@ bool route_controller_run_task2_entry_translation_with_turn(
 bool route_controller_run_disc_arc_entry(float lateral_sign,
                                          float turn_sign);
 bool route_controller_run_disc_visual_alignment(void);
+bool route_controller_run_task3_blue_white_line(void);
 /* Raise only ID1/ID2/ID6 after the formal task-two transfer; ID5 stays home. */
 bool route_controller_run_task2_prep_high(void);
 /* Formal task-two first-station entry: lateral shift, shared white-line
@@ -167,6 +168,10 @@ bool route_controller_wait_for_rk_platform_preselect(void);
 bool route_controller_wait_for_rk_platform_slot(uint32_t slot);
 bool route_controller_start_rk_arm_task(const char *task);
 bool route_controller_stop_rk_arm_task(const char *task);
+/* Keep the formal blue task-three arm high after orbiting without homing it. */
+bool route_controller_hold_rk_arm_task(const char *task);
+/* Request the second-stage blue task-three retract after white-line alignment. */
+bool route_controller_retract_rk_arm_task(const char *task);
 /* Execute one acknowledged Hiwonder HTD85 auxiliary command over the RK link. */
 bool route_controller_run_htd85_aux(uint8_t servo_id, uint32_t pulse,
                                     uint32_t time_ms);

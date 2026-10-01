@@ -79,7 +79,8 @@ typedef enum {
     ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC = 1,
     ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT = 2,
     ROUTE_WHITE_LINE_PHASE_TASK2_EXIT_SEARCH = 3,
-    ROUTE_WHITE_LINE_PHASE_TASK2_EXIT_ALIGN = 4
+    ROUTE_WHITE_LINE_PHASE_TASK2_EXIT_ALIGN = 4,
+    ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT = 5
 } route_white_line_phase_t;
 
 static void service_rk_link_before_first_station(void);
@@ -2442,6 +2443,174 @@ static bool stop_rk_arm_task(const char *task)
     }
 }
 
+/* Blue formal task three uses the normal STOP request as an orbit boundary,
+ * but RK answers HOLD_DONE after moving to the expanded high pose. */
+static bool hold_rk_arm_task(const char *task)
+{
+    uint8_t rx[64];
+    char line[96];
+    char stop_command[64];
+    char done_prefix[64];
+    char error_prefix[64];
+    uint32_t line_len = 0U;
+    uint32_t started_ms = HAL_GetTick();
+    uint32_t last_send_ms = started_ms - RK_ARM_START_RETRY_MS;
+
+    if (task == NULL || strcmp(task, "COLUMN_CATCH") != 0 ||
+        g_route_field_is_red != 0U || g_rk_async_task_sequence == 0U) {
+        g_fault_code = FAULT_KINEMATICS;
+        return false;
+    }
+    (void)snprintf(stop_command, sizeof(stop_command),
+                   "ARM,%s,STOP,SEQ,%lu\r\n", task,
+                   (unsigned long)g_rk_async_task_sequence);
+    (void)snprintf(done_prefix, sizeof(done_prefix),
+                   "RK,ARM,%s,HOLD_DONE,SEQ,%lu", task,
+                   (unsigned long)g_rk_async_task_sequence);
+    (void)snprintf(error_prefix, sizeof(error_prefix),
+                   "RK,ARM,%s,ERR,SEQ,%lu", task,
+                   (unsigned long)g_rk_async_task_sequence);
+    board_uart1_write("H7,ARM,COLUMN_CATCH,ARM_STOP_WAIT_HOLD\r\n");
+
+    for (;;) {
+        const uint32_t now_ms = HAL_GetTick();
+        uint32_t read_len;
+        uint32_t i;
+        if ((uint32_t)(now_ms - last_send_ms) >= RK_ARM_START_RETRY_MS) {
+            last_send_ms = now_ms;
+            board_usb_write(stop_command);
+        }
+        read_len = CDC_Read_HS(rx, sizeof(rx));
+        for (i = 0U; i < read_len; ++i) {
+            const char c = (char)rx[i];
+            if (c == '\r' || c == '\n') {
+                line[line_len] = '\0';
+                if (line_len > 0U) {
+                    rk_arm_handle_line(line);
+                    if (line_matches_token_prefix(line, done_prefix)) {
+                        board_uart1_write(
+                            "H7,ARM,COLUMN_CATCH,ARM_STOP_DONE\r\n");
+                        return true;
+                    }
+                    if (line_matches_token_prefix(line, error_prefix)) {
+                        g_fault_code = FAULT_ARM_REMOTE;
+                        return false;
+                    }
+                }
+                line_len = 0U;
+            } else if (line_len + 1U < sizeof(line)) {
+                line[line_len++] = c;
+            } else {
+                line_len = 0U;
+            }
+        }
+        if ((uint32_t)(HAL_GetTick() - started_ms) >= RK_ARM_STOP_TIMEOUT_MS) {
+            g_fault_code = FAULT_ARM_TIMEOUT;
+            board_uart1_write(
+                "H7,ARM,COLUMN_CATCH,ARM_STOP_TIMEOUT\r\n");
+            return false;
+        }
+        HAL_Delay(1U);
+    }
+}
+
+/* Blue formal task three keeps COLUMN_CATCH active only until the orbit stop
+ * acknowledgement. The later white-line alignment owns a separate retract
+ * transaction so orbit stop cannot home the arm early. */
+static bool retract_rk_arm_task(const char *task)
+{
+    uint8_t rx[64];
+    char line[128];
+    char command[96];
+    char ack_prefix[96];
+    char done_prefix[96];
+    char error_prefix[96];
+    char log_line[128];
+    uint32_t line_len = 0U;
+    uint32_t started_ms = HAL_GetTick();
+    uint32_t last_send_ms = started_ms - RK_ARM_START_RETRY_MS;
+    uint32_t last_zero_ms = started_ms - CONTROL_PERIOD_MS;
+    const uint32_t sequence = next_rk_task_sequence();
+
+    if (task == NULL || strcmp(task, "COLUMN_CATCH") != 0 ||
+        g_route_field_is_red != 0U) {
+        g_fault_code = FAULT_KINEMATICS;
+        return false;
+    }
+
+    (void)snprintf(command, sizeof(command),
+                   "ARM,%s,RETRACT,SEQ,%lu,FIELD,BLUE\r\n", task,
+                   (unsigned long)sequence);
+    (void)snprintf(ack_prefix, sizeof(ack_prefix),
+                   "RK,ARM,%s,ACK,SEQ,%lu", task,
+                   (unsigned long)sequence);
+    (void)snprintf(done_prefix, sizeof(done_prefix),
+                   "RK,ARM,%s,DONE,SEQ,%lu", task,
+                   (unsigned long)sequence);
+    (void)snprintf(error_prefix, sizeof(error_prefix),
+                   "RK,ARM,%s,ERR,SEQ,%lu", task,
+                   (unsigned long)sequence);
+    (void)snprintf(log_line, sizeof(log_line),
+                   "H7,ARM,%s,RETRACT_WAIT,SEQ=%lu\r\n", task,
+                   (unsigned long)sequence);
+    board_uart1_write(log_line);
+
+    for (;;) {
+        const uint32_t now_ms = HAL_GetTick();
+        uint32_t read_len;
+        uint32_t i;
+
+        if ((uint32_t)(now_ms - last_zero_ms) >= CONTROL_PERIOD_MS) {
+            last_zero_ms = now_ms;
+            if (!keep_chassis_stopped_for_arm_task()) {
+                preserve_rc_or_set_motor_fault();
+                return false;
+            }
+        }
+        if ((uint32_t)(now_ms - last_send_ms) >= RK_ARM_START_RETRY_MS) {
+            last_send_ms = now_ms;
+            board_usb_write(command);
+            board_uart1_write_only("H7,ARM,COLUMN_CATCH,RETRACT_SENT\r\n");
+        }
+
+        read_len = CDC_Read_HS(rx, sizeof(rx));
+        for (i = 0U; i < read_len; ++i) {
+            const char c = (char)rx[i];
+
+            if (c == '\r' || c == '\n') {
+                line[line_len] = '\0';
+                if (line_len > 0U) {
+                    rk_arm_handle_line(line);
+                    if (line_matches_token_prefix(line, ack_prefix)) {
+                        board_uart1_write_only(
+                            "H7,ARM,COLUMN_CATCH,RETRACT_ACK\r\n");
+                    } else if (line_matches_token_prefix(line, done_prefix)) {
+                        board_uart1_write_only(
+                            "H7,ARM,COLUMN_CATCH,RETRACT_DONE\r\n");
+                        return true;
+                    } else if (line_matches_token_prefix(line, error_prefix)) {
+                        g_fault_code = FAULT_ARM_REMOTE;
+                        return false;
+                    }
+                }
+                line_len = 0U;
+            } else if (line_len + 1U < sizeof(line)) {
+                line[line_len++] = c;
+            } else {
+                line_len = 0U;
+                board_uart1_write("H7,ERR,ARM_LINE_TOO_LONG\r\n");
+            }
+        }
+
+        if ((uint32_t)(HAL_GetTick() - started_ms) >= RK_ARM_STOP_TIMEOUT_MS) {
+            g_fault_code = FAULT_ARM_TIMEOUT;
+            board_uart1_write("H7,ARM,COLUMN_CATCH,RETRACT_TIMEOUT\r\n");
+            return false;
+        }
+        HAL_Delay(1U);
+    }
+}
+
 static bool run_htd85_remote_aux(uint8_t servo_id, uint32_t pulse,
                                   uint32_t time_ms)
 {
@@ -4302,14 +4471,36 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
     bool right_edge_alignment_active = false;
     bool right_edge_measurement_valid = false;
     uint32_t last_right_edge_measurement_ms = 0U;
-    const bool formal_task2_right_edge_enabled =
-        phase == ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT &&
-        g_task2_test_active_sequence == 0U;
+    const bool right_edge_alignment_enabled =
+        (phase == ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT &&
+         g_task2_test_active_sequence == 0U) ||
+        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT;
+    const float right_edge_target_x =
+        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+            ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_RIGHT_EDGE_TARGET_X_PX
+            : ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_TARGET_X_PX;
+    const float right_edge_tolerance_x =
+        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+            ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_RIGHT_EDGE_TOLERANCE_PX
+            : ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_TOLERANCE_PX;
+    const uint32_t right_edge_stable_samples_required =
+        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+            ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_RIGHT_EDGE_STABLE_SAMPLES
+            : ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_STABLE_SAMPLES;
+    const float right_edge_lateral_kp =
+        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+            ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_LATERAL_KP_M_S_PER_PX
+            : ROUTE_TASK2_FORMAL_WHITE_LINE_LATERAL_KP_M_S_PER_PX;
+    const float right_edge_max_lateral_speed =
+        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+            ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_MAX_LATERAL_SPEED_M_S
+            : ROUTE_TASK2_FORMAL_WHITE_LINE_MAX_LATERAL_SPEED_M_S;
 
     /* Only task-one post-arc and task-two post-secondary-shift entry may
      * emit white-line queries. Keep the restriction beside the emitter. */
     if (phase != ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC &&
-        phase != ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT) {
+        phase != ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT &&
+        phase != ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT) {
         g_fault_code = FAULT_KINEMATICS;
         return false;
     }
@@ -4319,13 +4510,17 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                    (unsigned long)sequence,
                    phase == ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC
                        ? "TASK1_AFTER_ARC"
-                       : "TASK2_AFTER_SECONDARY_SHIFT");
+                       : phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+                           ? "TASK3_BLUE_WHITE_LINE_ALIGN"
+                           : "TASK2_AFTER_SECONDARY_SHIFT");
     (void)snprintf(log_line, sizeof(log_line),
                    "H7,VISION,WHITE_LINE,START,SEQ=%lu,PHASE=%s,REF_Y10=%ld,REF_A100=%d\r\n",
                    (unsigned long)sequence,
                    phase == ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC
                        ? "TASK1_AFTER_ARC"
-                       : "TASK2_AFTER_SECONDARY_SHIFT",
+                       : phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+                           ? "TASK3_BLUE_WHITE_LINE_ALIGN"
+                           : "TASK2_AFTER_SECONDARY_SHIFT",
                    reference_y10,
                    ROUTE_DISC_LINE_REFERENCE_A100);
     board_uart1_write(log_line);
@@ -4495,16 +4690,20 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                 g_heading_correction_rad_s = 0.0f;
                                 g_cross_track_command_m_s = 0.0f;
                                 g_actual_cross_speed_m_s = 0.0f;
-                                if (formal_task2_right_edge_enabled &&
+                                if (right_edge_alignment_enabled &&
                                     !right_edge_alignment_active) {
                                     right_edge_alignment_active = true;
                                     right_edge_stable_samples = 0U;
                                     commanded_forward_speed_m_s = 0.0f;
                                     (void)route_motor_send_zero_all();
-                                    board_uart1_write(
-                                        "H7,VISION,WHITE_LINE,RIGHT_EDGE,START,TARGET_X=600\r\n");
+                                    char edge_log[96];
+                                    (void)snprintf(
+                                        edge_log, sizeof(edge_log),
+                                        "H7,VISION,WHITE_LINE,RIGHT_EDGE,START,TARGET_X=%.0f\r\n",
+                                        (double)right_edge_target_x);
+                                    board_uart1_write(edge_log);
                                 }
-                                if (formal_task2_right_edge_enabled) {
+                                if (right_edge_alignment_enabled) {
                                     /* The original Y reference is already
                                      * stable. Lateral alignment now owns the
                                      * motion; do not return to the caller yet. */
@@ -4533,7 +4732,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                 return true;
                             }
                         } else {
-                            if (formal_task2_right_edge_enabled &&
+                            if (right_edge_alignment_enabled &&
                                 right_edge_alignment_active) {
                                 right_edge_measurement_valid = false;
                                 right_edge_stable_samples = 0U;
@@ -4553,7 +4752,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                          * The overall search timeout remains the only failure
                          * path for a line that never appears. */
                         ++not_found_samples;
-                        if (formal_task2_right_edge_enabled &&
+                        if (right_edge_alignment_enabled &&
                             right_edge_alignment_active) {
                             right_edge_measurement_valid = false;
                             right_edge_stable_samples = 0U;
@@ -4616,10 +4815,10 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                     angle_aligned && filtered_y10_valid &&
                     labs(filtered_y10 - reference_y10) <= tolerance_y10 &&
                     fabsf(last_right_edge_x -
-                          ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_TARGET_X_PX) <=
-                        ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_TOLERANCE_PX) {
+                          right_edge_target_x) <=
+                        right_edge_tolerance_x) {
                     if (right_edge_stable_samples <
-                        ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_STABLE_SAMPLES) {
+                                    right_edge_stable_samples_required) {
                         ++right_edge_stable_samples;
                     }
                 } else {
@@ -4627,7 +4826,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                 }
 
                 if (right_edge_stable_samples >=
-                    ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_STABLE_SAMPLES) {
+                    right_edge_stable_samples_required) {
                     g_route_heading_target_rad = g_yaw_rad;
                     g_command_speed_m_s = 0.0f;
                     g_heading_correction_rad_s = 0.0f;
@@ -4643,21 +4842,25 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                         g_task2_test_white_line_active = 0U;
                         return false;
                     }
-                    board_uart1_write(
-                        "H7,VISION,WHITE_LINE,RIGHT_EDGE,DONE,X=600,STOPPED\r\n");
+                    {
+                        char edge_log[96];
+                        (void)snprintf(
+                            edge_log, sizeof(edge_log),
+                            "H7,VISION,WHITE_LINE,RIGHT_EDGE,DONE,X=%.0f,STOPPED\r\n",
+                            (double)right_edge_target_x);
+                        board_uart1_write(edge_log);
+                    }
                     g_task2_test_white_line_active = 0U;
                     return true;
                 }
 
                 command_vy_m_s = clampf(
                     (last_right_edge_x -
-                     ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_TARGET_X_PX) *
-                        ROUTE_TASK2_FORMAL_WHITE_LINE_LATERAL_KP_M_S_PER_PX,
-                    -ROUTE_TASK2_FORMAL_WHITE_LINE_MAX_LATERAL_SPEED_M_S,
-                    ROUTE_TASK2_FORMAL_WHITE_LINE_MAX_LATERAL_SPEED_M_S);
+                     right_edge_target_x) * right_edge_lateral_kp,
+                    -right_edge_max_lateral_speed,
+                    right_edge_max_lateral_speed);
                 if (fabsf(last_right_edge_x -
-                          ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_TARGET_X_PX) <=
-                    ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_TOLERANCE_PX) {
+                          right_edge_target_x) <= right_edge_tolerance_x) {
                     command_vy_m_s = 0.0f;
                 }
                 g_command_speed_m_s = fabsf(command_vy_m_s);
@@ -6056,6 +6259,41 @@ bool route_controller_run_disc_visual_alignment(void)
     return run_disc_visual_alignment();
 }
 
+bool route_controller_run_task3_blue_white_line(void)
+{
+    bool moved;
+    g_run_state = RUN_FORWARD;
+    board_uart1_write(
+        "H7,ROUTE,TASK3,BLUE,WHITE_LINE_APPROACH,FORWARD=600mm\r\n");
+    moved = run_translation_profile_with_turn(
+        ROUTE_FORWARD_SIGN, 0.0f,
+        ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_FORWARD_DISTANCE_M,
+        ROUTE_TRANSLATION_SPEED_M_S, ROUTE_TRANSLATION_ACCEL_M_S2, 0.0f, true);
+    if (!moved) {
+        return false;
+    }
+    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        return false;
+    }
+    board_uart1_write(
+        "H7,ROUTE,TASK3,BLUE,WHITE_LINE_ALIGN,START,REF_Y10=3000,TOL=100,"
+        "X=500,ANGLE=0\r\n");
+    moved = run_disc_visual_alignment_at_speed(
+        0.050f,
+        ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_REFERENCE_Y10,
+        ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_TOLERANCE_Y10,
+        ROUTE_DISC_LINE_ACCEL_M_S2,
+        ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT,
+        0U);
+    if (!moved) {
+        return false;
+    }
+    board_uart1_write(
+        "H7,ROUTE,TASK3,BLUE,WHITE_LINE_ALIGN,DONE,STOPPED\r\n");
+    return true;
+}
+
 bool route_controller_run_relative_turn(float angle_rad)
 {
     return run_relative_turn(angle_rad);
@@ -6090,6 +6328,16 @@ bool route_controller_start_rk_arm_task(const char *task)
 bool route_controller_stop_rk_arm_task(const char *task)
 {
     return stop_rk_arm_task(task);
+}
+
+bool route_controller_hold_rk_arm_task(const char *task)
+{
+    return hold_rk_arm_task(task);
+}
+
+bool route_controller_retract_rk_arm_task(const char *task)
+{
+    return retract_rk_arm_task(task);
 }
 
 bool route_controller_run_htd85_aux(uint8_t servo_id, uint32_t pulse,
