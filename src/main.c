@@ -918,7 +918,7 @@ route_start:
                 route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
                 if (!route_controller_run_final_translation(
                         -ROUTE_FORWARD_SIGN, 0.0f,
-                        ROUTE_FORMAL_TASK3_BLUE_RETRACT_REVERSE_DISTANCE_M,
+                        ROUTE_FORMAL_TASK3_BLUE_POST_TURN_REVERSE_DISTANCE_M,
                         ROUTE_TRANSLATION_SPEED_M_S,
                         ROUTE_TRANSLATION_ACCEL_M_S2)) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
