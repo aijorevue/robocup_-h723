@@ -4449,7 +4449,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
     char log_line[160];
     uint32_t line_len = 0U;
     const uint32_t sequence = next_rk_task_sequence();
-    const uint32_t started_ms = HAL_GetTick();
+    uint32_t started_ms = HAL_GetTick();
     uint32_t previous_ms = started_ms;
     uint32_t last_control_ms = started_ms - CONTROL_PERIOD_MS;
     uint32_t last_query_ms = started_ms - ROUTE_DISC_LINE_QUERY_PERIOD_MS;
@@ -4470,6 +4470,10 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
     bool reverse_search_logged = false;
     bool forward_search_logged = false;
     bool stale_recovery_logged = false;
+    bool task3_edge_recovery_logged = false;
+    bool task3_edge_search_active = false;
+    float task3_edge_search_direction = 1.0f;
+    uint32_t task3_edge_search_started_ms = 0U;
     float measured_wheel_speed[4] = {0.0f};
     float wheel_speed[4] = {0.0f};
     bool first_feedback_cycle = true;
@@ -4557,13 +4561,38 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
         uint32_t i;
 
         if ((uint32_t)(now_ms - started_ms) >= ROUTE_DISC_LINE_TIMEOUT_MS) {
-            (void)route_motor_send_zero_all();
-            g_command_speed_m_s = 0.0f;
-            g_heading_correction_rad_s = 0.0f;
-            g_fault_code = FAULT_WHITE_LINE_NOT_FOUND;
-            board_uart1_write("H7,VISION,WHITE_LINE,TIMEOUT,FAULT\r\n");
-            g_task2_test_white_line_active = 0U;
-            return false;
+            if (phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT) {
+                /* A task-three NOT_FOUND result is a search condition, not a
+                 * route fault. Restart the local search watchdog and keep
+                 * moving forward; the next valid frame can still complete
+                 * center-line and right-edge alignment. */
+                started_ms = now_ms;
+                measurement_valid = false;
+                filtered_y10_valid = false;
+                have_accepted_y10 = false;
+                last_accepted_y10 = 0L;
+                y10_history_count = 0U;
+                reference_stable_samples = 0U;
+                angle_stable_samples = 0U;
+                angle_aligned = false;
+                right_edge_alignment_active = false;
+                right_edge_measurement_valid = false;
+                right_edge_stable_samples = 0U;
+                not_found_samples = 0U;
+                stale_recovery_logged = false;
+                task3_edge_recovery_logged = false;
+                board_uart1_write_only(
+                    "H7,VISION,WHITE_LINE,TIMEOUT,SEARCH_RESTART,"
+                    "TASK3_BLUE,CONTINUE_FORWARD\r\n");
+            } else {
+                (void)route_motor_send_zero_all();
+                g_command_speed_m_s = 0.0f;
+                g_heading_correction_rad_s = 0.0f;
+                g_fault_code = FAULT_WHITE_LINE_NOT_FOUND;
+                board_uart1_write("H7,VISION,WHITE_LINE,TIMEOUT,FAULT\r\n");
+                g_task2_test_white_line_active = 0U;
+                return false;
+            }
         }
 
         if ((uint32_t)(now_ms - last_query_ms) >=
@@ -4658,6 +4687,18 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                 right_edge_x >= 0L &&
                                 right_edge_x <= frame_width;
                             last_right_edge_measurement_ms = now_ms;
+                            if (phase ==
+                                    ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT &&
+                                right_edge_alignment_active &&
+                                right_edge_measurement_valid) {
+                                if (task3_edge_search_active) {
+                                    board_uart1_write_only(
+                                        "H7,VISION,WHITE_LINE,RIGHT_EDGE_REACQUIRED,"
+                                        "RETURN_TO_CLOSED_LOOP\r\n");
+                                }
+                                task3_edge_search_active = false;
+                                task3_edge_recovery_logged = false;
+                            }
                             if (fabsf(error_angle_deg) <=
                                 ROUTE_DISC_LINE_ANGLE_ALIGN_TOLERANCE_DEG) {
                                 if (angle_stable_samples <
@@ -4761,8 +4802,25 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                         ++not_found_samples;
                         if (right_edge_alignment_enabled &&
                             right_edge_alignment_active) {
+                            if (phase ==
+                                ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT) {
+                                /* Keep the right-edge stage active. When the
+                                 * boundary is lost, scan left/right at low
+                                 * speed until a fresh RX value returns. */
+                                if (!task3_edge_search_active) {
+                                    task3_edge_search_active = true;
+                                    task3_edge_search_started_ms = now_ms;
+                                    task3_edge_search_direction = 1.0f;
+                                }
+                                if (!task3_edge_recovery_logged) {
+                                    task3_edge_recovery_logged = true;
+                                board_uart1_write_only(
+                                        "H7,VISION,WHITE_LINE,RIGHT_EDGE_LOST,"
+                                        "LATERAL_SCAN\r\n");
+                            }
                             right_edge_measurement_valid = false;
                             right_edge_stable_samples = 0U;
+                        }
                         }
                         if ((not_found_samples % 5U) == 1U) {
                             board_uart1_write_only(
@@ -4807,13 +4865,56 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                 if (!edge_fresh) {
                     right_edge_measurement_valid = false;
                     right_edge_stable_samples = 0U;
-                    (void)route_motor_send_zero_all();
-                    g_command_speed_m_s = 0.0f;
-                    g_heading_correction_rad_s = 0.0f;
-                    g_cross_track_command_m_s = 0.0f;
-                    g_actual_cross_speed_m_s = 0.0f;
-                    HAL_Delay(1U);
-                    continue;
+                    if (phase ==
+                        ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT) {
+                        if (!task3_edge_search_active) {
+                            task3_edge_search_active = true;
+                            task3_edge_search_started_ms = now_ms;
+                            task3_edge_search_direction = 1.0f;
+                        } else if ((uint32_t)(now_ms -
+                                              task3_edge_search_started_ms) >=
+                                   ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_EDGE_SEARCH_SWITCH_MS) {
+                            task3_edge_search_direction =
+                                -task3_edge_search_direction;
+                            task3_edge_search_started_ms = now_ms;
+                            board_uart1_write_only(
+                                task3_edge_search_direction > 0.0f
+                                    ? "H7,VISION,WHITE_LINE,RIGHT_EDGE_SCAN,DIR=RIGHT\r\n"
+                                    : "H7,VISION,WHITE_LINE,RIGHT_EDGE_SCAN,DIR=LEFT\r\n");
+                        }
+                        if (!task3_edge_recovery_logged) {
+                            task3_edge_recovery_logged = true;
+                            board_uart1_write_only(
+                                "H7,VISION,WHITE_LINE,RIGHT_EDGE_STALE,"
+                                "LATERAL_SCAN\r\n");
+                        }
+                        command_vy_m_s =
+                            task3_edge_search_direction *
+                            right_edge_max_lateral_speed;
+                        g_command_speed_m_s = fabsf(command_vy_m_s);
+                        g_heading_correction_rad_s = 0.0f;
+                        g_cross_track_command_m_s = command_vy_m_s;
+                        g_actual_cross_speed_m_s = 0.0f;
+                        if (!mecanum_inverse(&chassis, 0.0f, command_vy_m_s,
+                                             0.0f, wheel_speed) ||
+                            !route_motor_send_wheel_speeds(wheel_speed) ||
+                            !route_motor_feedback_update_after_command(
+                                measured_wheel_speed, &first_feedback_cycle)) {
+                            preserve_rc_or_set_motor_fault();
+                            g_task2_test_white_line_active = 0U;
+                            return false;
+                        }
+                        lcd_display_update();
+                        continue;
+                    } else {
+                        (void)route_motor_send_zero_all();
+                        g_command_speed_m_s = 0.0f;
+                        g_heading_correction_rad_s = 0.0f;
+                        g_cross_track_command_m_s = 0.0f;
+                        g_actual_cross_speed_m_s = 0.0f;
+                        HAL_Delay(1U);
+                        continue;
+                    }
                 }
 
                 if (measurement_valid &&
