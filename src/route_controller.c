@@ -2443,8 +2443,9 @@ static bool stop_rk_arm_task(const char *task)
     }
 }
 
-/* Blue formal task three uses the normal STOP request as an orbit boundary,
- * but RK answers HOLD_DONE after moving to the expanded high pose. */
+/* Blue formal task three uses a dedicated HOLD request as the orbit boundary.
+ * HOLD freezes the arm at the expanded high pose without entering the
+ * generic station STOP path, which may retract other station types. */
 static bool hold_rk_arm_task(const char *task)
 {
     uint8_t rx[64];
@@ -2462,7 +2463,7 @@ static bool hold_rk_arm_task(const char *task)
         return false;
     }
     (void)snprintf(stop_command, sizeof(stop_command),
-                   "ARM,%s,STOP,SEQ,%lu\r\n", task,
+                   "ARM,%s,HOLD,SEQ,%lu\r\n", task,
                    (unsigned long)g_rk_async_task_sequence);
     (void)snprintf(done_prefix, sizeof(done_prefix),
                    "RK,ARM,%s,HOLD_DONE,SEQ,%lu", task,
@@ -2470,7 +2471,7 @@ static bool hold_rk_arm_task(const char *task)
     (void)snprintf(error_prefix, sizeof(error_prefix),
                    "RK,ARM,%s,ERR,SEQ,%lu", task,
                    (unsigned long)g_rk_async_task_sequence);
-    board_uart1_write("H7,ARM,COLUMN_CATCH,ARM_STOP_WAIT_HOLD\r\n");
+    board_uart1_write("H7,ARM,COLUMN_CATCH,ARM_HOLD_WAIT\r\n");
 
     for (;;) {
         const uint32_t now_ms = HAL_GetTick();
@@ -2489,7 +2490,7 @@ static bool hold_rk_arm_task(const char *task)
                     rk_arm_handle_line(line);
                     if (line_matches_token_prefix(line, done_prefix)) {
                         board_uart1_write(
-                            "H7,ARM,COLUMN_CATCH,ARM_STOP_DONE\r\n");
+                            "H7,ARM,COLUMN_CATCH,ARM_HOLD_DONE\r\n");
                         return true;
                     }
                     if (line_matches_token_prefix(line, error_prefix)) {
@@ -2507,7 +2508,7 @@ static bool hold_rk_arm_task(const char *task)
         if ((uint32_t)(HAL_GetTick() - started_ms) >= RK_ARM_STOP_TIMEOUT_MS) {
             g_fault_code = FAULT_ARM_TIMEOUT;
             board_uart1_write(
-                "H7,ARM,COLUMN_CATCH,ARM_STOP_TIMEOUT\r\n");
+                "H7,ARM,COLUMN_CATCH,ARM_HOLD_TIMEOUT\r\n");
             return false;
         }
         HAL_Delay(1U);

@@ -748,6 +748,7 @@ route_start:
                 "TARGET=TASK3_ORBIT_ENTRY\r\n");
 
             bool orbit_arm_started = false;
+            bool orbit_arm_hold_ok = true;
 
 #if ROUTE_TASK3_COLUMN_CATCH_ENABLED
             g_run_state = RUN_ARM_COLUMN_CATCH;
@@ -810,6 +811,7 @@ route_start:
                           ROUTE_TASK3_RK_ARM_TASK)
                     : !route_controller_stop_rk_arm_task(
                           ROUTE_TASK3_RK_ARM_TASK)) {
+                    orbit_arm_hold_ok = false;
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
                 }
                 route_controller_log_event(RUN_LOG_EVENT_ARM_STOP_DONE);
@@ -822,8 +824,19 @@ route_start:
              * below remains unchanged and is intentionally isolated from it. */
             if (field_profile.is_red == 0U) {
                 bool blue_route_ok = true;
+                bool blue_white_line_ok;
+
+                if (!orbit_arm_hold_ok) {
+                    g_fault_code = g_fault_code == FAULT_NONE
+                                       ? FAULT_ARM_TIMEOUT
+                                       : g_fault_code;
+                    board_uart1_write(
+                        "H7,FAULT,TASK3,BLUE,ARM_HOLD_FAILED,"
+                        "ARM_RETAINED_HIGH,ROUTE_ABORTED\r\n");
+                    goto route_test_shutdown;
+                }
                 board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,POST_ORBIT_SPECIAL,ARM_STOP_DONE\r\n");
+                    "H7,ROUTE,TASK3,BLUE,POST_ORBIT_SPECIAL,ARM_HOLD_DONE\r\n");
                 g_run_state = RUN_FINAL_REVERSE;
                 blue_route_ok = route_controller_run_final_translation(
                     -ROUTE_FORWARD_SIGN, 0.0f,
@@ -864,15 +877,26 @@ route_start:
                 route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
                 board_uart1_write(
                     "H7,ROUTE,TASK3,BLUE,POST_TURN_GYRO_ALIGN,DONE\r\n");
-                if (!route_controller_run_task3_blue_white_line()) {
-                    enter_fault(g_fault_code == FAULT_NONE
-                                    ? FAULT_WHITE_LINE_NOT_FOUND
-                                    : g_fault_code);
+                blue_white_line_ok = route_controller_run_task3_blue_white_line();
+                if (!blue_white_line_ok) {
+                    g_fault_code = g_fault_code == FAULT_NONE
+                                       ? FAULT_WHITE_LINE_NOT_FOUND
+                                       : g_fault_code;
+                    board_uart1_write(
+                        "H7,FAULT,TASK3,BLUE,WHITE_LINE_NOT_REACHED,"
+                        "ARM_RETAINED_HIGH,ROUTE_ABORTED\r\n");
+                    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                    goto route_test_shutdown;
                 }
                 if (!route_controller_retract_rk_arm_task(
                         ROUTE_TASK3_RK_ARM_TASK)) {
-                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
-                                                           : g_fault_code);
+                    g_fault_code = g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
+                                                               : g_fault_code;
+                    board_uart1_write(
+                        "H7,FAULT,TASK3,BLUE,ARM_RETRACT_FAILED,"
+                        "ROUTE_ABORTED\r\n");
+                    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                    goto route_test_shutdown;
                 }
                 board_uart1_write(
                     "H7,ROUTE,TASK3,BLUE,WHITE_LINE_ARM_RETRACT,DONE\r\n");
