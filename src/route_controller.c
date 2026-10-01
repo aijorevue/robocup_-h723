@@ -2449,10 +2449,11 @@ static bool stop_rk_arm_task(const char *task)
 static bool hold_rk_arm_task(const char *task)
 {
     uint8_t rx[64];
-    char line[96];
+    char line[256];
     char stop_command[64];
     char done_prefix[64];
     char error_prefix[64];
+    char fail_line[96];
     uint32_t line_len = 0U;
     uint32_t started_ms = HAL_GetTick();
     uint32_t last_send_ms = started_ms - RK_ARM_START_RETRY_MS;
@@ -2507,6 +2508,11 @@ static bool hold_rk_arm_task(const char *task)
         }
         if ((uint32_t)(HAL_GetTick() - started_ms) >= RK_ARM_STOP_TIMEOUT_MS) {
             g_fault_code = FAULT_ARM_TIMEOUT;
+            (void)snprintf(
+                fail_line, sizeof(fail_line),
+                "H7,ARM,COLUMN_CATCH,HOLD_FAIL,SEQ,%lu,FIELD,BLUE\r\n",
+                (unsigned long)g_rk_async_task_sequence);
+            board_usb_write(fail_line);
             board_uart1_write(
                 "H7,ARM,COLUMN_CATCH,ARM_HOLD_TIMEOUT\r\n");
             return false;
