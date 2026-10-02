@@ -4482,6 +4482,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
     bool right_edge_alignment_active = false;
     bool right_edge_measurement_valid = false;
     uint32_t last_right_edge_measurement_ms = 0U;
+    uint32_t right_edge_stable_last_measurement_ms = 0U;
     const bool right_edge_alignment_enabled =
         (phase == ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT &&
          g_task2_test_active_sequence == 0U) ||
@@ -4562,10 +4563,11 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
 
         if ((uint32_t)(now_ms - started_ms) >= ROUTE_DISC_LINE_TIMEOUT_MS) {
             if (phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT) {
-                /* A task-three NOT_FOUND result is a search condition, not a
-                 * route fault. Restart the local search watchdog and keep
-                 * moving forward; the next valid frame can still complete
-                 * center-line and right-edge alignment. */
+                /* Task three must not drive blind after the fixed approach.
+                 * Restart the local watchdog, clear stale geometry, and hold
+                 * position until a fresh frame returns. The right-edge branch
+                 * below still performs bounded lateral recovery when that
+                 * edge is the only missing measurement. */
                 started_ms = now_ms;
                 measurement_valid = false;
                 filtered_y10_valid = false;
@@ -4578,12 +4580,19 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                 right_edge_alignment_active = false;
                 right_edge_measurement_valid = false;
                 right_edge_stable_samples = 0U;
+                right_edge_stable_last_measurement_ms = 0U;
                 not_found_samples = 0U;
                 stale_recovery_logged = false;
                 task3_edge_recovery_logged = false;
+                commanded_forward_speed_m_s = 0.0f;
+                g_command_speed_m_s = 0.0f;
+                g_heading_correction_rad_s = 0.0f;
+                g_cross_track_command_m_s = 0.0f;
+                g_actual_cross_speed_m_s = 0.0f;
+                (void)route_motor_send_zero_all();
                 board_uart1_write_only(
                     "H7,VISION,WHITE_LINE,TIMEOUT,SEARCH_RESTART,"
-                    "TASK3_BLUE,CONTINUE_FORWARD\r\n");
+                    "TASK3_BLUE,HOLD_AND_WAIT\r\n");
             } else {
                 (void)route_motor_send_zero_all();
                 g_command_speed_m_s = 0.0f;
@@ -4742,6 +4751,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                     !right_edge_alignment_active) {
                                     right_edge_alignment_active = true;
                                     right_edge_stable_samples = 0U;
+                                    right_edge_stable_last_measurement_ms = 0U;
                                     commanded_forward_speed_m_s = 0.0f;
                                     (void)route_motor_send_zero_all();
                                     char edge_log[96];
@@ -4794,12 +4804,33 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                    &response_sequence) == 1 &&
                                response_sequence ==
                                    (unsigned long)sequence) {
-                        /* A single camera miss is expected while the chassis
-                         * is moving. Keep the current forward command and,
-                         * if available, the last fresh heading correction.
-                         * The overall search timeout remains the only failure
-                         * path for a line that never appears. */
+                        /* A camera miss must not reuse stale geometry. Task
+                         * three holds the chassis; task one and task two keep
+                         * their existing search behavior below. */
                         ++not_found_samples;
+                        if (phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT) {
+                            /* Do not use the last strip geometry to keep
+                             * driving after the camera reports a miss. A new
+                             * FOUND frame must rebuild the three-sample
+                             * center/angle decision before motion resumes. */
+                            measurement_valid = false;
+                            filtered_y10_valid = false;
+                            have_accepted_y10 = false;
+                            last_accepted_y10 = 0L;
+                            y10_history_count = 0U;
+                            reference_stable_samples = 0U;
+                            angle_stable_samples = 0U;
+                            angle_aligned = false;
+                            error_angle_deg = 0.0f;
+                            commanded_forward_speed_m_s = 0.0f;
+                            g_command_speed_m_s = 0.0f;
+                            g_heading_correction_rad_s = 0.0f;
+                            g_cross_track_command_m_s = 0.0f;
+                            g_actual_cross_speed_m_s = 0.0f;
+                            if (!right_edge_alignment_active) {
+                                (void)route_motor_send_zero_all();
+                            }
+                        }
                         if (right_edge_alignment_enabled &&
                             right_edge_alignment_active) {
                             if (phase ==
@@ -4814,12 +4845,13 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                 }
                                 if (!task3_edge_recovery_logged) {
                                     task3_edge_recovery_logged = true;
-                                board_uart1_write_only(
+                                    board_uart1_write_only(
                                         "H7,VISION,WHITE_LINE,RIGHT_EDGE_LOST,"
                                         "LATERAL_SCAN\r\n");
-                            }
+                                }
                             right_edge_measurement_valid = false;
                             right_edge_stable_samples = 0U;
+                            right_edge_stable_last_measurement_ms = 0U;
                         }
                         }
                         if ((not_found_samples % 5U) == 1U) {
@@ -4917,20 +4949,40 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                     }
                 }
 
-                if (measurement_valid &&
-                    (uint32_t)(now_ms - last_measurement_ms) <=
-                        ROUTE_DISC_LINE_STALE_MS &&
-                    angle_aligned && filtered_y10_valid &&
-                    labs(filtered_y10 - reference_y10) <= tolerance_y10 &&
-                    fabsf(last_right_edge_x -
-                          right_edge_target_x) <=
-                        right_edge_tolerance_x) {
-                    if (right_edge_stable_samples <
-                                    right_edge_stable_samples_required) {
-                        ++right_edge_stable_samples;
+                /* Center-line and angle were already confirmed before this
+                 * phase was entered.  The edge phase must advance from fresh
+                 * edge samples, rather than re-gating on a later center-line
+                 * sample or counting the same sample every control cycle. */
+                if (right_edge_measurement_valid &&
+                    (uint32_t)(now_ms - last_right_edge_measurement_ms) <=
+                        ROUTE_DISC_LINE_STALE_MS) {
+                    if (last_right_edge_measurement_ms !=
+                            right_edge_stable_last_measurement_ms) {
+                        right_edge_stable_last_measurement_ms =
+                            last_right_edge_measurement_ms;
+                        if (fabsf(last_right_edge_x - right_edge_target_x) <=
+                            right_edge_tolerance_x) {
+                            if (right_edge_stable_samples <
+                                right_edge_stable_samples_required) {
+                                ++right_edge_stable_samples;
+                            }
+                            {
+                                char stable_log[112];
+                                (void)snprintf(
+                                    stable_log, sizeof(stable_log),
+                                    "H7,VISION,WHITE_LINE,RIGHT_EDGE,STABLE=%lu/%lu,X=%.0f\r\n",
+                                    (unsigned long)right_edge_stable_samples,
+                                    (unsigned long)right_edge_stable_samples_required,
+                                    (double)last_right_edge_x);
+                                board_uart1_write_only(stable_log);
+                            }
+                        } else {
+                            right_edge_stable_samples = 0U;
+                        }
                     }
                 } else {
                     right_edge_stable_samples = 0U;
+                    right_edge_stable_last_measurement_ms = 0U;
                 }
 
                 if (right_edge_stable_samples >=
@@ -5045,7 +5097,17 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                 angle_stable_samples = 0U;
                 angle_aligned = false;
                 error_angle_deg = 0.0f;
-                if ((uint32_t)(now_ms - started_ms) < reverse_search_ms) {
+                if (phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT) {
+                    /* The fixed task-three approach has already completed.
+                     * Never enter the generic reverse/forward search here;
+                     * wait at the current point for a fresh measurement. */
+                    desired_forward_speed_m_s = 0.0f;
+                    commanded_forward_speed_m_s = 0.0f;
+                    g_command_speed_m_s = 0.0f;
+                    g_heading_correction_rad_s = 0.0f;
+                    g_cross_track_command_m_s = 0.0f;
+                    g_actual_cross_speed_m_s = 0.0f;
+                } else if ((uint32_t)(now_ms - started_ms) < reverse_search_ms) {
                     desired_forward_speed_m_s = -forward_speed_m_s;
                     if (!reverse_search_logged) {
                         char reverse_log[128];

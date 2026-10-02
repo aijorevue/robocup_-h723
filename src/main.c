@@ -1238,7 +1238,7 @@ route_start:
                 char blue_log[160];
 
                 /* Blue continues from the closed MG90S state with a short
-                 * forward move, then a gyro-closed-loop 180.7-degree turn. */
+                 * forward move, then a gyro-closed-loop 180.6-degree turn. */
                 g_run_state = RUN_FORWARD;
                 if (!route_controller_run_final_translation(
                         ROUTE_FORWARD_SIGN, 0.0f,
@@ -1258,7 +1258,7 @@ route_start:
                 g_run_state = RUN_TURN_RIGHT;
                 board_uart1_write(
                     "H7,ROUTE,TASK3,BLUE,POST_AUX_TURN,DIR=RIGHT,"
-                    "ANGLE=180.8deg,GYRO=ON\r\n");
+                    "ANGLE=180.6deg,GYRO=ON\r\n");
                 if (!route_controller_run_relative_turn(
                         ROUTE_RIGHT_TURN_SIGN * ROUTE_TASK3_BLUE_POST_AUX_TURN_RAD *
                         ROUTE_GYRO_TURN_SCALE)) {
@@ -1286,9 +1286,9 @@ route_start:
                     "H7,ROUTE,TASK3,BLUE,POST_AUX_TURN,GYRO_ALIGN,"
                     "DONE,TARGET=POST_AUX_TURN_FINAL\r\n");
 
-                /* After the gyro-closed 180.7-degree turn, move forward 100 mm
-                 * before lowering ID3.  This is a separate segment from the
-                 * existing 100 mm approach before the turn. */
+                /* After the gyro-closed 180.6-degree turn, move forward 70 mm
+                 * before lowering ID3. This is separate from the 90 mm
+                 * approach before the turn. */
                 g_run_state = RUN_FORWARD;
                 if (!route_controller_run_final_translation(
                         ROUTE_FORWARD_SIGN, 0.0f,
@@ -1303,7 +1303,7 @@ route_start:
                     enter_fault(g_fault_code);
                 }
                 board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,POST_AUX_TURN_FORWARD,DISTANCE=100mm\r\n");
+                    "H7,ROUTE,TASK3,BLUE,POST_AUX_TURN_FORWARD,DISTANCE=70mm\r\n");
 
                 /* Correct accumulated heading at the final ID3 approach so
                  * the actuator is lowered from the planned station pose. */
