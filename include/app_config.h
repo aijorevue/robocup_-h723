@@ -139,7 +139,7 @@
 #define ROUTE_DISC_LINE_TIMEOUT_MS 60000U
 #define ROUTE_DISC_LINE_REVERSE_SEARCH_MS 500U
 #define ROUTE_DISC_LINE_FALLBACK_FORWARD_M 0.000f
-#define ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M 0.057f
+#define ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M 0.054f
 #define ROUTE_DISC_LINE_BYPASS_FORWARD_M 0.0255f
 /* Standalone task-two starts at the task-two area, first translates laterally
  * to the platform line, then approaches the main-camera white-line reference
