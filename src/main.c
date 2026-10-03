@@ -679,15 +679,15 @@ route_start:
     }
 #else
     g_run_state = RUN_DIAGONAL_AFTER_PLATFORM;
-    /* Keep the full 0.93 m reverse component in both fields and combine it
+    /* Keep the full 0.935 m reverse component in both fields and combine it
      * with a mirrored 50 mm lateral component in one diagonal move. Use the
      * strict measured XY endpoint controller to prevent lateral drift. */
     board_uart1_write(
         field_profile.is_red != 0U
-            ? "H7,ROUTE,TASK2_TO_TASK3,FIELD=RED,BACKWARD=930mm,"
-              "LATERAL=RIGHT50mm,DISTANCE=931.343mm\r\n"
-            : "H7,ROUTE,TASK2_TO_TASK3,FIELD=BLUE,BACKWARD=930mm,"
-              "LATERAL=LEFT100mm,DISTANCE=935.356mm\r\n");
+            ? "H7,ROUTE,TASK2_TO_TASK3,FIELD=RED,BACKWARD=935mm,"
+              "LATERAL=RIGHT50mm,DISTANCE=936.336mm\r\n"
+            : "H7,ROUTE,TASK2_TO_TASK3,FIELD=BLUE,BACKWARD=935mm,"
+              "LATERAL=LEFT100mm,DISTANCE=940.332mm\r\n");
     if (!route_controller_run_task2_to_task3_translation(
             -ROUTE_FORWARD_SIGN * ROUTE_AFTER_PLATFORM_REVERSE_COMPONENT_M,
             -field_profile.strafe_sign *
