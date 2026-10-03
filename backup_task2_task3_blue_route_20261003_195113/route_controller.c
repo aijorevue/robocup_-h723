@@ -6446,13 +6446,17 @@ bool route_controller_run_task2_test(uint32_t sequence, const char *letter1,
  * camera white-line alignment, and the calibrated approach to station one. */
 bool route_controller_run_task2_platform_entry(void)
 {
-    const float lateral_sign = ROUTE_RIGHT_STRAFE_SIGN;
+    const float lateral_sign = g_route_field_is_red != 0U
+                                   ? -ROUTE_RIGHT_STRAFE_SIGN
+                                   : ROUTE_RIGHT_STRAFE_SIGN;
     bool moved;
 
-    g_run_state = RUN_PLATFORM_SHIFT_RIGHT;
+    g_run_state = g_route_field_is_red != 0U
+                      ? RUN_PLATFORM_SHIFT_LEFT
+                      : RUN_PLATFORM_SHIFT_RIGHT;
     board_uart1_write(
         g_route_field_is_red != 0U
-            ? "H7,ROUTE,TASK2_INITIAL_SHIFT,RIGHT=370mm,MODE=TASK2_WHITE_LINE\r\n"
+            ? "H7,ROUTE,TASK2_INITIAL_SHIFT,LEFT=370mm,MODE=TASK2_WHITE_LINE\r\n"
             : "H7,ROUTE,TASK2_INITIAL_SHIFT,RIGHT=370mm,MODE=TASK2_WHITE_LINE\r\n");
     moved = run_translation_profile(
         0.0f, lateral_sign, ROUTE_TASK2_TEST_INITIAL_LATERAL_M,
@@ -6575,7 +6579,7 @@ bool route_controller_run_task3_blue_white_line(void)
     bool moved;
     g_run_state = RUN_FORWARD;
     board_uart1_write(
-        "H7,ROUTE,TASK3,BLUE,WHITE_LINE_APPROACH,FORWARD=640mm\r\n");
+        "H7,ROUTE,TASK3,BLUE,WHITE_LINE_APPROACH,FORWARD=650mm\r\n");
     moved = run_translation_profile_with_turn(
         ROUTE_FORWARD_SIGN, 0.0f,
         ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_FORWARD_DISTANCE_M,
