@@ -6434,7 +6434,7 @@ bool route_controller_run_task3_blue_white_line(void)
     bool moved;
     g_run_state = RUN_FORWARD;
     board_uart1_write(
-        "H7,ROUTE,TASK3,BLUE,WHITE_LINE_APPROACH,FORWARD=600mm\r\n");
+        "H7,ROUTE,TASK3,BLUE,WHITE_LINE_APPROACH,FORWARD=650mm\r\n");
     moved = run_translation_profile_with_turn(
         ROUTE_FORWARD_SIGN, 0.0f,
         ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_FORWARD_DISTANCE_M,
