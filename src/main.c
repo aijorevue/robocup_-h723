@@ -384,13 +384,12 @@ route_start:
         g_run_state = RUN_DISC_FINAL_APPROACH;
             if (ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M > 0.0f) {
             board_uart1_write(
-                "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=57mm,"
-                "SPEED=0.05m/s\r\n");
-            if (!route_controller_run_translation_profile(
+                "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=54mm,"
+                "SPEED=0.05m/s,PROFILE=FIXED\r\n");
+            if (!route_controller_run_translation_fixed_speed(
                     ROUTE_FORWARD_SIGN, 0.0f,
                     ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M,
-                    ROUTE_DISC_LINE_FORWARD_SPEED_M_S,
-                    ROUTE_DISC_LINE_ACCEL_M_S2)) {
+                    ROUTE_DISC_LINE_FORWARD_SPEED_M_S)) {
                 enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
             }
         } else {
@@ -1397,43 +1396,30 @@ route_start:
                 }
 
                 g_run_state = RUN_PLATFORM_SHIFT_RIGHT;
-                if (!route_controller_run_final_translation(
-                        0.0f, ROUTE_RIGHT_STRAFE_SIGN,
-                        ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_BLUE_M,
-                        ROUTE_TRANSLATION_SPEED_M_S,
-                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
-                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
-                                                            : g_fault_code);
-                }
-                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-                if (g_run_state == RUN_FAULT) {
-                    enter_fault(g_fault_code);
-                }
                 (void)snprintf(
                     blue_log, sizeof(blue_log),
-                    "H7,ROUTE,TASK3,POST_ROUTE_FINAL_SHIFT,FIELD=BLUE,"
-                    "DIR=RIGHT,DISTANCE=%umm\r\n",
+                    "H7,ROUTE,TASK3,BLUE,POST_ROUTE_FINAL_PATH,"
+                    "START,PATH=CUBIC_BEZIER,SHIFT_MM=%u,REVERSE_MM=%u\r\n",
                     (unsigned)(ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_BLUE_M *
+                               1000.0f + 0.5f),
+                    (unsigned)(ROUTE_TASK3_POST_FINAL_REVERSE_DISTANCE_BLUE_M *
                                1000.0f + 0.5f));
                 board_uart1_write(blue_log);
-
-                g_run_state = RUN_FINAL_REVERSE;
-                if (!route_controller_run_final_translation(
-                        -ROUTE_FORWARD_SIGN, 0.0f,
-                        ROUTE_TASK3_POST_FINAL_REVERSE_DISTANCE_BLUE_M,
-                        ROUTE_TRANSLATION_SPEED_M_S,
-                        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+                if (!route_controller_run_task3_blue_final_bezier()) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
                                                             : g_fault_code);
                 }
+                g_run_state = RUN_FINAL_REVERSE;
                 route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
                 if (g_run_state == RUN_FAULT) {
                     enter_fault(g_fault_code);
                 }
                 (void)snprintf(
                     blue_log, sizeof(blue_log),
-                    "H7,ROUTE,TASK3,POST_ROUTE_FINAL_REVERSE,FIELD=BLUE,"
-                    "DISTANCE=%umm\r\n",
+                    "H7,ROUTE,TASK3,BLUE,POST_ROUTE_FINAL_PATH,DONE,"
+                    "PATH=CUBIC_BEZIER,SHIFT=%umm,REVERSE=%umm\r\n",
+                    (unsigned)(ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_BLUE_M *
+                               1000.0f + 0.5f),
                     (unsigned)(ROUTE_TASK3_POST_FINAL_REVERSE_DISTANCE_BLUE_M *
                                1000.0f + 0.5f));
                 board_uart1_write(blue_log);

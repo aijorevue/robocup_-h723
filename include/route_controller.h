@@ -135,6 +135,11 @@ bool route_controller_run_timed_forward(float speed_m_s,
 bool route_controller_run_translation(float vx_direction,
                                       float vy_direction,
                                       float target_distance_m);
+/* Fixed speed setpoint with odometry endpoint correction and settling. */
+bool route_controller_run_translation_fixed_speed(float vx_direction,
+                                                   float vy_direction,
+                                                   float target_distance_m,
+                                                   float speed_m_s);
 bool route_controller_run_translation_with_turn(float vx_direction,
                                                 float vy_direction,
                                                 float target_distance_m,
@@ -150,6 +155,8 @@ bool route_controller_run_task2_entry_translation_with_turn(
     float maximum_speed_m_s,
     float acceleration_m_s2,
     float heading_delta_rad);
+/* BLUE formal task-three final lateral/reverse route as one cubic Bezier. */
+bool route_controller_run_task3_blue_final_bezier(void);
 bool route_controller_run_disc_arc_entry(float lateral_sign,
                                          float turn_sign);
 bool route_controller_run_disc_visual_alignment(void);

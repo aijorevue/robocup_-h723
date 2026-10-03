@@ -2995,6 +2995,74 @@ static bool task2_entry_bezier_build(task2_entry_bezier_t *path,
     return path->total_m > endpoint_distance_m && path->total_m > 0.001f;
 }
 
+static bool task3_blue_final_bezier_build(task2_entry_bezier_t *path,
+                                          float vx_direction,
+                                          float vy_direction,
+                                          float endpoint_distance_m)
+{
+    const float direction_norm = sqrtf(vx_direction * vx_direction +
+                                       vy_direction * vy_direction);
+    float cubic_p1_x;
+    float cubic_p1_y;
+    float cubic_p2_x;
+    float cubic_p2_y;
+    float endpoint_x;
+    float endpoint_y;
+    float previous_x = 0.0f;
+    float previous_y = 0.0f;
+    uint32_t i;
+
+    if (direction_norm < 0.001f || endpoint_distance_m <= 0.0f) {
+        return false;
+    }
+
+    endpoint_x = endpoint_distance_m * vx_direction / direction_norm;
+    endpoint_y = endpoint_distance_m * vy_direction / direction_norm;
+    /* The cubic starts tangent to the lateral leg and ends tangent to the
+     * reverse leg. Degree-elevate it to the shared six-point representation
+     * so the established 96-sample route follower can be reused unchanged. */
+    cubic_p1_x = 0.0f;
+    cubic_p1_y = endpoint_y *
+        ROUTE_TASK3_BLUE_FINAL_BEZIER_START_LATERAL_HANDLE_RATIO;
+    cubic_p2_x = endpoint_x *
+        ROUTE_TASK3_BLUE_FINAL_BEZIER_END_REVERSE_HANDLE_RATIO;
+    cubic_p2_y = endpoint_y;
+
+    path->point[0][0] = 0.0f;
+    path->point[0][1] = 0.0f;
+    path->point[1][0] = 0.6f * cubic_p1_x;
+    path->point[1][1] = 0.6f * cubic_p1_y;
+    path->point[2][0] = 0.6f * cubic_p1_x + 0.3f * cubic_p2_x;
+    path->point[2][1] = 0.6f * cubic_p1_y + 0.3f * cubic_p2_y;
+    path->point[3][0] = 0.3f * cubic_p1_x + 0.6f * cubic_p2_x +
+                        0.1f * endpoint_x;
+    path->point[3][1] = 0.3f * cubic_p1_y + 0.6f * cubic_p2_y +
+                        0.1f * endpoint_y;
+    path->point[4][0] = 0.6f * cubic_p2_x + 0.4f * endpoint_x;
+    path->point[4][1] = 0.6f * cubic_p2_y + 0.4f * endpoint_y;
+    path->point[5][0] = endpoint_x;
+    path->point[5][1] = endpoint_y;
+
+    path->cumulative_m[0] = 0.0f;
+    for (i = 1U; i <= ROUTE_TASK2_ENTRY_BEZIER_LENGTH_SAMPLES; ++i) {
+        float x;
+        float y;
+        float dx;
+        float dy;
+        const float u = (float)i /
+                        (float)ROUTE_TASK2_ENTRY_BEZIER_LENGTH_SAMPLES;
+
+        task2_entry_bezier_eval(path, u, &x, &y, &dx, &dy);
+        path->cumulative_m[i] = path->cumulative_m[i - 1U] +
+            sqrtf((x - previous_x) * (x - previous_x) +
+                  (y - previous_y) * (y - previous_y));
+        previous_x = x;
+        previous_y = y;
+    }
+    path->total_m = path->cumulative_m[ROUTE_TASK2_ENTRY_BEZIER_LENGTH_SAMPLES];
+    return path->total_m > endpoint_distance_m && path->total_m > 0.001f;
+}
+
 static float task2_entry_bezier_u_at_distance(
     const task2_entry_bezier_t *path, float distance_m)
 {
@@ -3020,12 +3088,13 @@ static float task2_entry_bezier_u_at_distance(
     return 1.0f;
 }
 
-static bool run_task2_entry_bezier(float vx_direction,
-                                   float vy_direction,
-                                   float endpoint_distance_m,
-                                   float maximum_speed_m_s,
-                                   float acceleration_m_s2,
-                                   float heading_delta_rad)
+static bool run_route_bezier_with_turn(float vx_direction,
+                                       float vy_direction,
+                                       float endpoint_distance_m,
+                                       float maximum_speed_m_s,
+                                       float acceleration_m_s2,
+                                       float heading_delta_rad,
+                                       bool task3_blue_final_curve)
 {
     task2_entry_bezier_t path;
     float wheel_speed[4] = {0.0f};
@@ -3050,16 +3119,22 @@ static bool run_task2_entry_bezier(float vx_direction,
     uint32_t settled_since_ms = 0U;
     bool first_feedback_cycle = true;
 
+    const bool path_built = task3_blue_final_curve
+        ? task3_blue_final_bezier_build(&path, vx_direction, vy_direction,
+                                        endpoint_distance_m)
+        : task2_entry_bezier_build(&path, vx_direction, vy_direction,
+                                   endpoint_distance_m);
+
     if (endpoint_distance_m <= 0.0f || maximum_speed_m_s <= 0.0f ||
-        acceleration_m_s2 <= 0.0f ||
-        !task2_entry_bezier_build(&path, vx_direction, vy_direction,
-                                  endpoint_distance_m)) {
+        acceleration_m_s2 <= 0.0f || !path_built) {
         g_fault_code = FAULT_KINEMATICS;
         return false;
     }
-    board_uart1_write(
-        "H7,ROUTE,TASK2_DIAGONAL,PATH=6_POINT_BEZIER,"
-        "CLOSED_LOOP=XY_HEADING_ENDPOINT\r\n");
+    board_uart1_write(task3_blue_final_curve
+        ? "H7,ROUTE,TASK3,BLUE,POST_ROUTE_FINAL_PATH,PATH=CUBIC_BEZIER,"
+          "CLOSED_LOOP=XY_ENDPOINT\r\n"
+        : "H7,ROUTE,TASK2_DIAGONAL,PATH=6_POINT_BEZIER,"
+          "CLOSED_LOOP=XY_HEADING_ENDPOINT\r\n");
     g_command_speed_m_s = 0.0f;
     g_heading_correction_rad_s = 0.0f;
     g_cross_track_m = 0.0f;
@@ -3364,8 +3439,9 @@ static bool run_task2_entry_bezier(float vx_direction,
     }
     g_command_speed_m_s = 0.0f;
     g_route_heading_target_rad = final_heading_target_rad;
-    board_uart1_write(
-        "H7,ROUTE,TASK2_DIAGONAL,BEZIER_ENDPOINT,DONE\r\n");
+    board_uart1_write(task3_blue_final_curve
+        ? "H7,ROUTE,TASK3,BLUE,POST_ROUTE_FINAL_PATH,BEZIER_ENDPOINT,DONE\r\n"
+        : "H7,ROUTE,TASK2_DIAGONAL,BEZIER_ENDPOINT,DONE\r\n");
     return route_motor_send_zero_all();
 }
 
@@ -3375,7 +3451,8 @@ static bool run_translation_profile_with_turn(float vx_direction,
                                               float maximum_speed_m_s,
                                               float acceleration_m_s2,
                                               float heading_delta_rad,
-                                              bool precise_endpoint)
+                                              bool precise_endpoint,
+                                              bool fixed_speed)
 {
     float wheel_speed[4] = {0.0f};
     float measured_wheel_speed[4] = {0.0f};
@@ -3436,7 +3513,7 @@ static bool run_translation_profile_with_turn(float vx_direction,
 
     if (direction_norm < 0.001f || target_distance_m <= 0.0f ||
         maximum_speed_m_s <= 0.0f ||
-        acceleration_m_s2 <= 0.0f) {
+        (!fixed_speed && acceleration_m_s2 <= 0.0f)) {
         g_fault_code = FAULT_KINEMATICS;
         return false;
     }
@@ -3572,24 +3649,37 @@ static bool run_translation_profile_with_turn(float vx_direction,
         }
         remaining = feedback_remaining < command_remaining ?
                     feedback_remaining : command_remaining;
-        stopping_speed = sqrtf(2.0f * acceleration_m_s2 * remaining);
-        desired_speed = stopping_speed < maximum_speed_m_s ?
-                        stopping_speed : maximum_speed_m_s;
-        max_delta = acceleration_m_s2 * dt;
-        if (profile_speed_m_s < desired_speed) {
-            profile_speed_m_s += max_delta;
-            if (profile_speed_m_s > desired_speed) {
-                profile_speed_m_s = desired_speed;
-            }
-        } else {
-            profile_speed_m_s -= max_delta;
-            if (profile_speed_m_s < desired_speed) {
-                profile_speed_m_s = desired_speed;
-            }
-        }
-        commanded_distance_m += profile_speed_m_s * dt;
-        if (commanded_distance_m > target_distance_m) {
+        if (fixed_speed) {
+            /* Hold the requested speed until measured travel enters the
+             * position tolerance. The existing odometry correction then
+             * settles at the endpoint and stops the chassis without a
+             * commanded acceleration ramp. */
             commanded_distance_m = target_distance_m;
+            profile_speed_m_s = feedback_remaining >
+                                        ODOM_ALONG_POSITION_TOLERANCE_M
+                                    ? maximum_speed_m_s
+                                    : 0.0f;
+            max_delta = 0.0f;
+        } else {
+            stopping_speed = sqrtf(2.0f * acceleration_m_s2 * remaining);
+            desired_speed = stopping_speed < maximum_speed_m_s ?
+                            stopping_speed : maximum_speed_m_s;
+            max_delta = acceleration_m_s2 * dt;
+            if (profile_speed_m_s < desired_speed) {
+                profile_speed_m_s += max_delta;
+                if (profile_speed_m_s > desired_speed) {
+                    profile_speed_m_s = desired_speed;
+                }
+            } else {
+                profile_speed_m_s -= max_delta;
+                if (profile_speed_m_s < desired_speed) {
+                    profile_speed_m_s = desired_speed;
+                }
+            }
+            commanded_distance_m += profile_speed_m_s * dt;
+            if (commanded_distance_m > target_distance_m) {
+                commanded_distance_m = target_distance_m;
+            }
         }
 
         heading_rate_feedforward_rad_s = 0.0f;
@@ -3850,7 +3940,7 @@ static bool run_translation_profile(float vx_direction, float vy_direction,
 {
     return run_translation_profile_with_turn(
         vx_direction, vy_direction, target_distance_m, maximum_speed_m_s,
-        acceleration_m_s2, 0.0f, false);
+        acceleration_m_s2, 0.0f, false, false);
 }
 
 #define DISC_ARC_LENGTH_SAMPLES 64U
@@ -5941,7 +6031,7 @@ bool route_controller_wait_for_task2_test_next(uint32_t sequence)
 static bool run_disc_visual_alignment(void)
 {
     return run_disc_visual_alignment_at_speed(
-        ROUTE_DISC_LINE_SEARCH_SPEED_M_S,
+        ROUTE_DISC_LINE_CONTROL_SPEED_M_S,
         ROUTE_DISC_LINE_REFERENCE_Y10,
         ROUTE_DISC_LINE_REFERENCE_TOLERANCE_Y10,
         ROUTE_DISC_LINE_ACCEL_M_S2,
@@ -6107,7 +6197,7 @@ bool route_controller_run_final_translation(float vx_direction,
 {
     return run_translation_profile_with_turn(
         vx_direction, vy_direction, target_distance_m, maximum_speed_m_s,
-        acceleration_m_s2, 0.0f, true);
+        acceleration_m_s2, 0.0f, true, false);
 }
 
 bool route_controller_run_task2_to_task3_translation(
@@ -6118,7 +6208,7 @@ bool route_controller_run_task2_to_task3_translation(
     return run_translation_profile_with_turn(
         vx_direction, vy_direction, target_distance_m,
         ROUTE_TRANSLATION_SPEED_M_S, ROUTE_TRANSLATION_ACCEL_M_S2,
-        0.0f, true);
+        0.0f, true, false);
 }
 
 bool route_controller_run_task2_exit_white_line_calibration(
@@ -6139,6 +6229,16 @@ bool route_controller_run_translation(float vx_direction, float vy_direction,
     return run_translation(vx_direction, vy_direction, target_distance_m);
 }
 
+bool route_controller_run_translation_fixed_speed(float vx_direction,
+                                                   float vy_direction,
+                                                   float target_distance_m,
+                                                   float speed_m_s)
+{
+    return run_translation_profile_with_turn(
+        vx_direction, vy_direction, target_distance_m, speed_m_s, 0.0f,
+        0.0f, false, true);
+}
+
 bool route_controller_run_translation_with_turn(float vx_direction,
                                                 float vy_direction,
                                                 float target_distance_m,
@@ -6148,7 +6248,7 @@ bool route_controller_run_translation_with_turn(float vx_direction,
 {
     return run_translation_profile_with_turn(
         vx_direction, vy_direction, target_distance_m, maximum_speed_m_s,
-        acceleration_m_s2, heading_delta_rad, false);
+        acceleration_m_s2, heading_delta_rad, false, false);
 }
 
 bool route_controller_run_task2_entry_translation_with_turn(
@@ -6159,9 +6259,33 @@ bool route_controller_run_task2_entry_translation_with_turn(
     float acceleration_m_s2,
     float heading_delta_rad)
 {
-    return run_task2_entry_bezier(
+    return run_route_bezier_with_turn(
         vx_direction, vy_direction, target_distance_m, maximum_speed_m_s,
-        acceleration_m_s2, heading_delta_rad);
+        acceleration_m_s2, heading_delta_rad, false);
+}
+
+bool route_controller_run_task3_blue_final_bezier(void)
+{
+    const float reverse_component_m =
+        -ROUTE_FORWARD_SIGN * ROUTE_TASK3_POST_FINAL_REVERSE_DISTANCE_BLUE_M;
+    const float lateral_component_m =
+        ROUTE_RIGHT_STRAFE_SIGN * ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_BLUE_M;
+    const float endpoint_distance_m = sqrtf(
+        reverse_component_m * reverse_component_m +
+        lateral_component_m * lateral_component_m);
+
+    if (endpoint_distance_m <= 0.001f) {
+        g_fault_code = FAULT_KINEMATICS;
+        return false;
+    }
+    return run_route_bezier_with_turn(
+        reverse_component_m / endpoint_distance_m,
+        lateral_component_m / endpoint_distance_m,
+        endpoint_distance_m,
+        ROUTE_TRANSLATION_SPEED_M_S,
+        ROUTE_TRANSLATION_ACCEL_M_S2,
+        0.0f,
+        true);
 }
 
 bool route_controller_run_task2_test(uint32_t sequence, const char *letter1,
@@ -6454,7 +6578,8 @@ bool route_controller_run_task3_blue_white_line(void)
     moved = run_translation_profile_with_turn(
         ROUTE_FORWARD_SIGN, 0.0f,
         ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_FORWARD_DISTANCE_M,
-        ROUTE_TRANSLATION_SPEED_M_S, ROUTE_TRANSLATION_ACCEL_M_S2, 0.0f, true);
+        ROUTE_TRANSLATION_SPEED_M_S, ROUTE_TRANSLATION_ACCEL_M_S2, 0.0f,
+        true, false);
     if (!moved) {
         return false;
     }

@@ -123,11 +123,11 @@
 #define ROUTE_DISC_LINE_REFERENCE_TOLERANCE_Y10 100L
 #define ROUTE_DISC_LINE_REFERENCE_A100 0
 #define ROUTE_DISC_LINE_FORWARD_SPEED_M_S 0.050f
-#define ROUTE_DISC_LINE_SEARCH_SPEED_M_S 0.050f
+#define ROUTE_DISC_LINE_CONTROL_SPEED_M_S 0.030f
 /* Formal task-one arc exit: search forward faster while no fresh white-line
- * measurement exists, then fall back to ROUTE_DISC_LINE_FORWARD_SPEED_M_S
- * as soon as a valid line sample is accepted. */
-#define ROUTE_TASK1_DISC_LINE_SEARCH_SPEED_M_S 0.080f
+ * measurement exists; after the first valid sample, line feedback is limited
+ * to ROUTE_DISC_LINE_CONTROL_SPEED_M_S. */
+#define ROUTE_TASK1_DISC_LINE_SEARCH_SPEED_M_S 0.060f
 #define ROUTE_DISC_LINE_ACCEL_M_S2 0.100f
 #define ROUTE_DISC_LINE_ANGLE_DEADBAND_DEG 1.5f
 #define ROUTE_DISC_LINE_ANGLE_ALIGN_TOLERANCE_DEG 2.5f
@@ -188,6 +188,10 @@
 #define ROUTE_TASK2_ENTRY_BEZIER_CROSS_KD 0.30f
 #define ROUTE_TASK2_ENTRY_BEZIER_MAX_CROSS_SPEED_M_S 0.22f
 #define ROUTE_TASK2_ENTRY_BEZIER_ENDPOINT_CAPTURE_U 0.88f
+/* BLUE task-three final tail: one cubic Bezier curves from the lateral leg
+ * into the reverse leg while preserving both endpoint displacement values. */
+#define ROUTE_TASK3_BLUE_FINAL_BEZIER_START_LATERAL_HANDLE_RATIO 0.50f
+#define ROUTE_TASK3_BLUE_FINAL_BEZIER_END_REVERSE_HANDLE_RATIO 0.50f
 #define ROUTE_AFTER_PLATFORM_REVERSE_COMPONENT_M 0.935f
 #define ROUTE_AFTER_PLATFORM_MIRRORED_LATERAL_COMPONENT_M 0.050f
 #define ROUTE_AFTER_PLATFORM_BLUE_LATERAL_COMPONENT_M 0.100f
