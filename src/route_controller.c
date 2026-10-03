@@ -4517,6 +4517,10 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
         phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
             ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_MAX_LATERAL_SPEED_M_S
             : ROUTE_TASK2_FORMAL_WHITE_LINE_MAX_LATERAL_SPEED_M_S;
+    const float no_line_search_speed_m_s =
+        phase == ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC
+            ? ROUTE_TASK1_DISC_LINE_SEARCH_SPEED_M_S
+            : forward_speed_m_s;
 
     /* Only task-one post-arc and task-two post-secondary-shift entry may
      * emit white-line queries. Keep the restriction beside the emitter. */
@@ -4887,9 +4891,11 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
         last_control_ms = now_ms;
         {
             float dt = (float)(now_ms - previous_ms) * 0.001f;
-            /* Before a line is acquired, search backward for the configured
-             * duration, then search forward. Once acquired, only a fresh line result
-             * is allowed to select the signed correction direction. */
+            /* Before a line is acquired, task one searches forward at its
+             * dedicated higher search speed. Once acquired, only a fresh line
+             * result is allowed to select the signed correction direction, using
+             * the normal forward speed. Other white-line phases retain their
+             * caller-provided speed. */
             float desired_forward_speed_m_s = 0.0f;
             float command_vx_m_s;
             float command_vy_m_s = 0.0f;
@@ -5118,7 +5124,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                     g_cross_track_command_m_s = 0.0f;
                     g_actual_cross_speed_m_s = 0.0f;
                 } else if ((uint32_t)(now_ms - started_ms) < reverse_search_ms) {
-                    desired_forward_speed_m_s = -forward_speed_m_s;
+                    desired_forward_speed_m_s = -no_line_search_speed_m_s;
                     if (!reverse_search_logged) {
                         char reverse_log[128];
 
@@ -5126,12 +5132,12 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                         (void)snprintf(
                             reverse_log, sizeof(reverse_log),
                             "H7,VISION,WHITE_LINE,SEARCH,DIR=REVERSE,SPEED=%.2f,T=%lums\r\n",
-                            (double)forward_speed_m_s,
+                            (double)no_line_search_speed_m_s,
                             (unsigned long)reverse_search_ms);
                         board_uart1_write_only(reverse_log);
                     }
                 } else {
-                    desired_forward_speed_m_s = forward_speed_m_s;
+                    desired_forward_speed_m_s = no_line_search_speed_m_s;
                     if (!forward_search_logged) {
                         forward_search_logged = true;
                         char forward_log[128];
