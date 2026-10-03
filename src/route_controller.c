@@ -1563,7 +1563,7 @@ static bool line_matches_token_prefix(const char *line, const char *prefix)
     return line[prefix_length] == '\0' || line[prefix_length] == ',';
 }
 
-/* PA0/TIM2_CH1 is a local H7 PWM output. Accept manual commands only while
+/* Local H7 PWM outputs accept manual commands only while
  * the chassis is idle or waiting in fault state; the autonomous route never
  * grants this command path control of the servo. */
 static bool handle_local_mg90s_command(const char *line)
@@ -1600,7 +1600,8 @@ static bool handle_local_mg90s_command(const char *line)
     servo_index = strtoul(tokens[3], &index_end, 10);
     if (*tokens[3] == '\0' || *index_end != '\0' ||
         (servo_index != SERVO_MG90S_PA0_INDEX &&
-         servo_index != SERVO_MG90S_PA2_INDEX)) {
+         servo_index != SERVO_MG90S_PA2_INDEX &&
+         servo_index != SERVO_MG90S_PE9_INDEX)) {
         board_usb_write("H7,LOCAL_SERVO,ERR,REASON,SERVO_INDEX\r\n");
         board_uart1_write_only("H7,LOCAL_SERVO,ERR,REASON,SERVO_INDEX\r\n");
         return true;
