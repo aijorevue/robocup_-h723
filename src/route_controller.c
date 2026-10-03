@@ -2888,7 +2888,7 @@ static bool settle_translation_cross_track(float along_x, float along_y,
 }
 
 typedef struct {
-    float point[7][2];
+    float point[ROUTE_TASK2_ENTRY_BEZIER_POINT_COUNT][2];
     float cumulative_m[ROUTE_TASK2_ENTRY_BEZIER_LENGTH_SAMPLES + 1U];
     float total_m;
 } task2_entry_bezier_t;
@@ -2897,28 +2897,30 @@ static void task2_entry_bezier_eval(const task2_entry_bezier_t *path,
                                    float u, float *x, float *y,
                                    float *dx, float *dy)
 {
-    float work[7][2];
-    float derivative[6][2];
+    float work[ROUTE_TASK2_ENTRY_BEZIER_POINT_COUNT][2];
+    float derivative[ROUTE_TASK2_ENTRY_BEZIER_CONTROL_COUNT][2];
     uint32_t i;
     uint32_t level;
 
-    for (i = 0U; i < 7U; ++i) {
+    for (i = 0U; i < ROUTE_TASK2_ENTRY_BEZIER_POINT_COUNT; ++i) {
         work[i][0] = path->point[i][0];
         work[i][1] = path->point[i][1];
     }
-    for (i = 0U; i < 6U; ++i) {
-        derivative[i][0] = 6.0f *
+    for (i = 0U; i < ROUTE_TASK2_ENTRY_BEZIER_CONTROL_COUNT; ++i) {
+        derivative[i][0] = (float)(ROUTE_TASK2_ENTRY_BEZIER_POINT_COUNT - 1U) *
             (path->point[i + 1U][0] - path->point[i][0]);
-        derivative[i][1] = 6.0f *
+        derivative[i][1] = (float)(ROUTE_TASK2_ENTRY_BEZIER_POINT_COUNT - 1U) *
             (path->point[i + 1U][1] - path->point[i][1]);
     }
-    for (level = 6U; level > 0U; --level) {
+    for (level = ROUTE_TASK2_ENTRY_BEZIER_POINT_COUNT - 1U;
+         level > 0U; --level) {
         for (i = 0U; i < level; ++i) {
             work[i][0] = (1.0f - u) * work[i][0] + u * work[i + 1U][0];
             work[i][1] = (1.0f - u) * work[i][1] + u * work[i + 1U][1];
         }
     }
-    for (level = 5U; level > 0U; --level) {
+    for (level = ROUTE_TASK2_ENTRY_BEZIER_CONTROL_COUNT - 1U;
+         level > 0U; --level) {
         for (i = 0U; i < level; ++i) {
             derivative[i][0] = (1.0f - u) * derivative[i][0] +
                                u * derivative[i + 1U][0];
@@ -2937,19 +2939,17 @@ static bool task2_entry_bezier_build(task2_entry_bezier_t *path,
                                      float vy_direction,
                                      float endpoint_distance_m)
 {
-    static const float control_u[5] = {
+    static const float control_u[ROUTE_TASK2_ENTRY_BEZIER_CONTROL_COUNT] = {
         ROUTE_TASK2_ENTRY_BEZIER_CONTROL1_U,
         ROUTE_TASK2_ENTRY_BEZIER_CONTROL2_U,
         ROUTE_TASK2_ENTRY_BEZIER_CONTROL3_U,
-        ROUTE_TASK2_ENTRY_BEZIER_CONTROL4_U,
-        ROUTE_TASK2_ENTRY_BEZIER_CONTROL5_U
+        ROUTE_TASK2_ENTRY_BEZIER_CONTROL4_U
     };
-    static const float control_offset_m[5] = {
+    static const float control_offset_m[ROUTE_TASK2_ENTRY_BEZIER_CONTROL_COUNT] = {
         ROUTE_TASK2_ENTRY_BEZIER_CONTROL1_OFFSET_M,
         ROUTE_TASK2_ENTRY_BEZIER_CONTROL2_OFFSET_M,
         ROUTE_TASK2_ENTRY_BEZIER_CONTROL3_OFFSET_M,
-        ROUTE_TASK2_ENTRY_BEZIER_CONTROL4_OFFSET_M,
-        ROUTE_TASK2_ENTRY_BEZIER_CONTROL5_OFFSET_M
+        ROUTE_TASK2_ENTRY_BEZIER_CONTROL4_OFFSET_M
     };
     const float direction_norm = sqrtf(vx_direction * vx_direction +
                                        vy_direction * vy_direction);
@@ -2963,7 +2963,7 @@ static bool task2_entry_bezier_build(task2_entry_bezier_t *path,
 
     path->point[0][0] = 0.0f;
     path->point[0][1] = 0.0f;
-    for (i = 0U; i < 5U; ++i) {
+    for (i = 0U; i < ROUTE_TASK2_ENTRY_BEZIER_CONTROL_COUNT; ++i) {
         path->point[i + 1U][0] =
             endpoint_distance_m * control_u[i] * along_x +
             control_offset_m[i] * normal_x;
@@ -2971,8 +2971,10 @@ static bool task2_entry_bezier_build(task2_entry_bezier_t *path,
             endpoint_distance_m * control_u[i] * along_y +
             control_offset_m[i] * normal_y;
     }
-    path->point[6][0] = endpoint_distance_m * along_x;
-    path->point[6][1] = endpoint_distance_m * along_y;
+    path->point[ROUTE_TASK2_ENTRY_BEZIER_POINT_COUNT - 1U][0] =
+        endpoint_distance_m * along_x;
+    path->point[ROUTE_TASK2_ENTRY_BEZIER_POINT_COUNT - 1U][1] =
+        endpoint_distance_m * along_y;
     path->cumulative_m[0] = 0.0f;
     for (i = 1U; i <= ROUTE_TASK2_ENTRY_BEZIER_LENGTH_SAMPLES; ++i) {
         float x;
@@ -3056,7 +3058,7 @@ static bool run_task2_entry_bezier(float vx_direction,
         return false;
     }
     board_uart1_write(
-        "H7,ROUTE,TASK2_DIAGONAL,PATH=7_POINT_BEZIER,"
+        "H7,ROUTE,TASK2_DIAGONAL,PATH=6_POINT_BEZIER,"
         "CLOSED_LOOP=XY_HEADING_ENDPOINT\r\n");
     g_command_speed_m_s = 0.0f;
     g_heading_correction_rad_s = 0.0f;
@@ -3242,8 +3244,12 @@ static bool run_task2_entry_bezier(float vx_direction,
         endpoint_capture_active = heading_progress >=
             ROUTE_TASK2_ENTRY_BEZIER_ENDPOINT_CAPTURE_U;
         if (endpoint_capture_active) {
-            endpoint_error_x_m = path.point[6][0] - route_x_m;
-            endpoint_error_y_m = path.point[6][1] - route_y_m;
+            endpoint_error_x_m =
+                path.point[ROUTE_TASK2_ENTRY_BEZIER_POINT_COUNT - 1U][0] -
+                route_x_m;
+            endpoint_error_y_m =
+                path.point[ROUTE_TASK2_ENTRY_BEZIER_POINT_COUNT - 1U][1] -
+                route_y_m;
             endpoint_distance_error_m = sqrtf(
                 endpoint_error_x_m * endpoint_error_x_m +
                 endpoint_error_y_m * endpoint_error_y_m);
@@ -3255,8 +3261,12 @@ static bool run_task2_entry_bezier(float vx_direction,
                     ROUTE_TASK2_ENTRY_ENDPOINT_KP * endpoint_error_y_m;
             }
         } else {
-            endpoint_error_x_m = path.point[6][0] - route_x_m;
-            endpoint_error_y_m = path.point[6][1] - route_y_m;
+            endpoint_error_x_m =
+                path.point[ROUTE_TASK2_ENTRY_BEZIER_POINT_COUNT - 1U][0] -
+                route_x_m;
+            endpoint_error_y_m =
+                path.point[ROUTE_TASK2_ENTRY_BEZIER_POINT_COUNT - 1U][1] -
+                route_y_m;
             endpoint_distance_error_m = sqrtf(
                 endpoint_error_x_m * endpoint_error_x_m +
                 endpoint_error_y_m * endpoint_error_y_m);
