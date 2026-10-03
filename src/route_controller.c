@@ -4604,6 +4604,10 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
         phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
             ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_LATERAL_KP_M_S_PER_PX
             : ROUTE_TASK2_FORMAL_WHITE_LINE_LATERAL_KP_M_S_PER_PX;
+    const float angle_align_tolerance_deg =
+        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+            ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_ANGLE_ALIGN_TOLERANCE_DEG
+            : ROUTE_DISC_LINE_ANGLE_ALIGN_TOLERANCE_DEG;
     const float right_edge_max_lateral_speed =
         phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
             ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_MAX_LATERAL_SPEED_M_S
@@ -4814,7 +4818,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                 task3_edge_recovery_logged = false;
                             }
                             if (fabsf(error_angle_deg) <=
-                                ROUTE_DISC_LINE_ANGLE_ALIGN_TOLERANCE_DEG) {
+                                angle_align_tolerance_deg) {
                                 if (angle_stable_samples <
                                     ROUTE_DISC_LINE_ANGLE_STABLE_SAMPLES) {
                                     ++angle_stable_samples;
