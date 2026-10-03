@@ -32,7 +32,7 @@
 
 /* Autonomous route: enter the disc station with the mirrored cubic arc
  * (forward endpoint 3.935 m, lateral endpoint 0.70 m), perform DISC_CATCH,
- * then take one diagonal task-two entry of 1.6007 m backward and 2.06 m toward
+ * then take one diagonal task-two entry of 1.590 m backward and 2.055 m toward
  * the selected field side while rotating 180 degrees, and run eight slots.
  * The platform task first locks two distinct A/B/C/D letters with the
  * secondary camera, then uses the main camera for all eight slots. */
@@ -167,9 +167,9 @@
 #define ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_STABLE_SAMPLES 3U
 #define ROUTE_TASK2_FORMAL_WHITE_LINE_LATERAL_KP_M_S_PER_PX 0.0020f
 #define ROUTE_TASK2_FORMAL_WHITE_LINE_MAX_LATERAL_SPEED_M_S 0.010f
-#define ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M 1.570f
+#define ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M 1.590f
 #define ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M 2.055f
-#define ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M 2.586102f
+#define ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M 2.598293f
 #define ROUTE_TASK2_ENTRY_TURN_ANGLE_RAD 3.1415927f /* 180 deg */
 /* Six-point task-one -> task-two Bezier route: fixed endpoints plus four
  * mirrored intermediate controls, parameterized along the endpoint chord. */
