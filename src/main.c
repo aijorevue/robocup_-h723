@@ -1286,7 +1286,7 @@ route_start:
                     "H7,ROUTE,TASK3,BLUE,POST_AUX_TURN,GYRO_ALIGN,"
                     "DONE,TARGET=POST_AUX_TURN_FINAL\r\n");
 
-                /* After the gyro-closed turn, move forward 95 mm
+                /* After the gyro-closed turn, move forward 101 mm
                  * before lowering ID3. This is separate from the 100 mm
                  * approach before the turn. */
                 g_run_state = RUN_FORWARD;
@@ -1303,7 +1303,7 @@ route_start:
                     enter_fault(g_fault_code);
                 }
                 board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,POST_AUX_TURN_FORWARD,DISTANCE=95mm\r\n");
+                    "H7,ROUTE,TASK3,BLUE,POST_AUX_TURN_FORWARD,DISTANCE=101mm\r\n");
 
                 /* Correct accumulated heading at the final ID3 approach so
                  * the actuator is lowered from the planned station pose. */
