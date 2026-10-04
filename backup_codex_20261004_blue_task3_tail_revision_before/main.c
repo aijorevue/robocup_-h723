@@ -1236,9 +1236,8 @@ route_start:
             } else {
                 char blue_log[160];
 
-                /* Blue continues from the closed MG90S state with the
-                 * requested 105 mm forward move, then a gyro-closed-loop
-                 * 179.9-degree turn. */
+                /* Blue continues from the closed MG90S state with a short
+                 * forward move, then a gyro-closed-loop 180.3-degree turn. */
                 g_run_state = RUN_FORWARD;
                 if (!route_controller_run_final_translation(
                         ROUTE_FORWARD_SIGN, 0.0f,
@@ -1258,7 +1257,7 @@ route_start:
                 g_run_state = RUN_TURN_RIGHT;
                 board_uart1_write(
                     "H7,ROUTE,TASK3,BLUE,POST_AUX_TURN,DIR=RIGHT,"
-                    "ANGLE=179.9deg,GYRO=ON\r\n");
+                    "ANGLE=180.3deg,GYRO=ON\r\n");
                 if (!route_controller_run_relative_turn(
                         ROUTE_RIGHT_TURN_SIGN * ROUTE_TASK3_BLUE_POST_AUX_TURN_RAD *
                         ROUTE_GYRO_TURN_SCALE)) {
@@ -1430,28 +1429,23 @@ route_start:
 
             {
                 const uint8_t red_field = field_profile.is_red != 0U;
+                const float final_turn_sign = ROUTE_LEFT_TURN_SIGN;
 
-                if (red_field) {
-                    g_run_state = RUN_TURN_LEFT;
-                    if (!route_controller_run_relative_turn(
-                            ROUTE_LEFT_TURN_SIGN *
-                            ROUTE_TASK3_POST_FINAL_TURN_RAD *
-                            ROUTE_GYRO_TURN_SCALE)) {
-                        enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
-                                                                : g_fault_code);
-                    }
-                    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-                    if (g_run_state == RUN_FAULT) {
-                        enter_fault(g_fault_code);
-                    }
-                    board_uart1_write(
-                        "H7,ROUTE,TASK3,POST_ROUTE_FINAL_TURN,"
-                        "FIELD=RED,DIR=LEFT,ANGLE=90deg\r\n");
-                } else {
-                    board_uart1_write(
-                        "H7,ROUTE,TASK3,POST_ROUTE_FINAL_TURN,"
-                        "FIELD=BLUE,DIR=NONE,ANGLE=0deg\r\n");
+                g_run_state = red_field ? RUN_TURN_LEFT : RUN_TURN_RIGHT;
+                if (!route_controller_run_relative_turn(
+                        final_turn_sign * ROUTE_TASK3_POST_FINAL_TURN_RAD *
+                        ROUTE_GYRO_TURN_SCALE)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
+                                                            : g_fault_code);
                 }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                if (g_run_state == RUN_FAULT) {
+                    enter_fault(g_fault_code);
+                }
+                board_uart1_write(
+                    red_field
+                        ? "H7,ROUTE,TASK3,POST_ROUTE_FINAL_TURN,DIR=LEFT,ANGLE=90deg\r\n"
+                        : "H7,ROUTE,TASK3,POST_ROUTE_FINAL_TURN,DIR=LEFT,ANGLE=90deg\r\n");
             }
         }
 
@@ -1460,8 +1454,8 @@ route_start:
 
                 (void)snprintf(
                     complete_log, sizeof(complete_log),
-                    "H7,ROUTE,TASK3,COMPLETE,POST_ROUTE_FINAL_DONE,"
-                     "FIELD=%s,FINAL_SHIFT=%umm,FINAL_MOVE=%s%umm,TURN=%s\r\n",
+                    "H7,ROUTE,TASK3,COMPLETE,POST_ROUTE_FINAL_TURN_DONE,"
+                     "FIELD=%s,FINAL_SHIFT=%umm,FINAL_MOVE=%s%umm,TURN=LEFT_90deg\r\n",
                     field_profile.is_red != 0U ? "RED" : "BLUE",
                     (unsigned)((field_profile.is_red != 0U
                                     ? ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_RED_M
@@ -1471,8 +1465,7 @@ route_start:
                      (unsigned)((field_profile.is_red != 0U
                                      ? ROUTE_TASK3_POST_FINAL_FORWARD_DISTANCE_RED_M
                                      : ROUTE_TASK3_POST_FINAL_REVERSE_DISTANCE_BLUE_M) *
-                                1000.0f + 0.5f),
-                     field_profile.is_red != 0U ? "LEFT_90deg" : "NONE");
+                                1000.0f + 0.5f));
                 board_uart1_write(complete_log);
             }
 #endif

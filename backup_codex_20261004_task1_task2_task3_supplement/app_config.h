@@ -32,7 +32,7 @@
 
 /* Autonomous route: enter the disc station with the mirrored cubic arc
  * (forward endpoint 3.935 m, lateral endpoint 0.70 m), perform DISC_CATCH,
- * then take one diagonal task-two entry of 1.610 m backward and 2.075 m toward
+ * then take one diagonal task-two entry of 1.590 m backward and 2.075 m toward
  * the selected field side while rotating 180 degrees, and run eight slots.
  * The platform task first locks two distinct A/B/C/D letters with the
  * secondary camera, then uses the main camera for all eight slots. */
@@ -143,7 +143,7 @@
 #define ROUTE_DISC_LINE_TIMEOUT_MS 60000U
 #define ROUTE_DISC_LINE_REVERSE_SEARCH_MS 0U
 #define ROUTE_DISC_LINE_FALLBACK_FORWARD_M 0.000f
-#define ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M 0.065f
+#define ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M 0.060f
 #define ROUTE_DISC_LINE_BYPASS_FORWARD_M 0.0255f
 /* Standalone task-two starts at the task-two area, first translates laterally
  * to the platform line, then approaches the main-camera white-line reference
@@ -167,9 +167,9 @@
 #define ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_STABLE_SAMPLES 3U
 #define ROUTE_TASK2_FORMAL_WHITE_LINE_LATERAL_KP_M_S_PER_PX 0.0020f
 #define ROUTE_TASK2_FORMAL_WHITE_LINE_MAX_LATERAL_SPEED_M_S 0.010f
-#define ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M 1.610f
+#define ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M 1.590f
 #define ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M 2.075f
-#define ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M 2.626352f
+#define ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M 2.598293f
 #define ROUTE_TASK2_ENTRY_TURN_ANGLE_RAD 3.1415927f /* 180 deg */
 /* Six-point task-one -> task-two Bezier route: fixed endpoints plus four
  * mirrored intermediate controls, parameterized along the endpoint chord. */
@@ -231,8 +231,8 @@
 #define ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_MAX_LATERAL_SPEED_M_S 0.010f
 #define ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_EDGE_SEARCH_SWITCH_MS 1200U
 #define ROUTE_FORMAL_TASK3_BLUE_RETRACT_REVERSE_DISTANCE_M 0.065f
-#define ROUTE_FORMAL_TASK3_BLUE_RETRACT_TURN_RAD 3.1415927f /* 180 deg */
-#define ROUTE_FORMAL_TASK3_BLUE_POST_TURN_REVERSE_DISTANCE_M 0.095f
+#define ROUTE_FORMAL_TASK3_BLUE_RETRACT_TURN_RAD 3.1468287f /* 180.3 deg */
+#define ROUTE_FORMAL_TASK3_BLUE_POST_TURN_REVERSE_DISTANCE_M 0.100f
 #define ROUTE_FORMAL_TASK3_BLUE_RETRACT_RIGHT_SHIFT_DISTANCE_M 0.180f
 #define ROUTE_TASK3_TEST_ORBIT_TIMEOUT_MS 120000U
 #define ROUTE_TASK3_TEST_ORBIT_MAX_SPEED_RAD_S 0.200f
@@ -248,9 +248,9 @@
 #define ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_RED_M 2.670f
 #define ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_BLUE_M 2.760f
 #define ROUTE_TASK3_POST_FINAL_FORWARD_DISTANCE_RED_M 0.700f
-#define ROUTE_TASK3_POST_FINAL_REVERSE_DISTANCE_BLUE_M 0.745f
-#define ROUTE_TASK3_BLUE_POST_AUX_FORWARD_DISTANCE_M 0.105f
-#define ROUTE_TASK3_BLUE_POST_AUX_TURN_RAD 3.1398473f /* 179.9 deg */
+#define ROUTE_TASK3_POST_FINAL_REVERSE_DISTANCE_BLUE_M 0.765f
+#define ROUTE_TASK3_BLUE_POST_AUX_FORWARD_DISTANCE_M 0.100f
+#define ROUTE_TASK3_BLUE_POST_AUX_TURN_RAD 3.1468287f /* 180.3 deg */
 #define ROUTE_TASK3_BLUE_POST_TURN_FORWARD_DISTANCE_M 0.060f
 #define ROUTE_TASK3_BLUE_RING_PREPLACE_SHIFT_DISTANCE_M 0.465f
 #define ROUTE_TASK3_POST_ORBIT_TURN_RAD 1.5707963f /* 90 deg */
