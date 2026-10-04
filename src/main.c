@@ -1329,8 +1329,12 @@ route_start:
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT
                                                             : g_fault_code);
                 }
-                board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,ID3_OPEN,PULSE=0,HOLD_MS=5000\r\n");
+                (void)snprintf(
+                    blue_log, sizeof(blue_log),
+                    "H7,ROUTE,TASK3,BLUE,ID3_OPEN,PULSE=0,TIME_MS=%lu,HOLD_MS=%lu\r\n",
+                    (unsigned long)ROUTE_TASK3_BLUE_ID3_OPEN_MOVE_TIME_MS,
+                    (unsigned long)ROUTE_TASK3_BLUE_ID3_HOLD_MS);
+                board_uart1_write(blue_log);
                 route_controller_hold_zero(ROUTE_TASK3_BLUE_ID3_HOLD_MS);
                 if (g_run_state == RUN_FAULT) {
                     enter_fault(g_fault_code);
