@@ -453,7 +453,7 @@ route_start:
 
     /*
      * Enter task two as one continuous diagonal segment.  The route-frame
-     * components use the 1.590 m reverse and 2.075 m side approach. The
+     * components use the 1.590 m reverse and 2.055 m side approach. The
      * controller captures the measured two-dimensional endpoint early in the
      * final segment and settles there before handing off to task two.
      * The chassis rotates smoothly through 180 degrees during the segment,
@@ -463,9 +463,9 @@ route_start:
     board_uart1_write(
         field_profile.is_red != 0U
             ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1590mm,"
-              "LATERAL=2075mm,TURN=LEFT180,CONTROL=FULL_SEGMENT_2D\r\n"
+              "LATERAL=2055mm,TURN=LEFT180,CONTROL=FULL_SEGMENT_2D\r\n"
             : "H7,ROUTE,TASK2_DIAGONAL,FIELD=BLUE,BACKWARD=1590mm,"
-              "LATERAL=2075mm,TURN=RIGHT180,CONTROL=FULL_SEGMENT_2D\r\n");
+              "LATERAL=2055mm,TURN=RIGHT180,CONTROL=FULL_SEGMENT_2D\r\n");
     if (!route_controller_run_task2_entry_translation_with_turn(
             -ROUTE_FORWARD_SIGN * ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M,
             field_profile.strafe_sign * ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M,
