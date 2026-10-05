@@ -1187,6 +1187,18 @@ route_start:
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
                                                            : g_fault_code);
                 }
+                g_run_state = RUN_FORWARD;
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,PRE_RING_FORWARD,SPEED=0.03m/s,TIME=3000ms\r\n");
+                if (!route_controller_run_timed_forward(
+                        ROUTE_TASK3_BLUE_PRE_RING_FORWARD_SPEED_M_S,
+                        ROUTE_TASK3_BLUE_PRE_RING_FORWARD_MS)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND
+                                                           : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+                board_uart1_write(
+                    "H7,ROUTE,TASK3,BLUE,PRE_RING_FORWARD,DONE\r\n");
                 if (!route_controller_wait_for_rk_arm_task("TASK3_RING_PLACE")) {
                     if (g_fault_code == FAULT_NONE) {
                         g_fault_code = FAULT_ARM_TIMEOUT;
