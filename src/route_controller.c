@@ -2046,6 +2046,131 @@ static bool wait_for_rk_arm_task(const char *task)
     }
 }
 
+static bool recover_rk_platform_transaction(uint32_t sequence, uint32_t slot,
+                                            const char *phase)
+{
+    uint8_t rx[64];
+    char line[128];
+    char log_line[128];
+    char stop_command[64];
+    char stop_ack_prefix[96];
+    char done_prefix[96];
+    char error_prefix[96];
+    uint32_t line_len = 0U;
+    uint32_t started_ms = HAL_GetTick();
+    uint32_t last_send_ms = started_ms - RK_ARM_PLATFORM_RECOVERY_RETRY_MS;
+
+    (void)snprintf(stop_command, sizeof(stop_command),
+                   "ARM,PLATFORM_PICK,STOP,SEQ,%lu\r\n",
+                   (unsigned long)sequence);
+    (void)snprintf(stop_ack_prefix, sizeof(stop_ack_prefix),
+                   "RK,ARM,PLATFORM_PICK,STOP_ACK,SEQ,%lu",
+                   (unsigned long)sequence);
+    (void)snprintf(done_prefix, sizeof(done_prefix),
+                   "RK,ARM,PLATFORM_PICK,DONE,SEQ,%lu",
+                   (unsigned long)sequence);
+    (void)snprintf(error_prefix, sizeof(error_prefix),
+                   "RK,ARM,PLATFORM_PICK,ERR,SEQ,%lu",
+                   (unsigned long)sequence);
+    (void)snprintf(log_line, sizeof(log_line),
+                   "H7,ARM,PLATFORM_PICK,RECOVERY_START,PHASE=%s,"
+                   "SEQ=%lu,SLOT=%lu\r\n",
+                   phase != NULL ? phase : "TIMEOUT",
+                   (unsigned long)sequence, (unsigned long)slot);
+    board_uart1_write(log_line);
+
+    for (;;) {
+        uint32_t now_ms = HAL_GetTick();
+        uint32_t read_len;
+        uint32_t i;
+
+        if ((uint32_t)(now_ms - last_send_ms) >=
+            RK_ARM_PLATFORM_RECOVERY_RETRY_MS) {
+            last_send_ms = now_ms;
+            board_usb_write(stop_command);
+            board_uart1_write_only(
+                "H7,ARM,PLATFORM_PICK,RECOVERY_STOP_SENT\r\n");
+        }
+
+        read_len = CDC_Read_HS(rx, sizeof(rx));
+        for (i = 0U; i < read_len; ++i) {
+            char c = (char)rx[i];
+
+            if (c == '\r' || c == '\n') {
+                line[line_len] = '\0';
+                if (line_len > 0U) {
+                    board_uart1_write_only("H7,USB,RX,");
+                    board_uart1_write_only(line);
+                    board_uart1_write_only("\r\n");
+                    rk_arm_handle_line(line);
+                    if (line_matches_token_prefix(line, stop_ack_prefix)) {
+                        board_uart1_write_only(
+                            "H7,ARM,PLATFORM_PICK,RECOVERY_STOP_ACK\r\n");
+                    }
+                    if (line_matches_token_prefix(line, done_prefix)) {
+                        (void)snprintf(
+                            log_line, sizeof(log_line),
+                            "H7,ARM,PLATFORM_PICK,RECOVERY_DONE,"
+                            "SEQ=%lu,SLOT=%lu\r\n",
+                            (unsigned long)sequence, (unsigned long)slot);
+                        board_uart1_write(log_line);
+                        g_rk_last_task_bypassed = 1U;
+                        g_rk_last_task_soft_timed_out = 1U;
+                        g_fault_code = FAULT_NONE;
+                        return true;
+                    }
+                    if (line_matches_token_prefix(line, error_prefix)) {
+                        /* NO_ACTIVE_TASK is safe: RK has already cleared the
+                         * station, or the original START never took effect. */
+                        if (strstr(line, ",REASON,NO_ACTIVE_TASK") != NULL) {
+                            board_uart1_write_only(
+                                "H7,ARM,PLATFORM_PICK,RECOVERY_NO_ACTIVE\r\n");
+                            g_rk_last_task_bypassed = 1U;
+                            g_rk_last_task_soft_timed_out = 1U;
+                            g_fault_code = FAULT_NONE;
+                            return true;
+                        }
+                        (void)snprintf(
+                            log_line, sizeof(log_line),
+                            "H7,ARM,PLATFORM_PICK,RECOVERY_ERR,"
+                            "SEQ=%lu,SLOT=%lu\r\n",
+                            (unsigned long)sequence, (unsigned long)slot);
+                        board_uart1_write(log_line);
+                        g_rk_arm_link_ready = 0U;
+                        g_fault_code = FAULT_ARM_TIMEOUT;
+                        return false;
+                    }
+                }
+                line_len = 0U;
+            } else if (line_len + 1U < sizeof(line)) {
+                line[line_len++] = c;
+            } else {
+                line_len = 0U;
+                board_uart1_write(
+                    "H7,ERR,PLATFORM_PICK_RECOVERY_LINE_TOO_LONG\r\n");
+            }
+        }
+
+        if ((uint32_t)(HAL_GetTick() - started_ms) >=
+            RK_ARM_PLATFORM_RECOVERY_TIMEOUT_MS) {
+            (void)snprintf(
+                log_line, sizeof(log_line),
+                "H7,ARM,PLATFORM_PICK,RECOVERY_TIMEOUT,"
+                "SEQ=%lu,SLOT=%lu\r\n",
+                (unsigned long)sequence, (unsigned long)slot);
+            board_uart1_write(log_line);
+            g_rk_arm_link_ready = 0U;
+            g_fault_code = FAULT_ARM_TIMEOUT;
+            return false;
+        }
+        if (!keep_chassis_stopped_for_arm_task()) {
+            preserve_rc_or_set_motor_fault();
+            return false;
+        }
+        HAL_Delay(1U);
+    }
+}
+
 static bool wait_for_rk_platform_transaction(uint32_t slot, bool preselect)
 {
     uint8_t rx[64];
@@ -2067,6 +2192,9 @@ static bool wait_for_rk_platform_transaction(uint32_t slot, bool preselect)
     uint32_t last_send_ms = started_ms - RK_ARM_START_RETRY_MS;
     uint32_t last_zero_ms = started_ms - CONTROL_PERIOD_MS;
     const char *field_name = g_route_field_is_red != 0U ? "RED" : "BLUE";
+
+    g_rk_last_task_bypassed = 0U;
+    g_rk_last_task_soft_timed_out = 0U;
 
     if (preselect) {
         (void)snprintf(
@@ -2121,13 +2249,13 @@ static bool wait_for_rk_platform_transaction(uint32_t slot, bool preselect)
             (uint32_t)(now_ms - task_started_ms) >= RK_ARM_TASK_TIMEOUT_MS) {
             (void)snprintf(
                 log_line, sizeof(log_line),
-                "H7,ARM,PLATFORM_PICK,%s_TIMEOUT,SEQ=%lu,SLOT=%lu\r\n",
+                "H7,ARM,PLATFORM_PICK,%s_TIMEOUT,SEQ=%lu,SLOT=%lu,"
+                "RECOVER=STOP\r\n",
                 preselect ? "PRESELECT" : "SLOT",
                 (unsigned long)sequence, (unsigned long)slot);
             board_uart1_write(log_line);
-            g_rk_last_task_bypassed = 1U;
-            g_fault_code = FAULT_ARM_TIMEOUT;
-            return false;
+            return recover_rk_platform_transaction(sequence, slot,
+                                                   "EXEC_TIMEOUT");
         }
         if ((uint32_t)(now_ms - last_zero_ms) >= CONTROL_PERIOD_MS) {
             last_zero_ms = now_ms;
@@ -2215,18 +2343,13 @@ static bool wait_for_rk_platform_transaction(uint32_t slot, bool preselect)
             (uint32_t)(now_ms - started_ms) >= ack_timeout_ms) {
             (void)snprintf(
                 log_line, sizeof(log_line),
-                "H7,ARM,PLATFORM_PICK,%s_BYPASS_NO_RK,SEQ=%lu,SLOT=%lu\r\n",
+                "H7,ARM,PLATFORM_PICK,%s_BYPASS_NO_RK,SEQ=%lu,SLOT=%lu,"
+                "RECOVER=STOP\r\n",
                 preselect ? "PRESELECT" : "SLOT",
                 (unsigned long)sequence, (unsigned long)slot);
             board_uart1_write(log_line);
-            g_rk_arm_link_ready = 0U;
-            g_rk_last_task_bypassed = 1U;
-#if RK_ARM_REQUIRED
-            g_fault_code = FAULT_ARM_TIMEOUT;
-            return false;
-#else
-            return true;
-#endif
+            return recover_rk_platform_transaction(sequence, slot,
+                                                   "ACK_TIMEOUT");
         }
 #endif
         HAL_Delay(1U);
@@ -3429,14 +3552,27 @@ static bool run_route_bezier_with_turn(float vx_direction,
         actual_route_speed_m_s = sqrtf(
             velocity_observer.route_vx_m_s * velocity_observer.route_vx_m_s +
             velocity_observer.route_vy_m_s * velocity_observer.route_vy_m_s);
-        segment_done = endpoint_distance_error_m <=
-                           ROUTE_TASK2_ENTRY_ENDPOINT_TOLERANCE_M &&
-                       actual_route_speed_m_s <=
-                           ROUTE_TASK2_ENTRY_ENDPOINT_SPEED_TOLERANCE_M_S &&
-                       fabsf(g_yaw_rad - final_heading_target_rad) <=
-                           ROUTE_TURN_TOLERANCE_RAD &&
-                       fabsf(g_gyro_z_rad_s) <=
-                           ROUTE_TURN_RATE_TOLERANCE_RAD_S;
+        /* Capture the diagonal endpoint as soon as position and translation
+         * speed are settled.  The task-two handoff may still have a small
+         * yaw error; once captured, stop translating and correct that yaw in
+         * place for the bounded endpoint window below. Keep the final-route
+         * behavior unchanged: it still requires heading convergence before
+         * entering its short zero-speed hold. */
+        if (bezier_kind == ROUTE_BEZIER_TASK2_DIAGONAL) {
+            segment_done = endpoint_distance_error_m <=
+                               ROUTE_TASK2_ENTRY_ENDPOINT_TOLERANCE_M &&
+                           actual_route_speed_m_s <=
+                               ROUTE_TASK2_ENTRY_ENDPOINT_SPEED_TOLERANCE_M_S;
+        } else {
+            segment_done = endpoint_distance_error_m <=
+                               ROUTE_TASK2_ENTRY_ENDPOINT_TOLERANCE_M &&
+                           actual_route_speed_m_s <=
+                               ROUTE_TASK2_ENTRY_ENDPOINT_SPEED_TOLERANCE_M_S &&
+                           fabsf(g_yaw_rad - final_heading_target_rad) <=
+                               ROUTE_TURN_TOLERANCE_RAD &&
+                           fabsf(g_gyro_z_rad_s) <=
+                               ROUTE_TURN_RATE_TOLERANCE_RAD_S;
+        }
 
         /* Once the endpoint is captured, do not let noisy odometry reopen
          * the path controller.  The previous implementation could send one
@@ -3451,7 +3587,9 @@ static bool run_route_bezier_with_turn(float vx_direction,
             command_route_vy_m_s = 0.0f;
             previous_command_x_m_s = 0.0f;
             previous_command_y_m_s = 0.0f;
-            g_heading_correction_rad_s = 0.0f;
+            if (bezier_kind != ROUTE_BEZIER_TASK2_DIAGONAL) {
+                g_heading_correction_rad_s = 0.0f;
+            }
             g_command_speed_m_s = 0.0f;
             g_cross_track_command_m_s = 0.0f;
         }
@@ -3500,7 +3638,9 @@ static bool run_route_bezier_with_turn(float vx_direction,
         lcd_display_update();
         if (endpoint_stop_latched) {
             if ((uint32_t)(now_ms - endpoint_stop_started_ms) >=
-                ROUTE_TASK2_ENTRY_ENDPOINT_DONE_HOLD_MS) {
+                (bezier_kind == ROUTE_BEZIER_TASK2_DIAGONAL
+                     ? ROUTE_TASK2_ENTRY_ENDPOINT_CORRECTION_MS
+                     : ROUTE_TASK2_ENTRY_ENDPOINT_DONE_HOLD_MS)) {
                 break;
             }
         }

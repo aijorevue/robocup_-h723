@@ -388,6 +388,8 @@
 #define RK_ARM_DISC_CATCH_TASK_TIMEOUT_MS 60000U
 #define RK_ARM_STATUS_PERIOD_MS 1000U
 #define RK_ARM_STOP_TIMEOUT_MS 15000U
+#define RK_ARM_PLATFORM_RECOVERY_TIMEOUT_MS 5000U
+#define RK_ARM_PLATFORM_RECOVERY_RETRY_MS 200U
 #define RK_ARM_REQUIRED 1U
 
 /* Task-one commissioning gate: stop after DISC_CATCH completes and do not
@@ -455,6 +457,7 @@
 #define ROUTE_TASK2_ENTRY_ENDPOINT_TOLERANCE_M 0.010f
 #define ROUTE_TASK2_ENTRY_ENDPOINT_SPEED_TOLERANCE_M_S 0.025f
 #define ROUTE_TASK2_ENTRY_ENDPOINT_DONE_HOLD_MS 250U
+#define ROUTE_TASK2_ENTRY_ENDPOINT_CORRECTION_MS 2500U
 
 /* The formal task-two diagonal uses a stronger dedicated cross-track loop
  * across the segment without retuning unrelated route translations. */
