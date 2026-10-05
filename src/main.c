@@ -487,7 +487,9 @@ route_start:
                                              field_profile.turn_sign)) {
         enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
     }
-    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    /* The arc controller already confirms endpoint position, speed, and
+     * heading stability before returning. Do not add a second task-one stop
+     * interval before the white-line search starts. */
     if (g_run_state == RUN_FAULT) {
         enter_fault(g_fault_code);
     }
@@ -533,13 +535,6 @@ route_start:
         enter_fault(g_fault_code);
     }
 #endif
-
-    /* Move the arm to the high observation pose before querying the line.
-     * Otherwise the white-line view can stay blocked and RK returns NOT_FOUND
-     * before DISC_CATCH ever gets a chance to lift the arm. */
-    if (!route_controller_wait_for_disc_prep_high()) {
-        enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
-    }
 
     /* Stop background sync at the first arm station.  When formal white-line
      * vision is enabled, this also makes H7 the sole reader of line replies. */
@@ -588,6 +583,12 @@ route_start:
                 "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=0mm,"
                 "SPEED=0.05m/s\r\n");
         }
+    }
+    /* PREP_HIGH was required before the arc. The line-search phase also
+     * consumes its ACK if it arrives late; only recover here if that startup
+     * transaction was genuinely not confirmed. Never block the arc handoff. */
+    if (!route_controller_wait_for_disc_prep_high()) {
+        enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
     }
 #else
     /* Formal task-one line path is enabled above.  Keep this branch as a

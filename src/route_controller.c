@@ -4142,10 +4142,29 @@ static bool wait_for_disc_prep_high_with_timeout(uint32_t timeout_ms,
 
 bool route_controller_wait_for_disc_prep_high(void)
 {
-    return wait_for_disc_prep_high_with_timeout(
+    const uint8_t first_station_was_reached = g_first_arm_station_reached;
+
+    /* PREP_HIGH is normally acknowledged while the entry arc is running.
+     * If that barrier is already satisfied, do not service or retransmit the
+     * RK command again at the arc-to-vision handoff. This keeps the first
+     * white-line search command from being delayed by redundant USB traffic.
+     * The task-two caller clears this flag before requesting its own pose, so
+     * its required ACK wait is unchanged. */
+    if (g_rk_disc_prep_high_ack != 0U) {
+        return true;
+    }
+    /* The white-line controller owns CDC while it is active. Reopen the
+     * background parser only after that phase has returned, so a late ACK
+     * can be consumed here without competing with vision replies. */
+    g_first_arm_station_reached = 0U;
+    {
+        const bool acknowledged = wait_for_disc_prep_high_with_timeout(
         RK_ARM_ACK_TIMEOUT_MS,
         "H7,ARM,DISC_CATCH,PREP_HIGH_WAIT_AFTER_ARC\r\n",
         "H7,ARM,DISC_CATCH,PREP_HIGH_ACKED_AFTER_ARC\r\n");
+        g_first_arm_station_reached = first_station_was_reached;
+        return acknowledged;
+    }
 }
 
 bool route_controller_wait_for_disc_prep_high_before_route(void)
@@ -4204,7 +4223,7 @@ static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
     const uint32_t started_ms = previous_ms;
     uint32_t settled_since_ms = 0U;
     bool first_feedback_cycle = true;
-    bool heading_settle_logged = false;
+    bool translation_endpoint_latched = false;
 
     disc_arc_build_length_table(lateral_sign, &arc_length_table);
     arc_length_m = arc_length_table.total_m;
@@ -4537,24 +4556,24 @@ static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
                 fabsf(actual_along_speed_m_s) <=
                     ODOM_ALONG_SPEED_TOLERANCE_M_S;
         }
+        if (translation_endpoint_done) {
+            translation_endpoint_latched = true;
+        }
         heading_endpoint_done =
             fabsf(final_heading_error_rad) <= ROUTE_TURN_TOLERANCE_RAD &&
             fabsf(g_gyro_z_rad_s) <= ROUTE_TURN_RATE_TOLERANCE_RAD_S;
-        segment_done = translation_endpoint_done && heading_endpoint_done;
+        segment_done = translation_endpoint_latched && heading_endpoint_done;
 
-        /* Stop translating as soon as the endpoint is stable, but keep the
-         * angular controller active until the requested 90/180-degree turn
-         * is actually complete inside this same arc segment. */
-        if (translation_endpoint_done && !heading_endpoint_done) {
-            command_route_vx_m_s = 0.0f;
-            command_route_vy_m_s = 0.0f;
-            g_command_speed_m_s = 0.0f;
+        /* The task-one line phase searches forward immediately after this
+         * arc. Begin that search as soon as the arc endpoint is captured,
+         * while the gyro loop finishes its final heading correction. */
+        if (translation_endpoint_latched) {
+            command_body_vx_m_s = ROUTE_FORWARD_SIGN *
+                                  ROUTE_TASK1_DISC_LINE_SEARCH_SPEED_M_S;
+            command_body_vy_m_s = 0.0f;
+            g_command_speed_m_s =
+                ROUTE_TASK1_DISC_LINE_SEARCH_SPEED_M_S;
             g_cross_track_command_m_s = 0.0f;
-            if (!heading_settle_logged) {
-                heading_settle_logged = true;
-                board_uart1_write(
-                    "H7,ROUTE,DISC_ARC,TRANSLATION_DONE,HEADING_SETTLE\r\n");
-            }
         }
 
         if (!mecanum_inverse(&chassis, command_body_vx_m_s,
@@ -4584,12 +4603,13 @@ static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
             } else if ((uint32_t)(now_ms - settled_since_ms) >=
                        ODOM_ALONG_SETTLE_MS) {
                 g_route_heading_target_rad = target_heading_rad;
-                g_command_speed_m_s = 0.0f;
-                g_heading_correction_rad_s = 0.0f;
-                return route_motor_send_zero_all();
-            } else {
-                settled_since_ms = 0U;
+                /* Hand CDC ownership to the task-one line controller while
+                 * preserving the forward search command across the handoff. */
+                route_controller_mark_first_arm_station();
+                return true;
             }
+        } else {
+            settled_since_ms = 0U;
         }
     }
 }
@@ -4641,6 +4661,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
     bool right_edge_measurement_valid = false;
     uint32_t last_right_edge_measurement_ms = 0U;
     uint32_t right_edge_stable_last_measurement_ms = 0U;
+    bool first_task1_search_command_sent = false;
     const bool task3_white_line_phase =
         route_white_line_phase_is_task3(phase);
     const bool task3_red_white_line_phase =
@@ -4695,6 +4716,13 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
         return false;
     }
 
+    /* Task one's arc endpoint already provides a stable handoff. Start the
+     * no-line forward search at its configured speed on the first control
+     * cycle; all other phases retain their existing zero-speed ramp-in. */
+    if (phase == ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC) {
+        commanded_forward_speed_m_s = no_line_search_speed_m_s;
+    }
+
     (void)snprintf(query, sizeof(query),
                    "VISION,WHITE_LINE,QUERY,SEQ,%lu,PHASE,%s\r\n",
                    (unsigned long)sequence,
@@ -4705,7 +4733,11 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                    route_white_line_phase_name(phase),
                    reference_y10,
                    ROUTE_DISC_LINE_REFERENCE_A100);
-    board_uart1_write(log_line);
+    /* Do not emit a synchronous diagnostic before task one's first wheel
+     * command. UART transmit has a bounded 1000 ms wait on this target. */
+    if (phase != ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC) {
+        board_uart1_write(log_line);
+    }
 
     if (forward_speed_m_s <= 0.0f || acceleration_m_s2 <= 0.0f ||
         tolerance_y10 < 0L) {
@@ -4775,7 +4807,9 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
         }
 
         if ((uint32_t)(now_ms - last_query_ms) >=
-            ROUTE_DISC_LINE_QUERY_PERIOD_MS) {
+                ROUTE_DISC_LINE_QUERY_PERIOD_MS &&
+            (phase != ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC ||
+             first_task1_search_command_sent)) {
             last_query_ms = now_ms;
             board_usb_write(query);
         }
@@ -5334,6 +5368,9 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                 preserve_rc_or_set_motor_fault();
                 g_task2_test_white_line_active = 0U;
                 return false;
+            }
+            if (phase == ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC) {
+                first_task1_search_command_sent = true;
             }
             if (!route_motor_feedback_update_after_command(
                     measured_wheel_speed, &first_feedback_cycle)) {
@@ -6170,7 +6207,6 @@ bool route_controller_wait_for_rk_reset_before_route(void)
 void route_controller_mark_first_arm_station(void)
 {
     g_first_arm_station_reached = 1U;
-    board_uart1_write("H7,ARM,PRETASK_SYNC_STOP_AT_DISC\r\n");
 }
 
 void route_controller_request_rk_reset(void)

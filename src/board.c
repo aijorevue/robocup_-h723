@@ -26,6 +26,9 @@ volatile uint32_t g_rc_fault_epoch;
 
 #define FDCAN_ABORT_TIMEOUT_MS 2U
 #define FDCAN_ABORT_MAX_POLLS 200000UL
+/* USART1 is a diagnostic mirror; RK protocol traffic uses USB CDC. A
+ * diagnostic cable or receiver must never stall a route transition. */
+#define BOARD_UART1_DIAGNOSTIC_TIMEOUT_MS 5U
 
 static bool fdcan_abort_unresolved;
 static bool fdcan_bus_off_latched;
@@ -697,7 +700,9 @@ void board_uart1_write_only(const char *text)
     if (length > UINT16_MAX) {
         length = UINT16_MAX;
     }
-    (void)HAL_UART_Transmit(&huart1, (const uint8_t *)text, (uint16_t)length, 1000U);
+    (void)HAL_UART_Transmit(&huart1, (const uint8_t *)text,
+                            (uint16_t)length,
+                            BOARD_UART1_DIAGNOSTIC_TIMEOUT_MS);
 }
 
 void board_uart1_write(const char *text)
