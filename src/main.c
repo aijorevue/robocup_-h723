@@ -1193,7 +1193,7 @@ route_start:
                 }
                 g_run_state = RUN_FORWARD;
                 board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,PRE_RING_FORWARD,SPEED=0.03m/s,TIME=3000ms\r\n");
+                    "H7,ROUTE,TASK3,BLUE,PRE_RING_FORWARD,SPEED=0.02m/s,TIME=2400ms\r\n");
                 if (!route_controller_run_timed_forward(
                         ROUTE_TASK3_BLUE_PRE_RING_FORWARD_SPEED_M_S,
                         ROUTE_TASK3_BLUE_PRE_RING_FORWARD_MS)) {
