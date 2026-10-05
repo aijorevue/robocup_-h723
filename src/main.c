@@ -253,6 +253,10 @@ static bool run_formal_task3_red_tail(void)
     if (!route_controller_wait_for_rk_arm_task("TASK3_RING_PLACE")) {
         return false;
     }
+    if (!route_controller_run_relative_turn(0.0f)) {
+        return false;
+    }
+    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     board_servo_set_angle_deg_index(
         SERVO_MG90S_PE9_INDEX, SERVO_MG90S_POWER_ON_PE9_ANGLE_DEG);
     board_uart1_write(
@@ -1212,6 +1216,11 @@ route_start:
                     SERVO_MG90S_PE9_INDEX, SERVO_MG90S_POWER_ON_PE9_ANGLE_DEG);
                 board_uart1_write(
                     "H7,LOCAL_SERVO,TASK3_BLUE,PE09,RING_PLACE_DONE,ANGLE=102.0deg\r\n");
+                if (!route_controller_run_relative_turn(0.0f)) {
+                    enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
+                                                           : g_fault_code);
+                }
+                route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
                 if (!route_controller_run_final_translation(
                         0.0f, ROUTE_RIGHT_STRAFE_SIGN,
                         ROUTE_TASK3_POST_FINAL_SHIFT_DISTANCE_BLUE_M,
