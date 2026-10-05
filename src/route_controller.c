@@ -80,8 +80,31 @@ typedef enum {
     ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT = 2,
     ROUTE_WHITE_LINE_PHASE_TASK2_EXIT_SEARCH = 3,
     ROUTE_WHITE_LINE_PHASE_TASK2_EXIT_ALIGN = 4,
-    ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT = 5
+    ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT = 5,
+    ROUTE_WHITE_LINE_PHASE_TASK3_RED_AFTER_ORBIT = 6
 } route_white_line_phase_t;
+
+static bool route_white_line_phase_is_task3(route_white_line_phase_t phase)
+{
+    return phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT ||
+           phase == ROUTE_WHITE_LINE_PHASE_TASK3_RED_AFTER_ORBIT;
+}
+
+static const char *route_white_line_phase_name(route_white_line_phase_t phase)
+{
+    switch (phase) {
+    case ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC:
+        return "TASK1_AFTER_ARC";
+    case ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT:
+        return "TASK2_AFTER_SECONDARY_SHIFT";
+    case ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT:
+        return "TASK3_BLUE_WHITE_LINE_ALIGN";
+    case ROUTE_WHITE_LINE_PHASE_TASK3_RED_AFTER_ORBIT:
+        return "TASK3_RED_WHITE_LINE_ALIGN";
+    default:
+        return "INVALID";
+    }
+}
 
 static void service_rk_link_before_first_station(void);
 static bool service_disc_prep_high_during_arc(void);
@@ -1890,6 +1913,13 @@ static bool wait_for_rk_arm_task(const char *task)
             board_uart1_write(log_line);
             g_rk_last_task_bypassed = 1U;
             g_rk_last_task_soft_timed_out = 1U;
+            /* A ring placement DONE is the barrier before the final route.
+             * Never treat a missing DONE as a successful task, otherwise H7
+             * can drive away before RK has released and secured the ring. */
+            if (strcmp(task, "TASK3_RING_PLACE") == 0) {
+                g_fault_code = FAULT_ARM_TIMEOUT;
+                return false;
+            }
             return true;
         }
 #endif
@@ -2444,9 +2474,8 @@ static bool stop_rk_arm_task(const char *task)
     }
 }
 
-/* Blue formal task three uses a dedicated HOLD request as the orbit boundary.
- * HOLD freezes the arm at the expanded high pose without entering the
- * generic station STOP path, which may retract other station types. */
+/* Formal task three uses HOLD at the orbit boundary so neither field enters
+ * the generic station STOP path, which retracts the arm immediately. */
 static bool hold_rk_arm_task(const char *task)
 {
     uint8_t rx[64];
@@ -2460,7 +2489,9 @@ static bool hold_rk_arm_task(const char *task)
     uint32_t last_send_ms = started_ms - RK_ARM_START_RETRY_MS;
 
     if (task == NULL || strcmp(task, "COLUMN_CATCH") != 0 ||
-        g_route_field_is_red != 0U || g_rk_async_task_sequence == 0U) {
+        g_rk_async_task_sequence == 0U ||
+        g_formal_task3_active_sequence != g_rk_async_task_sequence ||
+        g_formal_task3_is_red != g_route_field_is_red) {
         g_fault_code = FAULT_KINEMATICS;
         return false;
     }
@@ -2511,8 +2542,9 @@ static bool hold_rk_arm_task(const char *task)
             g_fault_code = FAULT_ARM_TIMEOUT;
             (void)snprintf(
                 fail_line, sizeof(fail_line),
-                "H7,ARM,COLUMN_CATCH,HOLD_FAIL,SEQ,%lu,FIELD,BLUE\r\n",
-                (unsigned long)g_rk_async_task_sequence);
+                "H7,ARM,COLUMN_CATCH,HOLD_FAIL,SEQ,%lu,FIELD,%s\r\n",
+                (unsigned long)g_rk_async_task_sequence,
+                g_route_field_is_red != 0U ? "RED" : "BLUE");
             board_usb_write(fail_line);
             board_uart1_write(
                 "H7,ARM,COLUMN_CATCH,ARM_HOLD_TIMEOUT\r\n");
@@ -2522,9 +2554,8 @@ static bool hold_rk_arm_task(const char *task)
     }
 }
 
-/* Blue formal task three keeps COLUMN_CATCH active only until the orbit stop
- * acknowledgement. The later white-line alignment owns a separate retract
- * transaction so orbit stop cannot home the arm early. */
+/* Formal task three keeps COLUMN_CATCH active through white-line alignment.
+ * Retract is a separate transaction so orbit stop cannot home the arm early. */
 static bool retract_rk_arm_task(const char *task)
 {
     uint8_t rx[64];
@@ -2541,14 +2572,17 @@ static bool retract_rk_arm_task(const char *task)
     const uint32_t sequence = next_rk_task_sequence();
 
     if (task == NULL || strcmp(task, "COLUMN_CATCH") != 0 ||
-        g_route_field_is_red != 0U) {
+        g_rk_async_task_sequence == 0U ||
+        g_formal_task3_active_sequence != g_rk_async_task_sequence ||
+        g_formal_task3_is_red != g_route_field_is_red) {
         g_fault_code = FAULT_KINEMATICS;
         return false;
     }
 
     (void)snprintf(command, sizeof(command),
-                   "ARM,%s,RETRACT,SEQ,%lu,FIELD,BLUE\r\n", task,
-                   (unsigned long)sequence);
+                   "ARM,%s,RETRACT,SEQ,%lu,FIELD,%s\r\n", task,
+                   (unsigned long)sequence,
+                   g_route_field_is_red != 0U ? "RED" : "BLUE");
     (void)snprintf(ack_prefix, sizeof(ack_prefix),
                    "RK,ARM,%s,ACK,SEQ,%lu", task,
                    (unsigned long)sequence);
@@ -2996,10 +3030,10 @@ static bool task2_entry_bezier_build(task2_entry_bezier_t *path,
     return path->total_m > endpoint_distance_m && path->total_m > 0.001f;
 }
 
-static bool task3_blue_final_bezier_build(task2_entry_bezier_t *path,
-                                          float vx_direction,
-                                          float vy_direction,
-                                          float endpoint_distance_m)
+static bool task3_final_bezier_build(task2_entry_bezier_t *path,
+                                     float vx_direction,
+                                     float vy_direction,
+                                     float endpoint_distance_m)
 {
     const float direction_norm = sqrtf(vx_direction * vx_direction +
                                        vy_direction * vy_direction);
@@ -3089,13 +3123,19 @@ static float task2_entry_bezier_u_at_distance(
     return 1.0f;
 }
 
+typedef enum {
+    ROUTE_BEZIER_TASK2_DIAGONAL = 0,
+    ROUTE_BEZIER_TASK3_BLUE_FINAL,
+    ROUTE_BEZIER_TASK3_RED_FINAL
+} route_bezier_kind_t;
+
 static bool run_route_bezier_with_turn(float vx_direction,
                                        float vy_direction,
                                        float endpoint_distance_m,
                                        float maximum_speed_m_s,
                                        float acceleration_m_s2,
                                        float heading_delta_rad,
-                                       bool task3_blue_final_curve)
+                                       route_bezier_kind_t bezier_kind)
 {
     task2_entry_bezier_t path;
     float wheel_speed[4] = {0.0f};
@@ -3120,9 +3160,11 @@ static bool run_route_bezier_with_turn(float vx_direction,
     uint32_t settled_since_ms = 0U;
     bool first_feedback_cycle = true;
 
-    const bool path_built = task3_blue_final_curve
-        ? task3_blue_final_bezier_build(&path, vx_direction, vy_direction,
-                                        endpoint_distance_m)
+    const bool task3_final_curve =
+        bezier_kind != ROUTE_BEZIER_TASK2_DIAGONAL;
+    const bool path_built = task3_final_curve
+        ? task3_final_bezier_build(&path, vx_direction, vy_direction,
+                                   endpoint_distance_m)
         : task2_entry_bezier_build(&path, vx_direction, vy_direction,
                                    endpoint_distance_m);
 
@@ -3131,11 +3173,19 @@ static bool run_route_bezier_with_turn(float vx_direction,
         g_fault_code = FAULT_KINEMATICS;
         return false;
     }
-    board_uart1_write(task3_blue_final_curve
-        ? "H7,ROUTE,TASK3,BLUE,POST_ROUTE_FINAL_PATH,PATH=CUBIC_BEZIER,"
-          "CLOSED_LOOP=XY_ENDPOINT\r\n"
-        : "H7,ROUTE,TASK2_DIAGONAL,PATH=6_POINT_BEZIER,"
-          "CLOSED_LOOP=XY_HEADING_ENDPOINT\r\n");
+    if (bezier_kind == ROUTE_BEZIER_TASK3_BLUE_FINAL) {
+        board_uart1_write(
+            "H7,ROUTE,TASK3,BLUE,POST_ROUTE_FINAL_PATH,PATH=CUBIC_BEZIER,"
+            "CLOSED_LOOP=XY_ENDPOINT\r\n");
+    } else if (bezier_kind == ROUTE_BEZIER_TASK3_RED_FINAL) {
+        board_uart1_write(
+            "H7,ROUTE,TASK3,RED,POST_ROUTE_FINAL_PATH,PATH=CUBIC_BEZIER,"
+            "CLOSED_LOOP=XY_ENDPOINT\r\n");
+    } else {
+        board_uart1_write(
+            "H7,ROUTE,TASK2_DIAGONAL,PATH=6_POINT_BEZIER,"
+            "CLOSED_LOOP=XY_HEADING_ENDPOINT\r\n");
+    }
     g_command_speed_m_s = 0.0f;
     g_heading_correction_rad_s = 0.0f;
     g_cross_track_m = 0.0f;
@@ -3440,9 +3490,16 @@ static bool run_route_bezier_with_turn(float vx_direction,
     }
     g_command_speed_m_s = 0.0f;
     g_route_heading_target_rad = final_heading_target_rad;
-    board_uart1_write(task3_blue_final_curve
-        ? "H7,ROUTE,TASK3,BLUE,POST_ROUTE_FINAL_PATH,BEZIER_ENDPOINT,DONE\r\n"
-        : "H7,ROUTE,TASK2_DIAGONAL,BEZIER_ENDPOINT,DONE\r\n");
+    if (bezier_kind == ROUTE_BEZIER_TASK3_BLUE_FINAL) {
+        board_uart1_write(
+            "H7,ROUTE,TASK3,BLUE,POST_ROUTE_FINAL_PATH,BEZIER_ENDPOINT,DONE\r\n");
+    } else if (bezier_kind == ROUTE_BEZIER_TASK3_RED_FINAL) {
+        board_uart1_write(
+            "H7,ROUTE,TASK3,RED,POST_ROUTE_FINAL_PATH,BEZIER_ENDPOINT,DONE\r\n");
+    } else {
+        board_uart1_write(
+            "H7,ROUTE,TASK2_DIAGONAL,BEZIER_ENDPOINT,DONE\r\n");
+    }
     return route_motor_send_zero_all();
 }
 
@@ -4584,44 +4641,56 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
     bool right_edge_measurement_valid = false;
     uint32_t last_right_edge_measurement_ms = 0U;
     uint32_t right_edge_stable_last_measurement_ms = 0U;
+    const bool task3_white_line_phase =
+        route_white_line_phase_is_task3(phase);
+    const bool task3_red_white_line_phase =
+        phase == ROUTE_WHITE_LINE_PHASE_TASK3_RED_AFTER_ORBIT;
     const bool right_edge_alignment_enabled =
         (phase == ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT &&
-         g_task2_test_active_sequence == 0U) ||
-        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT;
-    const float right_edge_target_x =
-        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+         g_task2_test_active_sequence == 0U) || task3_white_line_phase;
+    const float right_edge_target_x = task3_red_white_line_phase
+        ? ROUTE_FORMAL_TASK3_RED_WHITE_LINE_RIGHT_EDGE_TARGET_X_PX
+        : phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
             ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_RIGHT_EDGE_TARGET_X_PX
             : ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_TARGET_X_PX;
-    const float right_edge_tolerance_x =
-        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+    const float right_edge_tolerance_x = task3_red_white_line_phase
+        ? ROUTE_FORMAL_TASK3_RED_WHITE_LINE_RIGHT_EDGE_TOLERANCE_PX
+        : phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
             ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_RIGHT_EDGE_TOLERANCE_PX
             : ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_TOLERANCE_PX;
-    const uint32_t right_edge_stable_samples_required =
-        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+    const uint32_t right_edge_stable_samples_required = task3_red_white_line_phase
+        ? ROUTE_FORMAL_TASK3_RED_WHITE_LINE_RIGHT_EDGE_STABLE_SAMPLES
+        : phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
             ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_RIGHT_EDGE_STABLE_SAMPLES
             : ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_STABLE_SAMPLES;
-    const float right_edge_lateral_kp =
-        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+    const float right_edge_lateral_kp = task3_red_white_line_phase
+        ? ROUTE_FORMAL_TASK3_RED_WHITE_LINE_LATERAL_KP_M_S_PER_PX
+        : phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
             ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_LATERAL_KP_M_S_PER_PX
             : ROUTE_TASK2_FORMAL_WHITE_LINE_LATERAL_KP_M_S_PER_PX;
-    const float angle_align_tolerance_deg =
-        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+    const float angle_align_tolerance_deg = task3_red_white_line_phase
+        ? ROUTE_FORMAL_TASK3_RED_WHITE_LINE_ANGLE_ALIGN_TOLERANCE_DEG
+        : phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
             ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_ANGLE_ALIGN_TOLERANCE_DEG
             : ROUTE_DISC_LINE_ANGLE_ALIGN_TOLERANCE_DEG;
-    const float right_edge_max_lateral_speed =
-        phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
+    const float right_edge_max_lateral_speed = task3_red_white_line_phase
+        ? ROUTE_FORMAL_TASK3_RED_WHITE_LINE_MAX_LATERAL_SPEED_M_S
+        : phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
             ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_MAX_LATERAL_SPEED_M_S
             : ROUTE_TASK2_FORMAL_WHITE_LINE_MAX_LATERAL_SPEED_M_S;
+    const uint32_t right_edge_search_switch_ms = task3_red_white_line_phase
+        ? ROUTE_FORMAL_TASK3_RED_WHITE_LINE_EDGE_SEARCH_SWITCH_MS
+        : ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_EDGE_SEARCH_SWITCH_MS;
     const float no_line_search_speed_m_s =
         phase == ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC
             ? ROUTE_TASK1_DISC_LINE_SEARCH_SPEED_M_S
             : forward_speed_m_s;
 
-    /* Only task-one post-arc and task-two post-secondary-shift entry may
-     * emit white-line queries. Keep the restriction beside the emitter. */
+    /* Keep the formal query allowlist beside the emitter so standalone
+     * camera phases cannot accidentally enter this route controller. */
     if (phase != ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC &&
         phase != ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT &&
-        phase != ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT) {
+        !task3_white_line_phase) {
         g_fault_code = FAULT_KINEMATICS;
         return false;
     }
@@ -4629,19 +4698,11 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
     (void)snprintf(query, sizeof(query),
                    "VISION,WHITE_LINE,QUERY,SEQ,%lu,PHASE,%s\r\n",
                    (unsigned long)sequence,
-                   phase == ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC
-                       ? "TASK1_AFTER_ARC"
-                       : phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
-                           ? "TASK3_BLUE_WHITE_LINE_ALIGN"
-                           : "TASK2_AFTER_SECONDARY_SHIFT");
+                   route_white_line_phase_name(phase));
     (void)snprintf(log_line, sizeof(log_line),
                    "H7,VISION,WHITE_LINE,START,SEQ=%lu,PHASE=%s,REF_Y10=%ld,REF_A100=%d\r\n",
                    (unsigned long)sequence,
-                   phase == ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC
-                       ? "TASK1_AFTER_ARC"
-                       : phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
-                           ? "TASK3_BLUE_WHITE_LINE_ALIGN"
-                           : "TASK2_AFTER_SECONDARY_SHIFT",
+                   route_white_line_phase_name(phase),
                    reference_y10,
                    ROUTE_DISC_LINE_REFERENCE_A100);
     board_uart1_write(log_line);
@@ -4671,7 +4732,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
         uint32_t i;
 
         if ((uint32_t)(now_ms - started_ms) >= ROUTE_DISC_LINE_TIMEOUT_MS) {
-            if (phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT) {
+            if (task3_white_line_phase) {
                 /* Task three must not drive blind after the fixed approach.
                  * Restart the local watchdog, clear stale geometry, and hold
                  * position until a fresh frame returns. The right-edge branch
@@ -4701,7 +4762,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                 (void)route_motor_send_zero_all();
                 board_uart1_write_only(
                     "H7,VISION,WHITE_LINE,TIMEOUT,SEARCH_RESTART,"
-                    "TASK3_BLUE,HOLD_AND_WAIT\r\n");
+                    "TASK3,HOLD_AND_WAIT\r\n");
             } else {
                 (void)route_motor_send_zero_all();
                 g_command_speed_m_s = 0.0f;
@@ -4805,8 +4866,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                 right_edge_x >= 0L &&
                                 right_edge_x <= frame_width;
                             last_right_edge_measurement_ms = now_ms;
-                            if (phase ==
-                                    ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT &&
+                            if (task3_white_line_phase &&
                                 right_edge_alignment_active &&
                                 right_edge_measurement_valid) {
                                 if (task3_edge_search_active) {
@@ -4917,7 +4977,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                          * three holds the chassis; task one and task two keep
                          * their existing search behavior below. */
                         ++not_found_samples;
-                        if (phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT) {
+                        if (task3_white_line_phase) {
                             /* Do not use the last strip geometry to keep
                              * driving after the camera reports a miss. A new
                              * FOUND frame must rebuild the three-sample
@@ -4942,8 +5002,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                         }
                         if (right_edge_alignment_enabled &&
                             right_edge_alignment_active) {
-                            if (phase ==
-                                ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT) {
+                            if (task3_white_line_phase) {
                                 /* Keep the right-edge stage active. When the
                                  * boundary is lost, scan left/right at low
                                  * speed until a fresh RX value returns. */
@@ -5008,15 +5067,14 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                 if (!edge_fresh) {
                     right_edge_measurement_valid = false;
                     right_edge_stable_samples = 0U;
-                    if (phase ==
-                        ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT) {
+                    if (task3_white_line_phase) {
                         if (!task3_edge_search_active) {
                             task3_edge_search_active = true;
                             task3_edge_search_started_ms = now_ms;
                             task3_edge_search_direction = 1.0f;
                         } else if ((uint32_t)(now_ms -
                                               task3_edge_search_started_ms) >=
-                                   ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_EDGE_SEARCH_SWITCH_MS) {
+                                   right_edge_search_switch_ms) {
                             task3_edge_search_direction =
                                 -task3_edge_search_direction;
                             task3_edge_search_started_ms = now_ms;
@@ -5208,7 +5266,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                 angle_stable_samples = 0U;
                 angle_aligned = false;
                 error_angle_deg = 0.0f;
-                if (phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT) {
+                if (task3_white_line_phase) {
                     /* The fixed task-three approach has already completed.
                      * Never enter the generic reverse/forward search here;
                      * wait at the current point for a fresh measurement. */
@@ -6266,7 +6324,8 @@ bool route_controller_run_task2_entry_translation_with_turn(
 {
     return run_route_bezier_with_turn(
         vx_direction, vy_direction, target_distance_m, maximum_speed_m_s,
-        acceleration_m_s2, heading_delta_rad, false);
+        acceleration_m_s2, heading_delta_rad,
+        ROUTE_BEZIER_TASK2_DIAGONAL);
 }
 
 bool route_controller_run_task3_blue_final_bezier(void)
@@ -6290,7 +6349,33 @@ bool route_controller_run_task3_blue_final_bezier(void)
         ROUTE_TRANSLATION_SPEED_M_S,
         ROUTE_TRANSLATION_ACCEL_M_S2,
         0.0f,
-        true);
+        ROUTE_BEZIER_TASK3_BLUE_FINAL);
+}
+
+bool route_controller_run_task3_red_final_bezier(void)
+{
+    const float reverse_component_m =
+        -ROUTE_FORWARD_SIGN *
+        ROUTE_FORMAL_TASK3_RED_FINAL_BEZIER_REVERSE_DISTANCE_M;
+    const float lateral_component_m =
+        ROUTE_LEFT_STRAFE_SIGN *
+        ROUTE_FORMAL_TASK3_RED_FINAL_BEZIER_LEFT_DISTANCE_M;
+    const float endpoint_distance_m = sqrtf(
+        reverse_component_m * reverse_component_m +
+        lateral_component_m * lateral_component_m);
+
+    if (endpoint_distance_m <= 0.001f) {
+        g_fault_code = FAULT_KINEMATICS;
+        return false;
+    }
+    return run_route_bezier_with_turn(
+        reverse_component_m / endpoint_distance_m,
+        lateral_component_m / endpoint_distance_m,
+        endpoint_distance_m,
+        ROUTE_TRANSLATION_SPEED_M_S,
+        ROUTE_TRANSLATION_ACCEL_M_S2,
+        0.0f,
+        ROUTE_BEZIER_TASK3_RED_FINAL);
 }
 
 bool route_controller_run_task2_test(uint32_t sequence, const char *letter1,
@@ -6603,6 +6688,42 @@ bool route_controller_run_task3_blue_white_line(void)
     }
     board_uart1_write(
         "H7,ROUTE,TASK3,BLUE,WHITE_LINE_ALIGN,DONE,STOPPED\r\n");
+    return true;
+}
+
+bool route_controller_run_task3_red_white_line(void)
+{
+    bool moved;
+    g_run_state = RUN_FORWARD;
+    board_uart1_write(
+        "H7,ROUTE,TASK3,RED,WHITE_LINE_APPROACH,FORWARD=640mm\r\n");
+    moved = run_translation_profile_with_turn(
+        ROUTE_FORWARD_SIGN, 0.0f,
+        ROUTE_FORMAL_TASK3_RED_WHITE_LINE_FORWARD_DISTANCE_M,
+        ROUTE_TRANSLATION_SPEED_M_S, ROUTE_TRANSLATION_ACCEL_M_S2, 0.0f,
+        true, false);
+    if (!moved) {
+        return false;
+    }
+    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    if (g_run_state == RUN_FAULT) {
+        return false;
+    }
+    board_uart1_write(
+        "H7,ROUTE,TASK3,RED,WHITE_LINE_ALIGN,START,REF_Y10=3000,TOL=100,"
+        "X=500,ANGLE=0\r\n");
+    moved = run_disc_visual_alignment_at_speed(
+        0.050f,
+        ROUTE_FORMAL_TASK3_RED_WHITE_LINE_REFERENCE_Y10,
+        ROUTE_FORMAL_TASK3_RED_WHITE_LINE_TOLERANCE_Y10,
+        ROUTE_DISC_LINE_ACCEL_M_S2,
+        ROUTE_WHITE_LINE_PHASE_TASK3_RED_AFTER_ORBIT,
+        0U);
+    if (!moved) {
+        return false;
+    }
+    board_uart1_write(
+        "H7,ROUTE,TASK3,RED,WHITE_LINE_ALIGN,DONE,STOPPED\r\n");
     return true;
 }
 
