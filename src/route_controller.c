@@ -3157,7 +3157,8 @@ static bool run_route_bezier_with_turn(float vx_direction,
     uint32_t last_control_ms = previous_ms;
     uint32_t last_log_ms = previous_ms - RUN_LOG_SAMPLE_PERIOD_MS;
     const uint32_t started_ms = previous_ms;
-    uint32_t settled_since_ms = 0U;
+    uint32_t endpoint_stop_started_ms = 0U;
+    bool endpoint_stop_latched = false;
     bool first_feedback_cycle = true;
 
     const bool task3_final_curve =
@@ -3437,8 +3438,26 @@ static bool run_route_bezier_with_turn(float vx_direction,
                        fabsf(g_gyro_z_rad_s) <=
                            ROUTE_TURN_RATE_TOLERANCE_RAD_S;
 
+        /* Once the endpoint is captured, do not let noisy odometry reopen
+         * the path controller.  The previous implementation could send one
+         * more non-zero correction here, then clear its settle timer on the
+         * next sample and repeat that cycle indefinitely. */
+        if (segment_done && !endpoint_stop_latched) {
+            endpoint_stop_latched = true;
+            endpoint_stop_started_ms = now_ms;
+        }
+        if (endpoint_stop_latched) {
+            command_route_vx_m_s = 0.0f;
+            command_route_vy_m_s = 0.0f;
+            previous_command_x_m_s = 0.0f;
+            previous_command_y_m_s = 0.0f;
+            g_heading_correction_rad_s = 0.0f;
+            g_command_speed_m_s = 0.0f;
+            g_cross_track_command_m_s = 0.0f;
+        }
+
         max_delta = acceleration_m_s2 * dt;
-        {
+        if (!endpoint_stop_latched) {
             const float delta_x = command_route_vx_m_s -
                                   previous_command_x_m_s;
             const float delta_y = command_route_vy_m_s -
@@ -3451,8 +3470,10 @@ static bool run_route_bezier_with_turn(float vx_direction,
                                        delta_y * max_delta / delta_norm;
             }
         }
-        previous_command_x_m_s = command_route_vx_m_s;
-        previous_command_y_m_s = command_route_vy_m_s;
+        if (!endpoint_stop_latched) {
+            previous_command_x_m_s = command_route_vx_m_s;
+            previous_command_y_m_s = command_route_vy_m_s;
+        }
         command_body_vx_m_s = heading_cos * command_route_vx_m_s -
                               heading_sin * command_route_vy_m_s;
         command_body_vy_m_s = heading_sin * command_route_vx_m_s +
@@ -3477,15 +3498,11 @@ static bool run_route_bezier_with_turn(float vx_direction,
             log_route_sample(now_ms, measured_wheel_speed);
         }
         lcd_display_update();
-        if (segment_done) {
-            if (settled_since_ms == 0U) {
-                settled_since_ms = now_ms;
-            } else if ((uint32_t)(now_ms - settled_since_ms) >=
-                       ROUTE_TASK2_ENTRY_ENDPOINT_DONE_HOLD_MS) {
+        if (endpoint_stop_latched) {
+            if ((uint32_t)(now_ms - endpoint_stop_started_ms) >=
+                ROUTE_TASK2_ENTRY_ENDPOINT_DONE_HOLD_MS) {
                 break;
             }
-        } else {
-            settled_since_ms = 0U;
         }
     }
     g_command_speed_m_s = 0.0f;
