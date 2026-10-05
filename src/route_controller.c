@@ -4651,7 +4651,6 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
     bool task3_edge_recovery_logged = false;
     bool task3_edge_search_active = false;
     float task3_edge_search_direction = 1.0f;
-    uint32_t task3_edge_search_started_ms = 0U;
     float measured_wheel_speed[4] = {0.0f};
     float wheel_speed[4] = {0.0f};
     bool first_feedback_cycle = true;
@@ -4699,9 +4698,6 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
         : phase == ROUTE_WHITE_LINE_PHASE_TASK3_BLUE_AFTER_ORBIT
             ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_MAX_LATERAL_SPEED_M_S
             : ROUTE_TASK2_FORMAL_WHITE_LINE_MAX_LATERAL_SPEED_M_S;
-    const uint32_t right_edge_search_switch_ms = task3_red_white_line_phase
-        ? ROUTE_FORMAL_TASK3_RED_WHITE_LINE_EDGE_SEARCH_SWITCH_MS
-        : ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_EDGE_SEARCH_SWITCH_MS;
     const float no_line_search_speed_m_s =
         phase == ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC
             ? ROUTE_TASK1_DISC_LINE_SEARCH_SPEED_M_S
@@ -5012,10 +5008,13 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                          * their existing search behavior below. */
                         ++not_found_samples;
                         if (task3_white_line_phase) {
-                            /* Do not use the last strip geometry to keep
-                             * driving after the camera reports a miss. A new
-                             * FOUND frame must rebuild the three-sample
-                             * center/angle decision before motion resumes. */
+                            /* Do not reuse stale geometry after a miss, but
+                             * keep the center-line search moving. The task-
+                             * three approach has already completed its fixed
+                             * distance, so a small forward command is safer
+                             * than parking indefinitely on a transient miss.
+                             * The right-edge stage below still owns lateral
+                             * recovery when that stage is active. */
                             measurement_valid = false;
                             filtered_y10_valid = false;
                             have_accepted_y10 = false;
@@ -5025,14 +5024,13 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                             angle_stable_samples = 0U;
                             angle_aligned = false;
                             error_angle_deg = 0.0f;
-                            commanded_forward_speed_m_s = 0.0f;
-                            g_command_speed_m_s = 0.0f;
+                            commanded_forward_speed_m_s =
+                                ROUTE_FORMAL_TASK3_WHITE_LINE_NOT_FOUND_FORWARD_SPEED_M_S;
+                            g_command_speed_m_s =
+                                ROUTE_FORMAL_TASK3_WHITE_LINE_NOT_FOUND_FORWARD_SPEED_M_S;
                             g_heading_correction_rad_s = 0.0f;
                             g_cross_track_command_m_s = 0.0f;
                             g_actual_cross_speed_m_s = 0.0f;
-                            if (!right_edge_alignment_active) {
-                                (void)route_motor_send_zero_all();
-                            }
                         }
                         if (right_edge_alignment_enabled &&
                             right_edge_alignment_active) {
@@ -5042,8 +5040,11 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                  * speed until a fresh RX value returns. */
                                 if (!task3_edge_search_active) {
                                     task3_edge_search_active = true;
-                                    task3_edge_search_started_ms = now_ms;
-                                    task3_edge_search_direction = 1.0f;
+                                    /* On entry to the right-edge recovery
+                                     * stage, search left first at the capped
+                                     * 0.01 m/s lateral speed. The timed scan
+                                     * below reverses direction if needed. */
+                                    task3_edge_search_direction = -1.0f;
                                 }
                                 if (!task3_edge_recovery_logged) {
                                     task3_edge_recovery_logged = true;
@@ -5104,18 +5105,9 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                     if (task3_white_line_phase) {
                         if (!task3_edge_search_active) {
                             task3_edge_search_active = true;
-                            task3_edge_search_started_ms = now_ms;
-                            task3_edge_search_direction = 1.0f;
-                        } else if ((uint32_t)(now_ms -
-                                              task3_edge_search_started_ms) >=
-                                   right_edge_search_switch_ms) {
-                            task3_edge_search_direction =
-                                -task3_edge_search_direction;
-                            task3_edge_search_started_ms = now_ms;
-                            board_uart1_write_only(
-                                task3_edge_search_direction > 0.0f
-                                    ? "H7,VISION,WHITE_LINE,RIGHT_EDGE_SCAN,DIR=RIGHT\r\n"
-                                    : "H7,VISION,WHITE_LINE,RIGHT_EDGE_SCAN,DIR=LEFT\r\n");
+                            /* A stale edge measurement starts recovery with
+                             * the required 0.01 m/s leftward scan. */
+                            task3_edge_search_direction = -1.0f;
                         }
                         if (!task3_edge_recovery_logged) {
                             task3_edge_recovery_logged = true;
@@ -5301,12 +5293,17 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                 angle_aligned = false;
                 error_angle_deg = 0.0f;
                 if (task3_white_line_phase) {
-                    /* The fixed task-three approach has already completed.
-                     * Never enter the generic reverse/forward search here;
-                     * wait at the current point for a fresh measurement. */
-                    desired_forward_speed_m_s = 0.0f;
-                    commanded_forward_speed_m_s = 0.0f;
-                    g_command_speed_m_s = 0.0f;
+                    /* A stale/missing center-line frame must not park the
+                     * chassis. Continue a bounded forward search at the
+                     * task-three recovery speed until a fresh measurement
+                     * rebuilds the closed loop. When the right-edge phase is
+                     * active, its lateral scan branch above takes precedence. */
+                    desired_forward_speed_m_s =
+                        ROUTE_FORMAL_TASK3_WHITE_LINE_NOT_FOUND_FORWARD_SPEED_M_S;
+                    commanded_forward_speed_m_s =
+                        ROUTE_FORMAL_TASK3_WHITE_LINE_NOT_FOUND_FORWARD_SPEED_M_S;
+                    g_command_speed_m_s =
+                        ROUTE_FORMAL_TASK3_WHITE_LINE_NOT_FOUND_FORWARD_SPEED_M_S;
                     g_heading_correction_rad_s = 0.0f;
                     g_cross_track_command_m_s = 0.0f;
                     g_actual_cross_speed_m_s = 0.0f;
