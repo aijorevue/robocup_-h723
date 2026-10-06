@@ -8941,54 +8941,53 @@ LOAD D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../li
                 0x08008f1c        0x4 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/route_controller.c.obj
                 0x08008f1c                Error_Handler
  .text.startup.main
-                0x08008f20     0x1e6c CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/main.c.obj
+                0x08008f20     0x1e70 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/main.c.obj
                 0x08008f20                main
  .text.adc1_read_channel_raw
-                0x0800ad8c       0xd0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800ad90       0xd0 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
  .text.fdcan1_configure_and_start
-                0x0800ae5c       0x88 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800ae60       0x88 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
  .text.uart5_restart_receive
-                0x0800aee4       0x44 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800aee8       0x44 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
  .text.board_read_bus_voltage
-                0x0800af28       0x48 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800af28                board_read_bus_voltage
+                0x0800af2c       0x48 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800af2c                board_read_bus_voltage
  .text.board_lcd_joystick_raw
-                0x0800af70        0xc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800af70                board_lcd_joystick_raw
+                0x0800af74        0xc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800af74                board_lcd_joystick_raw
  .text.board_lcd_joystick_direction
-                0x0800af7c       0x60 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800af7c                board_lcd_joystick_direction
+                0x0800af80       0x60 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800af80                board_lcd_joystick_direction
  .text.board_selected_field
-                0x0800afdc        0xc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800afdc                board_selected_field
+                0x0800afe0        0xc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800afe0                board_selected_field
  .text.board_clear_selected_field
-                0x0800afe8        0xc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800afe8                board_clear_selected_field
+                0x0800afec        0xc CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800afec                board_clear_selected_field
  .text.board_user_start_active
-                0x0800aff4       0x40 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800aff4                board_user_start_active
+                0x0800aff8       0x40 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800aff8                board_user_start_active
  .text.board_user_start_pressed
-                0x0800b034       0x4c CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800b034                board_user_start_pressed
+                0x0800b038       0x4c CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800b038                board_user_start_pressed
  .text.board_init
-                0x0800b080      0x7b8 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800b080                board_init
+                0x0800b084      0x7b8 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800b084                board_init
  .text.board_servo_set_angle_deg_index
-                0x0800b838       0x84 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800b838                board_servo_set_angle_deg_index
+                0x0800b83c       0x84 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800b83c                board_servo_set_angle_deg_index
  .text.board_servo_apply_power_on_pose
-                0x0800b8bc       0x28 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800b8bc                board_servo_apply_power_on_pose
+                0x0800b8c0       0x28 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800b8c0                board_servo_apply_power_on_pose
  .text.board_uart1_write_only
-                0x0800b8e4       0x30 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800b8e4                board_uart1_write_only
+                0x0800b8e8       0x30 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800b8e8                board_uart1_write_only
  .text.board_usb_write
-                0x0800b914       0x68 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800b914                board_usb_write
+                0x0800b918       0x68 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800b918                board_usb_write
  .text.board_uart1_write
-                0x0800b97c       0x30 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
-                0x0800b97c                board_uart1_write
- *fill*         0x0800b9ac        0x4 
+                0x0800b980       0x30 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
+                0x0800b980                board_uart1_write
  .text.HAL_UART_MspInit
                 0x0800b9b0      0x114 CMakeFiles/DM_MC02_Gyro_3m.elf.dir/src/board.c.obj
                 0x0800b9b0                HAL_UART_MspInit
