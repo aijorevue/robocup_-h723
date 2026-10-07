@@ -4801,6 +4801,9 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
         route_white_line_phase_is_task3(phase);
     const bool task3_red_white_line_phase =
         phase == ROUTE_WHITE_LINE_PHASE_TASK3_RED_AFTER_ORBIT;
+    const bool formal_task2_white_line_phase =
+        phase == ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT &&
+        g_task2_test_active_sequence == 0U;
     const bool right_edge_alignment_enabled =
         (phase == ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT &&
          g_task2_test_active_sequence == 0U) || task3_white_line_phase;
@@ -5400,7 +5403,14 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                                  : last_accepted_y10;
                     const long y10_error = control_y10 - reference_y10;
                     if (y10_error > tolerance_y10) {
-                        desired_forward_speed_m_s = -forward_speed_m_s;
+                        /* Formal task two is a one-way approach.  A large
+                         * positive Y error must never make the chassis back
+                         * into the entry area; keep searching forward until
+                         * the center line reaches its reference band. */
+                        desired_forward_speed_m_s =
+                            formal_task2_white_line_phase
+                                ? forward_speed_m_s
+                                : -forward_speed_m_s;
                     } else if (y10_error < -tolerance_y10) {
                         desired_forward_speed_m_s = forward_speed_m_s;
                     } else {
@@ -5443,6 +5453,17 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                     g_heading_correction_rad_s = 0.0f;
                     g_cross_track_command_m_s = 0.0f;
                     g_actual_cross_speed_m_s = 0.0f;
+                } else if (formal_task2_white_line_phase) {
+                    /* Do not use the generic reverse-search branch for the
+                     * formal task-two entry.  The X/right-edge phase is
+                     * enabled only after the Y reference is stable above. */
+                    desired_forward_speed_m_s = no_line_search_speed_m_s;
+                    if (!forward_search_logged) {
+                        forward_search_logged = true;
+                        board_uart1_write_only(
+                            "H7,VISION,WHITE_LINE,SEARCH,DIR=FORWARD_ONLY,"
+                            "PHASE=TASK2_AFTER_SHIFT\r\n");
+                    }
                 } else if ((uint32_t)(now_ms - started_ms) < reverse_search_ms) {
                     desired_forward_speed_m_s = -no_line_search_speed_m_s;
                     if (!reverse_search_logged) {
@@ -6726,7 +6747,7 @@ bool route_controller_run_task2_platform_entry(void)
             ROUTE_TASK2_TEST_WHITE_LINE_REFERENCE_TOLERANCE_Y10,
             ROUTE_TASK2_TEST_WHITE_LINE_ACCEL_M_S2,
             ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT,
-            ROUTE_TASK2_TEST_WHITE_LINE_REVERSE_SEARCH_MS)) {
+            ROUTE_TASK2_FORMAL_WHITE_LINE_REVERSE_SEARCH_MS)) {
         return false;
     }
 
