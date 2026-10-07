@@ -250,6 +250,17 @@ static bool run_formal_task3_red_tail(void)
         return false;
     }
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    g_run_state = RUN_FORWARD;
+    board_uart1_write(
+        "H7,ROUTE,TASK3,RED,PRE_RING_FORWARD,SPEED=0.02m/s,TIME=3200ms\r\n");
+    if (!route_controller_run_timed_forward(
+            ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_SPEED_M_S,
+            ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_MS)) {
+        return false;
+    }
+    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    board_uart1_write(
+        "H7,ROUTE,TASK3,RED,PRE_RING_FORWARD,DONE\r\n");
     if (!route_controller_wait_for_rk_arm_task("TASK3_RING_PLACE")) {
         return false;
     }
@@ -262,13 +273,13 @@ static bool run_formal_task3_red_tail(void)
     board_uart1_write(
         "H7,LOCAL_SERVO,TASK3_RED,PE09,RING_PLACE_DONE,ANGLE=102.0deg\r\n");
     g_run_state = RUN_PLATFORM_SHIFT_LEFT;
-    if (!route_controller_run_task3_red_final_bezier()) {
+    if (!route_controller_run_task3_red_final_translation()) {
         return false;
     }
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     board_uart1_write(
         "H7,ROUTE,TASK3,RED,POST_ROUTE_FINAL_PATH,DONE,"
-        "PATH=CUBIC_BEZIER,SHIFT=2810mm,REVERSE=665mm\r\n");
+        "PATH=FINAL_TRANSLATION,SHIFT=1800mm,REVERSE=900mm\r\n");
     return true;
 }
 
@@ -1261,21 +1272,9 @@ route_start:
                 const uint8_t red_field = field_profile.is_red != 0U;
 
                 if (red_field) {
-                    g_run_state = RUN_TURN_LEFT;
-                    if (!route_controller_run_relative_turn(
-                            ROUTE_LEFT_TURN_SIGN *
-                            ROUTE_TASK3_POST_FINAL_TURN_RAD *
-                            ROUTE_GYRO_TURN_SCALE)) {
-                        enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
-                                                                : g_fault_code);
-                    }
-                    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-                    if (g_run_state == RUN_FAULT) {
-                        enter_fault(g_fault_code);
-                    }
                     board_uart1_write(
                         "H7,ROUTE,TASK3,POST_ROUTE_FINAL_TURN,"
-                        "FIELD=RED,DIR=LEFT,ANGLE=90deg\r\n");
+                        "FIELD=RED,DIR=NONE,ANGLE=0deg,CANCELLED\r\n");
                 } else {
                     board_uart1_write(
                         "H7,ROUTE,TASK3,POST_ROUTE_FINAL_TURN,"

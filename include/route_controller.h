@@ -157,7 +157,7 @@ bool route_controller_run_task2_entry_translation_with_turn(
     float heading_delta_rad);
 /* Formal task-three final lateral/reverse routes as field-specific Beziers. */
 bool route_controller_run_task3_blue_final_bezier(void);
-bool route_controller_run_task3_red_final_bezier(void);
+bool route_controller_run_task3_red_final_translation(void);
 bool route_controller_run_disc_arc_entry(float lateral_sign,
                                          float turn_sign);
 bool route_controller_run_disc_visual_alignment(void);

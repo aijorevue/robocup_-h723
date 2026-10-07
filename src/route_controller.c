@@ -6542,30 +6542,22 @@ bool route_controller_run_task3_blue_final_bezier(void)
         ROUTE_BEZIER_TASK3_BLUE_FINAL);
 }
 
-bool route_controller_run_task3_red_final_bezier(void)
+bool route_controller_run_task3_red_final_translation(void)
 {
-    const float reverse_component_m =
-        -ROUTE_FORWARD_SIGN *
-        ROUTE_FORMAL_TASK3_RED_FINAL_BEZIER_REVERSE_DISTANCE_M;
-    const float lateral_component_m =
-        ROUTE_LEFT_STRAFE_SIGN *
-        ROUTE_FORMAL_TASK3_RED_FINAL_BEZIER_LEFT_DISTANCE_M;
-    const float endpoint_distance_m = sqrtf(
-        reverse_component_m * reverse_component_m +
-        lateral_component_m * lateral_component_m);
-
-    if (endpoint_distance_m <= 0.001f) {
-        g_fault_code = FAULT_KINEMATICS;
+    /* RED keeps its field-specific distances, but uses the same two
+     * straight final-translation segments as BLUE. */
+    if (!route_controller_run_final_translation(
+            0.0f, ROUTE_LEFT_STRAFE_SIGN,
+            ROUTE_FORMAL_TASK3_RED_FINAL_BEZIER_LEFT_DISTANCE_M,
+            ROUTE_TRANSLATION_SPEED_M_S,
+            ROUTE_TRANSLATION_ACCEL_M_S2)) {
         return false;
     }
-    return run_route_bezier_with_turn(
-        reverse_component_m / endpoint_distance_m,
-        lateral_component_m / endpoint_distance_m,
-        endpoint_distance_m,
+    return route_controller_run_final_translation(
+        -ROUTE_FORWARD_SIGN, 0.0f,
+        ROUTE_FORMAL_TASK3_RED_FINAL_BEZIER_REVERSE_DISTANCE_M,
         ROUTE_TRANSLATION_SPEED_M_S,
-        ROUTE_TRANSLATION_ACCEL_M_S2,
-        0.0f,
-        ROUTE_BEZIER_TASK3_RED_FINAL);
+        ROUTE_TRANSLATION_ACCEL_M_S2);
 }
 
 bool route_controller_run_task2_test(uint32_t sequence, const char *letter1,
