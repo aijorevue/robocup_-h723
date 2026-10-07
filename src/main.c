@@ -299,7 +299,7 @@ static bool run_formal_task3_red_tail(void)
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     board_uart1_write(
         "H7,ROUTE,TASK3,RED,POST_ROUTE_FINAL_PATH,DONE,"
-        "PATH=FINAL_TRANSLATION,SHIFT=2250mm,REVERSE=800mm\r\n");
+        "PATH=FINAL_TRANSLATION,SHIFT=2250mm,REVERSE=820mm\r\n");
     return true;
 }
 
