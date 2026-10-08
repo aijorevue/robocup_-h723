@@ -248,7 +248,7 @@ static bool run_formal_task3_red_tail(void)
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     g_run_state = RUN_FORWARD;
     board_uart1_write(
-        "H7,ROUTE,TASK3,RED,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=600ms\r\n");
+        "H7,ROUTE,TASK3,RED,PRE_RING_FORWARD,SPEED=0.10m/s,TIME=250ms\r\n");
     if (!route_controller_run_timed_forward(
             ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_SPEED_M_S,
             ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_MS)) {
@@ -268,7 +268,7 @@ static bool run_formal_task3_red_tail(void)
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     g_run_state = RUN_FORWARD;
     board_uart1_write(
-        "H7,ROUTE,TASK3,RED,POST_SHIFT_FORWARD,SPEED=0.05m/s,TIME=600ms\r\n");
+        "H7,ROUTE,TASK3,RED,POST_SHIFT_FORWARD,SPEED=0.10m/s,TIME=250ms\r\n");
     if (!route_controller_run_timed_forward(
             ROUTE_FORMAL_TASK3_RED_RING_PREPLACE_POST_SHIFT_FORWARD_SPEED_M_S,
             ROUTE_FORMAL_TASK3_RED_RING_PREPLACE_POST_SHIFT_FORWARD_MS)) {
@@ -1220,7 +1220,7 @@ route_start:
                 }
                 g_run_state = RUN_FORWARD;
                 board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=600ms\r\n");
+                    "H7,ROUTE,TASK3,BLUE,PRE_RING_FORWARD,SPEED=0.10m/s,TIME=250ms\r\n");
                 if (!route_controller_run_timed_forward(
                         ROUTE_TASK3_BLUE_PRE_RING_FORWARD_SPEED_M_S,
                         ROUTE_TASK3_BLUE_PRE_RING_FORWARD_MS)) {
@@ -1242,7 +1242,7 @@ route_start:
                 route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
                 g_run_state = RUN_FORWARD;
                 board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,POST_SHIFT_FORWARD,SPEED=0.05m/s,TIME=600ms\r\n");
+                    "H7,ROUTE,TASK3,BLUE,POST_SHIFT_FORWARD,SPEED=0.10m/s,TIME=250ms\r\n");
                 if (!route_controller_run_timed_forward(
                         ROUTE_TASK3_BLUE_RING_PREPLACE_POST_SHIFT_FORWARD_SPEED_M_S,
                         ROUTE_TASK3_BLUE_RING_PREPLACE_POST_SHIFT_FORWARD_MS)) {

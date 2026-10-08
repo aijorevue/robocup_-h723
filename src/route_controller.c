@@ -6839,13 +6839,23 @@ bool route_controller_run_disc_visual_alignment(void)
 
 bool route_controller_run_task3_blue_white_line(void)
 {
+    const float forward_component_m =
+        ROUTE_FORWARD_SIGN * ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_FORWARD_DISTANCE_M;
+    const float left_component_m =
+        ROUTE_LEFT_STRAFE_SIGN *
+        ROUTE_FORMAL_TASK3_WHITE_LINE_APPROACH_LEFT_DISTANCE_M;
+    const float diagonal_distance_m = sqrtf(
+        forward_component_m * forward_component_m +
+        left_component_m * left_component_m);
     bool moved;
     g_run_state = RUN_FORWARD;
     board_uart1_write(
-        "H7,ROUTE,TASK3,BLUE,WHITE_LINE_APPROACH,FORWARD=660mm\r\n");
+        "H7,ROUTE,TASK3,BLUE,WHITE_LINE_APPROACH,"
+        "FORWARD=660mm,LEFT=50mm,MODE=DIAGONAL\r\n");
     moved = run_translation_profile_with_turn(
-        ROUTE_FORWARD_SIGN, 0.0f,
-        ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_FORWARD_DISTANCE_M,
+        forward_component_m / diagonal_distance_m,
+        left_component_m / diagonal_distance_m,
+        diagonal_distance_m,
         ROUTE_TRANSLATION_SPEED_M_S, ROUTE_TRANSLATION_ACCEL_M_S2, 0.0f,
         true, false);
     if (!moved) {
@@ -6875,13 +6885,23 @@ bool route_controller_run_task3_blue_white_line(void)
 
 bool route_controller_run_task3_red_white_line(void)
 {
+    const float forward_component_m =
+        ROUTE_FORWARD_SIGN * ROUTE_FORMAL_TASK3_RED_WHITE_LINE_FORWARD_DISTANCE_M;
+    const float left_component_m =
+        ROUTE_LEFT_STRAFE_SIGN *
+        ROUTE_FORMAL_TASK3_WHITE_LINE_APPROACH_LEFT_DISTANCE_M;
+    const float diagonal_distance_m = sqrtf(
+        forward_component_m * forward_component_m +
+        left_component_m * left_component_m);
     bool moved;
     g_run_state = RUN_FORWARD;
     board_uart1_write(
-        "H7,ROUTE,TASK3,RED,WHITE_LINE_APPROACH,FORWARD=640mm\r\n");
+        "H7,ROUTE,TASK3,RED,WHITE_LINE_APPROACH,"
+        "FORWARD=640mm,LEFT=50mm,MODE=DIAGONAL\r\n");
     moved = run_translation_profile_with_turn(
-        ROUTE_FORWARD_SIGN, 0.0f,
-        ROUTE_FORMAL_TASK3_RED_WHITE_LINE_FORWARD_DISTANCE_M,
+        forward_component_m / diagonal_distance_m,
+        left_component_m / diagonal_distance_m,
+        diagonal_distance_m,
         ROUTE_TRANSLATION_SPEED_M_S, ROUTE_TRANSLATION_ACCEL_M_S2, 0.0f,
         true, false);
     if (!moved) {
