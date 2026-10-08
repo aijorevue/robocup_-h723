@@ -6553,11 +6553,36 @@ bool route_controller_run_task3_red_final_translation(void)
             ROUTE_TRANSLATION_ACCEL_M_S2)) {
         return false;
     }
-    return route_controller_run_final_translation(
+    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    board_uart1_write(
+        "H7,ROUTE,TASK3,RED,FIXED_POINT_GYRO_ALIGN,START,"
+        "POINT=FINAL_SHIFT_LEFT_2250\r\n");
+    if (!run_relative_turn(0.0f)) {
+        return false;
+    }
+    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    board_uart1_write(
+        "H7,ROUTE,TASK3,RED,FIXED_POINT_GYRO_ALIGN,DONE,"
+        "POINT=FINAL_SHIFT_LEFT_2250\r\n");
+    if (!route_controller_run_final_translation(
         -ROUTE_FORWARD_SIGN, 0.0f,
         ROUTE_FORMAL_TASK3_RED_FINAL_BEZIER_REVERSE_DISTANCE_M,
         ROUTE_TRANSLATION_SPEED_M_S,
-        ROUTE_TRANSLATION_ACCEL_M_S2);
+        ROUTE_TRANSLATION_ACCEL_M_S2)) {
+        return false;
+    }
+    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    board_uart1_write(
+        "H7,ROUTE,TASK3,RED,FIXED_POINT_GYRO_ALIGN,START,"
+        "POINT=FINAL_REVERSE_820\r\n");
+    if (!run_relative_turn(0.0f)) {
+        return false;
+    }
+    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    board_uart1_write(
+        "H7,ROUTE,TASK3,RED,FIXED_POINT_GYRO_ALIGN,DONE,"
+        "POINT=FINAL_REVERSE_820\r\n");
+    return true;
 }
 
 bool route_controller_run_task2_test(uint32_t sequence, const char *letter1,
@@ -6866,6 +6891,16 @@ bool route_controller_run_task3_blue_white_line(void)
         return false;
     }
     board_uart1_write(
+        "H7,ROUTE,TASK3,BLUE,FIXED_POINT_GYRO_ALIGN,START,"
+        "POINT=WHITE_LINE_APPROACH_DIAGONAL\r\n");
+    if (!run_relative_turn(0.0f)) {
+        return false;
+    }
+    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    board_uart1_write(
+        "H7,ROUTE,TASK3,BLUE,FIXED_POINT_GYRO_ALIGN,DONE,"
+        "POINT=WHITE_LINE_APPROACH_DIAGONAL\r\n");
+    board_uart1_write(
         "H7,ROUTE,TASK3,BLUE,WHITE_LINE_ALIGN,START,REF_Y10=3000,TOL=100,"
         "X=500,ANGLE=0\r\n");
     moved = run_disc_visual_alignment_at_speed(
@@ -6897,7 +6932,7 @@ bool route_controller_run_task3_red_white_line(void)
     g_run_state = RUN_FORWARD;
     board_uart1_write(
         "H7,ROUTE,TASK3,RED,WHITE_LINE_APPROACH,"
-        "FORWARD=640mm,LEFT=50mm,MODE=DIAGONAL\r\n");
+        "FORWARD=660mm,LEFT=50mm,MODE=DIAGONAL\r\n");
     moved = run_translation_profile_with_turn(
         forward_component_m / diagonal_distance_m,
         left_component_m / diagonal_distance_m,
@@ -6911,6 +6946,16 @@ bool route_controller_run_task3_red_white_line(void)
     if (g_run_state == RUN_FAULT) {
         return false;
     }
+    board_uart1_write(
+        "H7,ROUTE,TASK3,RED,FIXED_POINT_GYRO_ALIGN,START,"
+        "POINT=WHITE_LINE_APPROACH_DIAGONAL\r\n");
+    if (!run_relative_turn(0.0f)) {
+        return false;
+    }
+    route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
+    board_uart1_write(
+        "H7,ROUTE,TASK3,RED,FIXED_POINT_GYRO_ALIGN,DONE,"
+        "POINT=WHITE_LINE_APPROACH_DIAGONAL\r\n");
     board_uart1_write(
         "H7,ROUTE,TASK3,RED,WHITE_LINE_ALIGN,START,REF_Y10=3000,TOL=100,"
         "X=500,ANGLE=0\r\n");
