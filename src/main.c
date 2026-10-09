@@ -447,10 +447,11 @@ route_start:
 
     route_controller_reset_pose();
     route_controller_start_disc_prep_high_before_field_selection();
-    if (!route_controller_wait_for_disc_prep_high_before_route()) {
+    if (!route_controller_wait_for_disc_prep_high_power_on()) {
         board_uart1_write(
             "H7,FAULT,POWER_ON_PREP_HIGH_NOT_CONFIRMED,START_BLOCKED\r\n");
-        route_controller_enter_fault_wait_restart(FAULT_ARM_TIMEOUT);
+        route_controller_enter_fault_wait_restart(
+            g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
         goto route_start;
     }
     board_uart1_write(
@@ -556,6 +557,7 @@ route_start:
         route_controller_enter_fault_wait_restart(FAULT_ARM_TIMEOUT);
         goto route_start;
     }
+    route_controller_log_event(RUN_LOG_EVENT_START_ARC_RELEASE);
     g_run_state = RUN_DISC_ARC_ENTRY;
     if (!route_controller_run_disc_arc_entry(field_profile.strafe_sign,
                                              field_profile.turn_sign)) {

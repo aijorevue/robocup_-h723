@@ -43,7 +43,6 @@ static uint32_t g_rk_selected_field_sync_last_send_ms;
 static uint8_t g_rk_last_task_bypassed;
 static uint8_t g_rk_last_task_soft_timed_out;
 static uint8_t g_first_arm_station_reached;
-static uint8_t g_start_confirmed_from_fault;
 static uint32_t g_user_start_trigger_ms;
 static uint8_t g_route_field_is_red;
 static uint8_t g_rk_reset_pending;
@@ -79,6 +78,8 @@ static uint8_t g_formal_task3_pause_requested;
 static uint8_t g_formal_task3_resume_requested;
 static uint8_t g_formal_task3_stop_requested;
 static uint8_t g_formal_task3_paused;
+
+static void log_route_event(uint32_t event);
 
 typedef enum {
     ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC = 1,
@@ -181,9 +182,8 @@ uint8_t route_controller_rk_link_ready(void)
 }
 
 #if ROUTE_WAIT_USER_KEY_ON_BOOT
-static void wait_for_user_start_key_release(const char *status)
+static void wait_for_user_start_key_neutral(const char *status)
 {
-    board_field_t latched_field = BOARD_FIELD_UNKNOWN;
     uint32_t last_status_ms = HAL_GetTick() - 1000U;
     uint32_t last_zero_ms = HAL_GetTick() - CONTROL_PERIOD_MS;
 
@@ -196,15 +196,6 @@ static void wait_for_user_start_key_release(const char *status)
             (void)motor_send_zero_all();
         }
 
-        /* Latch the field while the user is holding RIGHT/DOWN.  The old
-         * implementation waited for release first and then sampled the
-         * joystick, so a normal quick tap could be lost completely. */
-        if (board_user_start_pressed() != 0U) {
-            latched_field = board_selected_field();
-            if (g_user_start_trigger_ms == 0U) {
-                g_user_start_trigger_ms = now_ms;
-            }
-        }
         lcd_display_update();
         /* Standalone TASK2/TASK3 START is an independent launch source. Poll
          * it even while the RC key is held so a test never depends on
@@ -221,7 +212,7 @@ static void wait_for_user_start_key_release(const char *status)
         }
         if ((uint32_t)(now_ms - last_status_ms) >= 1000U) {
             last_status_ms = now_ms;
-            board_uart1_write("H7,START,WAIT_KEY_RELEASE\r\n");
+            board_uart1_write("H7,START,WAIT_FRESH_KEY_RELEASE\r\n");
         }
         if (rc_override_service()) {
             lcd_display_set_start_status(status);
@@ -229,13 +220,7 @@ static void wait_for_user_start_key_release(const char *status)
         HAL_Delay(10U);
     }
 
-    if (latched_field != BOARD_FIELD_UNKNOWN) {
-        lcd_display_set_start_status("RUN");
-        board_uart1_write(latched_field == BOARD_FIELD_RED
-                              ? "H7,START,USER_KEY,field=RED\r\n"
-                              : "H7,START,USER_KEY,field=BLUE\r\n");
-        return;
-    }
+    board_clear_selected_field();
 }
 
 static void wait_for_user_start_key(void)
@@ -245,19 +230,16 @@ static void wait_for_user_start_key(void)
     char status_line[96];
 
     g_run_state = RUN_WAIT_USB_RUN;
-    lcd_display_set_start_status("READY");
-    board_uart1_write(
-        "H7,START,READY,joystick=RIGHT_RED_OR_DOWN_BLUE,RESET=READY,PREP_HIGH=READY\r\n");
-    wait_for_user_start_key_release("READY");
-    /* A quick RIGHT/DOWN selection is latched before the stick is released.
-     * Do not require the user to hold it through a second polling loop. */
-    if (board_selected_field() != BOARD_FIELD_UNKNOWN) {
-        lcd_display_set_start_status("RUN");
-        board_uart1_write(board_selected_field() == BOARD_FIELD_RED
-                              ? "H7,START,USER_KEY,field=RED\r\n"
-                              : "H7,START,USER_KEY,field=BLUE\r\n");
+    /* Discard held preparation/recovery gestures before announcing READY. */
+    lcd_display_set_start_status("RELEASE");
+    wait_for_user_start_key_neutral("RELEASE");
+    if (g_task2_test_pending != 0U || g_task3_test_pending != 0U) {
         return;
     }
+    lcd_display_set_start_status("READY");
+    log_route_event(RUN_LOG_EVENT_START_READY);
+    board_uart1_write(
+        "H7,START,READY,joystick=RIGHT_RED_OR_DOWN_BLUE,RESET=READY,PREP_HIGH=READY\r\n");
     for (;;) {
         uint32_t now_ms = HAL_GetTick();
 
@@ -295,6 +277,7 @@ static void wait_for_user_start_key(void)
         if (board_user_start_pressed() != 0U &&
             board_selected_field() != BOARD_FIELD_UNKNOWN) {
             g_user_start_trigger_ms = now_ms;
+            log_route_event(RUN_LOG_EVENT_START_TRIGGER);
             lcd_display_set_start_status("RUN");
             lcd_display_refresh_input_status();
             switch (board_selected_field()) {
@@ -477,7 +460,6 @@ static void enter_fault_wait_restart(uint32_t code)
         service_rk_link_before_first_station();
         lcd_display_update();
         if (rc_override_service()) {
-            g_start_confirmed_from_fault = 0U;
             start_release_seen = 0U;
             lcd_display_set_start_status("FAULT");
             continue;
@@ -486,8 +468,11 @@ static void enter_fault_wait_restart(uint32_t code)
             start_release_seen = 1U;
         }
         if (start_release_seen != 0U && board_user_start_pressed() != 0U) {
-            g_start_confirmed_from_fault = 1U;
-            lcd_display_set_start_status("RUN");
+            /* This gesture requests recovery only. The common start path
+             * performs RESET/PREP_HIGH again and then requires a fresh field
+             * selection after READY. */
+            board_clear_selected_field();
+            lcd_display_set_start_status("WAIT");
             lcd_display_refresh_input_status();
             board_uart1_write("H7,FAULT,USER_KEY_RESTART\r\n");
             return;
@@ -4380,6 +4365,35 @@ bool route_controller_wait_for_disc_prep_high_before_route(void)
         "H7,ARM,DISC_CATCH,PREP_HIGH_ACKED_BEFORE_ARC\r\n");
 }
 
+bool route_controller_wait_for_disc_prep_high_power_on(void)
+{
+    uint32_t wait_report_ms = HAL_GetTick();
+
+    lcd_display_set_start_status("ARM HIGH");
+    (void)service_disc_prep_high_during_arc();
+    board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_WAIT_BEFORE_READY\r\n");
+    while (g_rk_disc_prep_high_ack == 0U) {
+        const uint32_t now_ms = HAL_GetTick();
+
+        if (service_disc_prep_high_during_arc()) {
+            break;
+        }
+        if (!keep_chassis_stopped_for_arm_task()) {
+            preserve_rc_or_set_motor_fault();
+            return false;
+        }
+        if ((uint32_t)(now_ms - wait_report_ms) >=
+            RK_ARM_PREP_HIGH_BEFORE_ROUTE_TIMEOUT_MS) {
+            wait_report_ms = now_ms;
+            board_uart1_write(
+                "H7,ARM,DISC_CATCH,PREP_HIGH_STILL_WAITING_BEFORE_READY,RETRYING\r\n");
+        }
+        HAL_Delay(1U);
+    }
+    board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_ACKED_BEFORE_READY\r\n");
+    return true;
+}
+
 bool route_controller_run_task2_prep_high(void)
 {
     /* DISC_CATCH completion has already homed the arm. This transaction is
@@ -6370,14 +6384,8 @@ void route_controller_init(void)
 void route_controller_wait_for_start(void)
 {
 #if ROUTE_WAIT_USER_KEY_ON_BOOT
-    if (g_start_confirmed_from_fault != 0U) {
-        g_start_confirmed_from_fault = 0U;
-        lcd_display_set_start_status("RUN");
-        return;
-    } else {
-        board_clear_selected_field();
-        wait_for_user_start_key();
-    }
+    board_clear_selected_field();
+    wait_for_user_start_key();
 #endif
 }
 
@@ -6544,27 +6552,25 @@ void route_controller_begin_selected_field_sync(void)
 
 bool route_controller_wait_for_rk_reset_before_route(void)
 {
-    const uint32_t started_ms = HAL_GetTick();
+    uint32_t wait_report_ms = HAL_GetTick();
 
+    lcd_display_set_start_status("RK RESET");
     board_uart1_write("H7,ARM,WAIT_RESET_BEFORE_ROUTE\r\n");
-    while (g_rk_reset_pending != 0U &&
-           (uint32_t)(HAL_GetTick() - started_ms) <
-               RK_ARM_RESET_BEFORE_ROUTE_TIMEOUT_MS) {
+    while (g_rk_reset_pending != 0U) {
+        const uint32_t now_ms = HAL_GetTick();
+
         service_rk_link_before_first_station();
         lcd_display_update();
+        if ((uint32_t)(now_ms - wait_report_ms) >=
+            RK_ARM_RESET_BEFORE_ROUTE_TIMEOUT_MS) {
+            wait_report_ms = now_ms;
+            board_uart1_write(
+                "H7,ARM,RESET_STILL_WAITING_BEFORE_READY,RETRYING\r\n");
+        }
         HAL_Delay(10U);
     }
-    if (g_rk_reset_pending == 0U) {
-        board_uart1_write("H7,ARM,RESET_CONFIRMED_BEFORE_ROUTE\r\n");
-        return true;
-    }
-    board_uart1_write("H7,ARM,RESET_BYPASS_NO_RK_BEFORE_ROUTE\r\n");
-    /* A formal route without a confirmed RK reset can start the chassis arc
-     * while PREP_HIGH is still rejected as BUSY/STARTUP.  Stop at the start
-     * gate instead of silently running with the arm in its old pose. */
-    g_fault_code = FAULT_ARM_TIMEOUT;
-    board_uart1_write("H7,ARM,RESET_BLOCKED_BEFORE_ROUTE\r\n");
-    return false;
+    board_uart1_write("H7,ARM,RESET_CONFIRMED_BEFORE_ROUTE\r\n");
+    return true;
 }
 
 void route_controller_mark_first_arm_station(void)
@@ -6592,7 +6598,9 @@ void route_controller_start_disc_prep_high_async(void)
                        (unsigned long)(HAL_GetTick() - g_user_start_trigger_ms));
         board_uart1_write(start_log);
     }
-    (void)service_disc_prep_high_during_arc();
+    if (g_rk_disc_prep_high_ack == 0U) {
+        (void)service_disc_prep_high_during_arc();
+    }
     board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_STARTED_BEFORE_ARC\r\n");
 }
 
