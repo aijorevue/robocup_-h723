@@ -36,10 +36,15 @@ static volatile uint8_t g_rk_arm_link_ready;
 static volatile uint8_t g_rk_disc_prep_high_ack;
 static uint8_t g_rk_disc_prep_high_requested;
 static uint32_t g_rk_disc_prep_high_last_send_ms;
+static uint8_t g_rk_reset_before_field_selection;
+static uint8_t g_rk_prep_before_field_selection;
+static uint8_t g_rk_selected_field_sync_pending;
+static uint32_t g_rk_selected_field_sync_last_send_ms;
 static uint8_t g_rk_last_task_bypassed;
 static uint8_t g_rk_last_task_soft_timed_out;
 static uint8_t g_first_arm_station_reached;
 static uint8_t g_start_confirmed_from_fault;
+static uint32_t g_user_start_trigger_ms;
 static uint8_t g_route_field_is_red;
 static uint8_t g_rk_reset_pending;
 static uint32_t g_rk_pretask_last_sync_ms;
@@ -129,6 +134,7 @@ static bool run_task2_exit_white_line_calibration(float *consumed_reverse_m,
  * resume) may proceed without the normal three-fresh-channel gate. */
 static bool route_motor_feedback_update_after_command(float wheel_rad_s[4],
                                                        bool *allow_missing_once);
+static bool route_motor_send_zero_all(void);
 static bool enable_motors(void);
 
 static void clear_formal_task3_context(void)
@@ -179,15 +185,25 @@ static void wait_for_user_start_key_release(const char *status)
 {
     board_field_t latched_field = BOARD_FIELD_UNKNOWN;
     uint32_t last_status_ms = HAL_GetTick() - 1000U;
+    uint32_t last_zero_ms = HAL_GetTick() - CONTROL_PERIOD_MS;
 
     while (board_user_start_active() != 0U) {
         const uint32_t now_ms = HAL_GetTick();
+
+        if ((uint32_t)(now_ms - last_zero_ms) >= CONTROL_PERIOD_MS) {
+            last_zero_ms = now_ms;
+            motor_feedback_drain(now_ms);
+            (void)motor_send_zero_all();
+        }
 
         /* Latch the field while the user is holding RIGHT/DOWN.  The old
          * implementation waited for release first and then sampled the
          * joystick, so a normal quick tap could be lost completely. */
         if (board_user_start_pressed() != 0U) {
             latched_field = board_selected_field();
+            if (g_user_start_trigger_ms == 0U) {
+                g_user_start_trigger_ms = now_ms;
+            }
         }
         lcd_display_update();
         /* Standalone TASK2/TASK3 START is an independent launch source. Poll
@@ -225,12 +241,14 @@ static void wait_for_user_start_key_release(const char *status)
 static void wait_for_user_start_key(void)
 {
     uint32_t last_status_ms = HAL_GetTick() - 1000U;
+    uint32_t last_zero_ms = HAL_GetTick() - CONTROL_PERIOD_MS;
     char status_line[96];
 
     g_run_state = RUN_WAIT_USB_RUN;
-    lcd_display_set_start_status("WAIT");
-    board_uart1_write("H7,START,WAIT_FIELD,joystick=RIGHT_RED_OR_DOWN_BLUE\r\n");
-    wait_for_user_start_key_release("WAIT");
+    lcd_display_set_start_status("READY");
+    board_uart1_write(
+        "H7,START,READY,joystick=RIGHT_RED_OR_DOWN_BLUE,RESET=READY,PREP_HIGH=READY\r\n");
+    wait_for_user_start_key_release("READY");
     /* A quick RIGHT/DOWN selection is latched before the stick is released.
      * Do not require the user to hold it through a second polling loop. */
     if (board_selected_field() != BOARD_FIELD_UNKNOWN) {
@@ -244,6 +262,11 @@ static void wait_for_user_start_key(void)
         uint32_t now_ms = HAL_GetTick();
 
         lcd_display_update();
+        if ((uint32_t)(now_ms - last_zero_ms) >= CONTROL_PERIOD_MS) {
+            last_zero_ms = now_ms;
+            motor_feedback_drain(now_ms);
+            (void)motor_send_zero_all();
+        }
         if ((uint32_t)(now_ms - last_status_ms) >= 1000U) {
             const board_lcd_joystick_direction_t direction =
                 board_lcd_joystick_direction();
@@ -256,7 +279,7 @@ static void wait_for_user_start_key(void)
             board_uart1_write(status_line);
         }
         if (rc_override_service()) {
-            lcd_display_set_start_status("WAIT");
+            lcd_display_set_start_status("READY");
             continue;
         }
         if (service_task2_test_command()) {
@@ -271,6 +294,7 @@ static void wait_for_user_start_key(void)
         }
         if (board_user_start_pressed() != 0U &&
             board_selected_field() != BOARD_FIELD_UNKNOWN) {
+            g_user_start_trigger_ms = now_ms;
             lcd_display_set_start_status("RUN");
             lcd_display_refresh_input_status();
             switch (board_selected_field()) {
@@ -1658,6 +1682,14 @@ static uint32_t next_rk_task_sequence(void)
 
 static void rk_arm_handle_line(const char *line)
 {
+    if ((g_route_field_is_red != 0U &&
+         line_starts_with(line, "RK,FIELD,ACK,RED")) ||
+        (g_route_field_is_red == 0U &&
+         line_starts_with(line, "RK,FIELD,ACK,BLUE"))) {
+        g_rk_selected_field_sync_pending = 0U;
+        board_uart1_write_only("H7,ARM,SELECTED_FIELD_SYNC_CONFIRMED\r\n");
+        return;
+    }
     if (line_starts_with(line, "RK,ARM,DISC_CATCH,PREP_HIGH_ACK")) {
         g_rk_disc_prep_high_ack = 1U;
         g_rk_arm_link_ready = 1U;
@@ -1696,11 +1728,21 @@ static bool service_disc_prep_high_during_arc(void)
     if ((uint32_t)(now_ms - g_rk_disc_prep_high_last_send_ms) >=
         ROUTE_DISC_PREP_RETRY_PERIOD_MS) {
         g_rk_disc_prep_high_last_send_ms = now_ms;
-        (void)snprintf(command, sizeof(command),
-                       "ARM,DISC_CATCH,PREP_HIGH,FIELD,%s,ID1,%d,ID2,%d,ID6,%d\r\n",
-                       field_name, ROUTE_DISC_PREP_HIGH_ID1_TICK,
-                       ROUTE_DISC_PREP_HIGH_ID2_TICK,
-                       ROUTE_DISC_PREP_HIGH_ID6_TICK);
+        if (g_rk_prep_before_field_selection != 0U) {
+            (void)snprintf(
+                command, sizeof(command),
+                "ARM,DISC_CATCH,PREP_HIGH,ID1,%d,ID2,%d,ID6,%d\r\n",
+                ROUTE_DISC_PREP_HIGH_ID1_TICK,
+                ROUTE_DISC_PREP_HIGH_ID2_TICK,
+                ROUTE_DISC_PREP_HIGH_ID6_TICK);
+        } else {
+            (void)snprintf(
+                command, sizeof(command),
+                "ARM,DISC_CATCH,PREP_HIGH,FIELD,%s,ID1,%d,ID2,%d,ID6,%d\r\n",
+                field_name, ROUTE_DISC_PREP_HIGH_ID1_TICK,
+                ROUTE_DISC_PREP_HIGH_ID2_TICK,
+                ROUTE_DISC_PREP_HIGH_ID6_TICK);
+        }
         board_usb_write(command);
     }
 
@@ -1735,16 +1777,25 @@ static void service_rk_link_before_first_station(void)
     }
 
     now_ms = HAL_GetTick();
-    /* Once PREP_HIGH starts, do not let the older background SYNC/RESET
-     * traffic overwrite the arm pose while the chassis is on the arc. */
-    if (g_rk_disc_prep_high_requested == 0U &&
+    if (g_rk_selected_field_sync_pending != 0U &&
+        (uint32_t)(now_ms - g_rk_selected_field_sync_last_send_ms) >=
+            RK_ARM_PRETASK_SYNC_PERIOD_MS) {
+        g_rk_selected_field_sync_last_send_ms = now_ms;
+        board_usb_write(g_route_field_is_red != 0U
+                            ? "ARM,SYNC,FIELD,RED\r\n"
+                            : "ARM,SYNC,FIELD,BLUE\r\n");
+    } else if (g_rk_disc_prep_high_requested == 0U &&
         (uint32_t)(now_ms - g_rk_pretask_last_sync_ms) >=
             RK_ARM_PRETASK_SYNC_PERIOD_MS) {
         g_rk_pretask_last_sync_ms = now_ms;
         if (g_rk_reset_pending != 0U) {
-            board_usb_write(g_route_field_is_red != 0U
-                                ? "ARM,SYNC,RESET,FIELD,RED\r\n"
-                                : "ARM,SYNC,RESET,FIELD,BLUE\r\n");
+            if (g_rk_reset_before_field_selection != 0U) {
+                board_usb_write("ARM,SYNC,RESET\r\n");
+            } else {
+                board_usb_write(g_route_field_is_red != 0U
+                                    ? "ARM,SYNC,RESET,FIELD,RED\r\n"
+                                    : "ARM,SYNC,RESET,FIELD,BLUE\r\n");
+            }
         } else {
             board_usb_write(g_route_field_is_red != 0U
                                 ? "ARM,SYNC,FIELD,RED\r\n"
@@ -2169,6 +2220,24 @@ static bool recover_rk_platform_transaction(uint32_t sequence, uint32_t slot,
         }
         HAL_Delay(1U);
     }
+}
+
+static void request_rk_arm_reset_before_field_selection(void)
+{
+    g_rk_reset_pending = 1U;
+    g_rk_arm_link_ready = 0U;
+    g_rk_disc_prep_high_ack = 0U;
+    g_rk_disc_prep_high_requested = 0U;
+    g_rk_disc_prep_high_last_send_ms = 0U;
+    g_rk_reset_before_field_selection = 1U;
+    g_rk_prep_before_field_selection = 1U;
+    g_rk_selected_field_sync_pending = 0U;
+    g_rk_selected_field_sync_last_send_ms = 0U;
+    g_first_arm_station_reached = 0U;
+    g_rk_pretask_line_len = 0U;
+    g_rk_pretask_last_sync_ms = HAL_GetTick() - RK_ARM_PRETASK_SYNC_PERIOD_MS;
+    board_uart1_write("H7,ARM,POWER_ON_RESET_REQUESTED,FIELD=PENDING\r\n");
+    board_usb_write("ARM,SYNC,RESET\r\n");
 }
 
 static bool wait_for_rk_platform_transaction(uint32_t slot, bool preselect)
@@ -6304,6 +6373,7 @@ void route_controller_wait_for_start(void)
     if (g_start_confirmed_from_fault != 0U) {
         g_start_confirmed_from_fault = 0U;
         lcd_display_set_start_status("RUN");
+        return;
     } else {
         board_clear_selected_field();
         wait_for_user_start_key();
@@ -6427,6 +6497,10 @@ void route_controller_reset_run_context(void)
     g_rk_disc_prep_high_ack = 0U;
     g_rk_disc_prep_high_requested = 0U;
     g_rk_disc_prep_high_last_send_ms = 0U;
+    g_rk_reset_before_field_selection = 0U;
+    g_rk_prep_before_field_selection = 0U;
+    g_rk_selected_field_sync_pending = 0U;
+    g_rk_selected_field_sync_last_send_ms = 0U;
     g_rk_reset_pending = 0U;
     g_rk_async_task_sequence = 0U;
     clear_formal_task3_context();
@@ -6437,19 +6511,35 @@ void route_controller_reset_run_context(void)
     g_cross_track_m = 0.0f;
     g_cross_track_command_m_s = 0.0f;
     g_actual_cross_speed_m_s = 0.0f;
+    g_user_start_trigger_ms = 0U;
     run_log_reset();
     if (g_task2_test_active_sequence == 0U &&
         g_task3_test_active_sequence == 0U) {
-        request_rk_arm_reset();
+        request_rk_arm_reset_before_field_selection();
     }
 }
 
 void route_controller_begin_pretask_sync(void)
 {
     g_rk_pretask_last_sync_ms = HAL_GetTick() - RK_ARM_PRETASK_SYNC_PERIOD_MS;
+    board_uart1_write(g_rk_reset_before_field_selection != 0U
+                          ? "H7,ARM,PRETASK_SYNC_ACTIVE,FIELD=PENDING\r\n"
+                          : (g_route_field_is_red != 0U
+                                 ? "H7,ARM,PRETASK_SYNC_ACTIVE,FIELD=RED\r\n"
+                                 : "H7,ARM,PRETASK_SYNC_ACTIVE,FIELD=BLUE\r\n"));
+}
+
+void route_controller_begin_selected_field_sync(void)
+{
+    g_rk_reset_before_field_selection = 0U;
+    g_rk_prep_before_field_selection = 0U;
+    g_rk_selected_field_sync_pending = 1U;
+    g_rk_selected_field_sync_last_send_ms =
+        HAL_GetTick() - RK_ARM_PRETASK_SYNC_PERIOD_MS;
     board_uart1_write(g_route_field_is_red != 0U
-                          ? "H7,ARM,PRETASK_SYNC_ACTIVE,FIELD=RED\r\n"
-                          : "H7,ARM,PRETASK_SYNC_ACTIVE,FIELD=BLUE\r\n");
+                          ? "H7,ARM,SELECTED_FIELD_SYNC_ASYNC,FIELD=RED\r\n"
+                          : "H7,ARM,SELECTED_FIELD_SYNC_ASYNC,FIELD=BLUE\r\n");
+    service_rk_link_before_first_station();
 }
 
 bool route_controller_wait_for_rk_reset_before_route(void)
@@ -6494,8 +6584,24 @@ void route_controller_service_rk_link(void)
 
 void route_controller_start_disc_prep_high_async(void)
 {
+    if (g_user_start_trigger_ms != 0U) {
+        char start_log[96];
+
+        (void)snprintf(start_log, sizeof(start_log),
+                       "H7,START,ARC_RELEASE,LATENCY_MS=%lu\r\n",
+                       (unsigned long)(HAL_GetTick() - g_user_start_trigger_ms));
+        board_uart1_write(start_log);
+    }
     (void)service_disc_prep_high_during_arc();
     board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_STARTED_BEFORE_ARC\r\n");
+}
+
+void route_controller_start_disc_prep_high_before_field_selection(void)
+{
+    g_rk_prep_before_field_selection = 1U;
+    (void)service_disc_prep_high_during_arc();
+    board_uart1_write(
+        "H7,ARM,DISC_CATCH,PREP_HIGH_STARTED_POWER_ON,FIELD=PENDING\r\n");
 }
 
 void route_controller_reset_pose(void)

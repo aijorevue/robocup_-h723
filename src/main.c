@@ -278,14 +278,14 @@ static bool run_formal_task3_red_tail(void)
     }
     g_run_state = RUN_FORWARD;
     board_uart1_write(
-        "H7,ROUTE,TASK3,RED,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=600ms\r\n");
+        "H7,ROUTE,TASK3,RED,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=800ms\r\n");
     if (!route_controller_run_timed_forward(
             ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_SPEED_M_S,
             ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_MS)) {
         return false;
     }
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (!task3_align_gyro_at_fixed_point("RED", "PRE_RING_FORWARD_400MS")) {
+    if (!task3_align_gyro_at_fixed_point("RED", "PRE_RING_FORWARD_800MS")) {
         return false;
     }
     board_uart1_write(
@@ -304,7 +304,7 @@ static bool run_formal_task3_red_tail(void)
     }
     g_run_state = RUN_FORWARD;
     board_uart1_write(
-        "H7,ROUTE,TASK3,RED,POST_SHIFT_FORWARD,SPEED=0.05m/s,TIME=400ms\r\n");
+        "H7,ROUTE,TASK3,RED,POST_SHIFT_FORWARD,SPEED=0.01m/s,TIME=2000ms\r\n");
     if (!route_controller_run_timed_forward(
             ROUTE_FORMAL_TASK3_RED_RING_PREPLACE_POST_SHIFT_FORWARD_SPEED_M_S,
             ROUTE_FORMAL_TASK3_RED_RING_PREPLACE_POST_SHIFT_FORWARD_MS)) {
@@ -313,7 +313,7 @@ static bool run_formal_task3_red_tail(void)
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     board_uart1_write(
         "H7,ROUTE,TASK3,RED,POST_SHIFT_FORWARD,DONE\r\n");
-    if (!task3_align_gyro_at_fixed_point("RED", "POST_SHIFT_FORWARD_400MS")) {
+    if (!task3_align_gyro_at_fixed_point("RED", "POST_SHIFT_FORWARD_2000MS")) {
         return false;
     }
     if (!route_controller_wait_for_rk_arm_task("TASK3_RING_PLACE")) {
@@ -353,6 +353,109 @@ int main(void)
     route_controller_init();
 
 route_start:
+    route_controller_reset_run_context();
+    board_servo_apply_power_on_pose();
+    route_controller_begin_pretask_sync();
+    /* Power-on/reset preparation is field-neutral.  RK first contracts the
+     * arm to its safe home pose; field selection remains pending until the
+     * operator presses RIGHT or DOWN. */
+    if (!route_controller_wait_for_rk_reset_before_route()) {
+        route_controller_enter_fault_wait_restart(
+            g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
+        goto route_start;
+    }
+
+    g_run_state = RUN_BOOT;
+    if (!route_controller_wait_for_can_startup()) {
+#if ROUTE_REQUIRE_CAN_STARTUP
+        route_controller_enter_fault_wait_restart(
+            g_fault_code == FAULT_RC_OVERRIDE ? FAULT_RC_OVERRIDE
+                                               : FAULT_CAN_STARTUP);
+        goto route_start;
+#else
+        board_uart1_write("H7,WARN,CAN_STARTUP_BYPASS\r\n");
+        g_fault_code = FAULT_NONE;
+#endif
+    }
+
+    g_run_state = RUN_IMU_INIT;
+    g_bmi088_init_error = BMI088_init();
+    if (g_bmi088_init_error != BMI088_NO_ERROR) {
+        route_controller_enter_fault_wait_restart(FAULT_IMU_INIT);
+        goto route_start;
+    }
+
+    g_run_state = RUN_GYRO_CALIBRATION;
+    if (!route_controller_calibrate_gyro()) {
+        route_controller_enter_fault_wait_restart(
+            g_fault_code == FAULT_RC_OVERRIDE ? FAULT_RC_OVERRIDE
+                                               : FAULT_IMU_MOVING);
+        goto route_start;
+    }
+
+    g_run_state = RUN_MOTOR_ENABLE;
+    if (!route_controller_enable_motors()) {
+#if ROUTE_REQUIRE_MOTOR_ENABLE
+        route_controller_enter_fault_wait_restart(FAULT_MOTOR_ENABLE);
+        goto route_start;
+#else
+        board_uart1_write("H7,WARN,MOTOR_ENABLE_BYPASS\r\n");
+        g_fault_code = FAULT_NONE;
+#endif
+    }
+    route_controller_hold_zero(200U);
+    if (g_run_state == RUN_FAULT) {
+        route_controller_enter_fault_wait_restart(g_fault_code);
+        goto route_start;
+    }
+
+#if ROUTE_REQUIRE_MOTOR_FEEDBACK
+    {
+        const uint32_t feedback_wait_started_ms = HAL_GetTick();
+        float primed_wheels[4] = {0.0f};
+
+        while (!motor_feedback_update(HAL_GetTick(), primed_wheels)) {
+            if ((uint32_t)(HAL_GetTick() - feedback_wait_started_ms) > 1000U) {
+                route_controller_enter_fault_wait_restart(FAULT_MOTOR_COMMAND);
+                goto route_start;
+            }
+            route_controller_hold_zero(CONTROL_PERIOD_MS);
+            if (g_run_state == RUN_FAULT) {
+                route_controller_enter_fault_wait_restart(g_fault_code);
+                goto route_start;
+            }
+        }
+    }
+#else
+    {
+        const uint32_t feedback_wait_started_ms = HAL_GetTick();
+        float primed_wheels[4] = {0.0f};
+
+        while (!motor_feedback_update(HAL_GetTick(), primed_wheels)) {
+            if ((uint32_t)(HAL_GetTick() - feedback_wait_started_ms) > 200U) {
+                board_uart1_write("H7,WARN,MOTOR_FEEDBACK_BYPASS\r\n");
+                break;
+            }
+            route_controller_hold_zero(CONTROL_PERIOD_MS);
+            if (g_run_state == RUN_FAULT) {
+                route_controller_enter_fault_wait_restart(g_fault_code);
+                goto route_start;
+            }
+        }
+    }
+#endif
+
+    route_controller_reset_pose();
+    route_controller_start_disc_prep_high_before_field_selection();
+    if (!route_controller_wait_for_disc_prep_high_before_route()) {
+        board_uart1_write(
+            "H7,FAULT,POWER_ON_PREP_HIGH_NOT_CONFIRMED,START_BLOCKED\r\n");
+        route_controller_enter_fault_wait_restart(FAULT_ARM_TIMEOUT);
+        goto route_start;
+    }
+    board_uart1_write(
+        "H7,START,ARMED,RESET_DONE,PREP_HIGH_DONE,IMU_READY,MOTORS_READY\r\n");
+
     route_controller_wait_for_start();
     task2_test = route_controller_take_task2_test(
         &task2_test_is_red, &task2_test_sequence, task2_test_letter1,
@@ -373,117 +476,19 @@ route_start:
     }
     field_profile = route_field_profile(selected_field);
     route_controller_set_field(field_profile.is_red);
-    route_controller_reset_run_context();
-    board_servo_apply_power_on_pose();
+    route_controller_begin_selected_field_sync();
 
     if (field_profile.is_red != 0U) {
-        board_uart1_write("H7,ROUTE,FIELD=RED\r\n");
+        board_uart1_write("H7,ROUTE,FIELD=RED,IMMEDIATE_START=1\r\n");
         board_usb_write("FIELD,RED\r\n");
     } else {
-        board_uart1_write("H7,ROUTE,FIELD=BLUE\r\n");
+        board_uart1_write("H7,ROUTE,FIELD=BLUE,IMMEDIATE_START=1\r\n");
         board_usb_write("FIELD,BLUE\r\n");
     }
 
 #if ROUTE_AUTO_RUN_ON_BOOT == 0U
     route_controller_wait_for_usb_run_command();
 #endif
-
-#if ROUTE_WAIT_RK_READY_ON_BOOT
-    if (!task2_test && !task3_test) {
-        while (route_controller_rk_link_ready() == 0U) {
-            route_controller_wait_for_rk_ready_on_boot();
-        }
-    }
-#endif
-
-    if (!task2_test && !task3_test) {
-        route_controller_begin_pretask_sync();
-        /* RESET is the arm-side readiness barrier for the formal route.  Do
-         * not launch the chassis arc until RK has acknowledged a successful
-         * home/reset cycle; otherwise PREP_HIGH can be lost while RK is still
-         * starting or recovering its servo USB link. */
-        if (!route_controller_wait_for_rk_reset_before_route()) {
-            route_controller_enter_fault_wait_restart(
-                g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
-            goto route_start;
-        }
-    }
-    /* PREP_HIGH is started only after the reset barrier above.  The formal
-     * route blocks until RK confirms the high pose before starting the arc. */
-
-    g_run_state = RUN_BOOT;
-    if (!route_controller_wait_for_can_startup()) {
-        if (g_fault_code == FAULT_RC_OVERRIDE) {
-            enter_fault(FAULT_RC_OVERRIDE);
-        }
-#if ROUTE_REQUIRE_CAN_STARTUP
-        enter_fault(FAULT_CAN_STARTUP);
-#else
-        board_uart1_write("H7,WARN,CAN_STARTUP_BYPASS\r\n");
-        g_fault_code = FAULT_NONE;
-#endif
-    }
-
-    g_run_state = RUN_IMU_INIT;
-    g_bmi088_init_error = BMI088_init();
-    if (g_bmi088_init_error != BMI088_NO_ERROR) {
-        enter_fault(FAULT_IMU_INIT);
-    }
-
-    g_run_state = RUN_GYRO_CALIBRATION;
-    if (!route_controller_calibrate_gyro()) {
-        enter_fault(g_fault_code == FAULT_RC_OVERRIDE ? FAULT_RC_OVERRIDE :
-                    FAULT_IMU_MOVING);
-    }
-
-    g_run_state = RUN_MOTOR_ENABLE;
-    if (!route_controller_enable_motors()) {
-#if ROUTE_REQUIRE_MOTOR_ENABLE
-        enter_fault(FAULT_MOTOR_ENABLE);
-#else
-        board_uart1_write("H7,WARN,MOTOR_ENABLE_BYPASS\r\n");
-        g_fault_code = FAULT_NONE;
-#endif
-    }
-    route_controller_hold_zero(200U);
-    if (g_run_state == RUN_FAULT) {
-        enter_fault(g_fault_code);
-    }
-
-#if ROUTE_REQUIRE_MOTOR_FEEDBACK
-    {
-        const uint32_t feedback_wait_started_ms = HAL_GetTick();
-        float primed_wheels[4] = {0.0f};
-
-        while (!motor_feedback_update(HAL_GetTick(), primed_wheels)) {
-            if ((uint32_t)(HAL_GetTick() - feedback_wait_started_ms) > 1000U) {
-                enter_fault(FAULT_MOTOR_COMMAND);
-            }
-            route_controller_hold_zero(CONTROL_PERIOD_MS);
-            if (g_run_state == RUN_FAULT) {
-                enter_fault(g_fault_code);
-            }
-        }
-    }
-#else
-    {
-        const uint32_t feedback_wait_started_ms = HAL_GetTick();
-        float primed_wheels[4] = {0.0f};
-
-        while (!motor_feedback_update(HAL_GetTick(), primed_wheels)) {
-            if ((uint32_t)(HAL_GetTick() - feedback_wait_started_ms) > 200U) {
-                board_uart1_write("H7,WARN,MOTOR_FEEDBACK_BYPASS\r\n");
-                break;
-            }
-            route_controller_hold_zero(CONTROL_PERIOD_MS);
-            if (g_run_state == RUN_FAULT) {
-                enter_fault(g_fault_code);
-            }
-        }
-    }
-#endif
-
-    route_controller_reset_pose();
 
     if (task2_test) {
         if (!route_controller_run_task2_test(task2_test_sequence,
@@ -1287,7 +1292,7 @@ route_start:
                 }
                 g_run_state = RUN_FORWARD;
                 board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=600ms\r\n");
+                    "H7,ROUTE,TASK3,BLUE,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=800ms\r\n");
                 if (!route_controller_run_timed_forward(
                         ROUTE_TASK3_BLUE_PRE_RING_FORWARD_SPEED_M_S,
                         ROUTE_TASK3_BLUE_PRE_RING_FORWARD_MS)) {
@@ -1296,7 +1301,7 @@ route_start:
                 }
                 route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
                 if (!task3_align_gyro_at_fixed_point(
-                        "BLUE", "PRE_RING_FORWARD_400MS")) {
+                        "BLUE", "PRE_RING_FORWARD_800MS")) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
                                                            : g_fault_code);
                 }
@@ -1319,7 +1324,7 @@ route_start:
                 }
                 g_run_state = RUN_FORWARD;
                 board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,POST_SHIFT_FORWARD,SPEED=0.05m/s,TIME=400ms\r\n");
+                    "H7,ROUTE,TASK3,BLUE,POST_SHIFT_FORWARD,SPEED=0.01m/s,TIME=2000ms\r\n");
                 if (!route_controller_run_timed_forward(
                         ROUTE_TASK3_BLUE_RING_PREPLACE_POST_SHIFT_FORWARD_SPEED_M_S,
                         ROUTE_TASK3_BLUE_RING_PREPLACE_POST_SHIFT_FORWARD_MS)) {
@@ -1330,7 +1335,7 @@ route_start:
                 board_uart1_write(
                     "H7,ROUTE,TASK3,BLUE,POST_SHIFT_FORWARD,DONE\r\n");
                 if (!task3_align_gyro_at_fixed_point(
-                        "BLUE", "POST_SHIFT_FORWARD_400MS")) {
+                        "BLUE", "POST_SHIFT_FORWARD_2000MS")) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
                                                            : g_fault_code);
                 }
