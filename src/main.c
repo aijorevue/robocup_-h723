@@ -204,11 +204,11 @@ static bool run_formal_task3_red_tail(void)
         "H7,LOCAL_SERVO,TASK3_RED,BOTH_OPEN,PA0=80.0,PA2=90.0,HOLD_MS=5000\r\n");
     route_controller_hold_zero(ROUTE_TASK3_POST_AUX_HOLD_MS);
     board_servo_set_angle_deg_index(
-        SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POWER_ON_PA0_ANGLE_DEG);
+        SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POST_ROUTE_CLOSE_PA0_ANGLE_DEG);
     board_servo_set_angle_deg_index(
-        SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POWER_ON_PA2_ANGLE_DEG);
+        SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POST_ROUTE_CLOSE_PA2_ANGLE_DEG);
     board_uart1_write(
-        "H7,LOCAL_SERVO,TASK3_RED,BOTH_CLOSE,PA0=150.0,PA2=30.0\r\n");
+        "H7,LOCAL_SERVO,TASK3_RED,BOTH_CLOSE,PA0=180.0,PA2=0.0\r\n");
     route_controller_hold_zero(ROUTE_SERVO_RETURN_SETTLE_MS);
 
     g_run_state = RUN_FORWARD;
@@ -278,7 +278,7 @@ static bool run_formal_task3_red_tail(void)
     }
     g_run_state = RUN_FORWARD;
     board_uart1_write(
-        "H7,ROUTE,TASK3,RED,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=400ms\r\n");
+        "H7,ROUTE,TASK3,RED,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=600ms\r\n");
     if (!route_controller_run_timed_forward(
             ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_SPEED_M_S,
             ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_MS)) {
@@ -714,7 +714,7 @@ route_start:
 
     /*
      * Enter task two as one continuous diagonal segment.  The route-frame
-     * components use the 1.610 m reverse and 2.075 m side approach. The
+     * components use the 1.610 m reverse and 2.000 m side approach. The
      * controller captures the measured two-dimensional endpoint early in the
      * final segment and settles there before handing off to task two.
      * The chassis rotates smoothly through 180 degrees during the segment,
@@ -724,9 +724,9 @@ route_start:
     board_uart1_write(
         field_profile.is_red != 0U
             ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1610mm,"
-              "LATERAL=1985mm,TURN=LEFT180,CONTROL=FULL_SEGMENT_2D\r\n"
+              "LATERAL=2000mm,TURN=LEFT180,CONTROL=FULL_SEGMENT_2D\r\n"
             : "H7,ROUTE,TASK2_DIAGONAL,FIELD=BLUE,BACKWARD=1610mm,"
-              "LATERAL=1985mm,TURN=RIGHT180,CONTROL=FULL_SEGMENT_2D\r\n");
+              "LATERAL=2000mm,TURN=RIGHT180,CONTROL=FULL_SEGMENT_2D\r\n");
     if (!route_controller_run_task2_entry_translation_with_turn(
             -ROUTE_FORWARD_SIGN * ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M,
             field_profile.strafe_sign * ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M,
@@ -969,8 +969,8 @@ route_start:
             g_run_state = RUN_LAST_TURN_RIGHT;
             board_uart1_write(
                 field_profile.is_red != 0U
-                    ? "H7,ROUTE,TASK3_ENTRY_TURN,FIELD=RED,DIR=RIGHT,ANGLE=91deg\r\n"
-                    : "H7,ROUTE,TASK3_ENTRY_TURN,FIELD=BLUE,DIR=RIGHT,ANGLE=91deg\r\n");
+                    ? "H7,ROUTE,TASK3_ENTRY_TURN,FIELD=RED,DIR=RIGHT,ANGLE=90deg\r\n"
+                    : "H7,ROUTE,TASK3_ENTRY_TURN,FIELD=BLUE,DIR=RIGHT,ANGLE=90deg\r\n");
             if (!route_controller_run_relative_turn(
                     ROUTE_RIGHT_TURN_SIGN * ROUTE_AFTER_PLATFORM_TURN_ANGLE_RAD *
                     ROUTE_GYRO_TURN_SCALE)) {
@@ -1016,7 +1016,7 @@ route_start:
                                            : RUN_LOG_EVENT_ARM_BYPASS);
 #endif
 
-            /* Add the requested 65 mm approach immediately before the formal
+            /* Add the requested 80 mm approach immediately before the formal
              * task-three orbit.  The standalone TASK3 test starts at its own
              * orbit entry and is intentionally unchanged. */
             g_run_state = RUN_FORWARD;
@@ -1036,8 +1036,8 @@ route_start:
             }
             board_uart1_write(
                 field_profile.is_red != 0U
-                    ? "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=75mm\r\n"
-                    : "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=75mm\r\n");
+                    ? "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=80mm\r\n"
+                    : "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=80mm\r\n");
 
             g_run_state = RUN_FRONT_CENTER_ORBIT;
             /* Formal COLUMN_CATCH owns its own pause/resume channel.  Do not
@@ -1208,9 +1208,9 @@ route_start:
                     "H7,LOCAL_SERVO,TASK3_BLUE,BOTH_OPEN,PA0=80.0,PA2=90.0,HOLD_MS=5000\r\n");
                 route_controller_hold_zero(ROUTE_TASK3_POST_AUX_HOLD_MS);
                 board_servo_set_angle_deg_index(
-                    SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POWER_ON_PA0_ANGLE_DEG);
+                    SERVO_MG90S_PA0_INDEX, SERVO_MG90S_POST_ROUTE_CLOSE_PA0_ANGLE_DEG);
                 board_servo_set_angle_deg_index(
-                    SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POWER_ON_PA2_ANGLE_DEG);
+                    SERVO_MG90S_PA2_INDEX, SERVO_MG90S_POST_ROUTE_CLOSE_PA2_ANGLE_DEG);
                 route_controller_hold_zero(ROUTE_SERVO_RETURN_SETTLE_MS);
                 g_run_state = RUN_FORWARD;
                 if (!route_controller_run_final_translation(
@@ -1287,7 +1287,7 @@ route_start:
                 }
                 g_run_state = RUN_FORWARD;
                 board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=400ms\r\n");
+                    "H7,ROUTE,TASK3,BLUE,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=600ms\r\n");
                 if (!route_controller_run_timed_forward(
                         ROUTE_TASK3_BLUE_PRE_RING_FORWARD_SPEED_M_S,
                         ROUTE_TASK3_BLUE_PRE_RING_FORWARD_MS)) {
