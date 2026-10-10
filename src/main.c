@@ -97,6 +97,32 @@ static bool task3_align_gyro_at_fixed_point(const char *field,
     return true;
 }
 
+static void wait_for_next_run_rearm(void)
+{
+    board_clear_selected_field();
+    lcd_display_set_start_status("DONE");
+    lcd_display_refresh_input_status();
+    board_uart1_write(
+        "H7,ROUTE,DONE,HOLD_CONTRACTED,PA0=180.0,PA2=0.0,"
+        "WAIT_REARM_KEY\r\n");
+
+    while (board_user_start_active() != 0U) {
+        lcd_display_update();
+        HAL_Delay(10U);
+    }
+
+    for (;;) {
+        lcd_display_update();
+        if (board_user_start_pressed() != 0U &&
+            board_selected_field() != BOARD_FIELD_UNKNOWN) {
+            board_uart1_write("H7,ROUTE,DONE,REARM_REQUESTED\r\n");
+            board_clear_selected_field();
+            return;
+        }
+        HAL_Delay(10U);
+    }
+}
+
 static bool run_formal_task3_red_tail(void)
 {
     board_uart1_write(
@@ -333,7 +359,7 @@ static bool run_formal_task3_red_tail(void)
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     board_uart1_write(
         "H7,ROUTE,TASK3,RED,POST_ROUTE_FINAL_PATH,DONE,"
-        "PATH=FINAL_TRANSLATION,SHIFT=2250mm,REVERSE=820mm\r\n");
+        "PATH=FINAL_TRANSLATION,SHIFT=2250mm,REVERSE=835mm\r\n");
     return true;
 }
 
@@ -349,10 +375,12 @@ int main(void)
     uint8_t task3_test_is_red = 0U;
     uint32_t task3_test_sequence = 0U;
     bool task3_test = false;
+    bool formal_route_completed = false;
 
     route_controller_init();
 
 route_start:
+    formal_route_completed = false;
     route_controller_reset_run_context();
     board_servo_apply_power_on_pose();
     route_controller_begin_pretask_sync();
@@ -480,11 +508,9 @@ route_start:
     route_controller_begin_selected_field_sync();
 
     if (field_profile.is_red != 0U) {
-        board_uart1_write("H7,ROUTE,FIELD=RED,IMMEDIATE_START=1\r\n");
-        board_usb_write("FIELD,RED\r\n");
+        board_uart1_write_only("H7,ROUTE,FIELD=RED,IMMEDIATE_START=1\r\n");
     } else {
-        board_uart1_write("H7,ROUTE,FIELD=BLUE,IMMEDIATE_START=1\r\n");
-        board_usb_write("FIELD,BLUE\r\n");
+        board_uart1_write_only("H7,ROUTE,FIELD=BLUE,IMMEDIATE_START=1\r\n");
     }
 
 #if ROUTE_AUTO_RUN_ON_BOOT == 0U
@@ -557,7 +583,6 @@ route_start:
         route_controller_enter_fault_wait_restart(FAULT_ARM_TIMEOUT);
         goto route_start;
     }
-    route_controller_log_event(RUN_LOG_EVENT_START_ARC_RELEASE);
     g_run_state = RUN_DISC_ARC_ENTRY;
     if (!route_controller_run_disc_arc_entry(field_profile.strafe_sign,
                                              field_profile.turn_sign)) {
@@ -1383,7 +1408,7 @@ route_start:
                 }
                 route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
                 if (!task3_align_gyro_at_fixed_point(
-                        "BLUE", "FINAL_REVERSE_770")) {
+                        "BLUE", "FINAL_REVERSE_835")) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
                                                            : g_fault_code);
                 }
@@ -1439,8 +1464,9 @@ route_start:
                                      ? ROUTE_FORMAL_TASK3_RED_FINAL_BEZIER_REVERSE_DISTANCE_M
                                      : ROUTE_TASK3_POST_FINAL_REVERSE_DISTANCE_BLUE_M) *
                                 1000.0f + 0.5f),
-                     field_profile.is_red != 0U ? "LEFT_90deg" : "NONE");
+                     "NONE");
                 board_uart1_write(complete_log);
+                formal_route_completed = true;
             }
 #endif
 
@@ -1478,6 +1504,19 @@ route_test_shutdown:
     (void)run_log_save((uint32_t)g_run_state, g_fault_code);
     run_log_dump_stored();
 
-    board_uart1_write("H7,ROUTE,DONE,WAIT_NEXT_START\r\n");
+    if (formal_route_completed) {
+        board_servo_set_angle_deg_index(
+            SERVO_MG90S_PA0_INDEX,
+            SERVO_MG90S_POST_ROUTE_CLOSE_PA0_ANGLE_DEG);
+        board_servo_set_angle_deg_index(
+            SERVO_MG90S_PA2_INDEX,
+            SERVO_MG90S_POST_ROUTE_CLOSE_PA2_ANGLE_DEG);
+        board_uart1_write(
+            "H7,ROUTE,DONE,ARM_CONTRACTED,PA0=180.0,PA2=0.0,"
+            "WAIT_NEXT_REARM\r\n");
+        wait_for_next_run_rearm();
+    } else {
+        board_uart1_write("H7,ROUTE,DONE,WAIT_NEXT_START\r\n");
+    }
     goto route_start;
 }

@@ -31,8 +31,8 @@
 #define WHEEL_RR_SIGN -1.0f
 
 /* Autonomous route: enter the disc station with the mirrored cubic arc
- * (forward endpoint 3.915 m, lateral endpoint 0.70 m), perform DISC_CATCH,
- * then take one diagonal task-two entry of 1.610 m backward and 1.985 m toward
+ * (forward endpoint 3.915 m, lateral endpoint 0.6907 m), perform DISC_CATCH,
+ * then take one diagonal task-two entry of 1.610 m backward and 2.000 m toward
  * the selected field side while rotating 180 degrees, and run eight slots.
  * The platform task first locks two distinct A/B/C/D letters with the
  * secondary camera, then uses the main camera for all eight slots. */
@@ -273,7 +273,7 @@
 #define ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_SPEED_M_S 0.050f
 #define ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_MS 800U
 #define ROUTE_FORMAL_TASK3_RED_FINAL_BEZIER_LEFT_DISTANCE_M 2.250f
-#define ROUTE_FORMAL_TASK3_RED_FINAL_BEZIER_REVERSE_DISTANCE_M 0.870f
+#define ROUTE_FORMAL_TASK3_RED_FINAL_BEZIER_REVERSE_DISTANCE_M 0.835f
 #define ROUTE_FORMAL_TASK3_BLUE_RETRACT_REVERSE_DISTANCE_M 0.065f
 #define ROUTE_FORMAL_TASK3_BLUE_RETRACT_TURN_RAD 3.1415927f /* 180 deg */
 #define ROUTE_FORMAL_TASK3_BLUE_POST_TURN_REVERSE_DISTANCE_M 0.095f

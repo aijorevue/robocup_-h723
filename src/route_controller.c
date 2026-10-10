@@ -40,10 +40,12 @@ static uint8_t g_rk_reset_before_field_selection;
 static uint8_t g_rk_prep_before_field_selection;
 static uint8_t g_rk_selected_field_sync_pending;
 static uint32_t g_rk_selected_field_sync_last_send_ms;
+static uint8_t g_rk_selected_field_notice_pending;
 static uint8_t g_rk_last_task_bypassed;
 static uint8_t g_rk_last_task_soft_timed_out;
 static uint8_t g_first_arm_station_reached;
 static uint32_t g_user_start_trigger_ms;
+static uint8_t g_start_arc_release_logged;
 static uint8_t g_route_field_is_red;
 static uint8_t g_rk_reset_pending;
 static uint32_t g_rk_pretask_last_sync_ms;
@@ -117,6 +119,7 @@ static bool service_disc_prep_high_during_arc(void);
 static bool wait_for_disc_prep_high_with_timeout(uint32_t timeout_ms,
                                                  const char *wait_log,
                                                  const char *ack_log);
+static void service_selected_field_notice_after_motion(void);
 static bool service_task2_test_command(void);
 static bool service_task3_test_command(void);
 static bool service_formal_task3_command(void);
@@ -282,14 +285,14 @@ static void wait_for_user_start_key(void)
             lcd_display_refresh_input_status();
             switch (board_selected_field()) {
             case BOARD_FIELD_RED:
-                board_uart1_write("H7,START,USER_KEY,field=RED\r\n");
+                board_uart1_write_only("H7,START,USER_KEY,field=RED\r\n");
                 break;
             case BOARD_FIELD_BLUE:
-                board_uart1_write("H7,START,USER_KEY,field=BLUE\r\n");
+                board_uart1_write_only("H7,START,USER_KEY,field=BLUE\r\n");
                 break;
             case BOARD_FIELD_UNKNOWN:
             default:
-                board_uart1_write("H7,START,USER_KEY,field=UNKNOWN\r\n");
+                board_uart1_write_only("H7,START,USER_KEY,field=UNKNOWN\r\n");
                 break;
             }
             return;
@@ -375,13 +378,28 @@ static void preserve_rc_or_set_motor_fault(void)
 
 static bool route_motor_send_wheel_speeds(const float wheel_rad_s[4])
 {
-    service_rk_link_before_first_station();
     if (!rc_override_is_running() && rc_override_service()) {
         request_rk_arm_reset();
         g_fault_code = FAULT_RC_OVERRIDE;
         return false;
     }
     if (motor_send_wheel_speeds(wheel_rad_s)) {
+        if (g_user_start_trigger_ms != 0U &&
+            g_start_arc_release_logged == 0U) {
+            char start_log[96];
+
+            g_start_arc_release_logged = 1U;
+            log_route_event(RUN_LOG_EVENT_START_ARC_RELEASE);
+            (void)snprintf(
+                start_log, sizeof(start_log),
+                "H7,START,ARC_RELEASE,LATENCY_MS=%lu\r\n",
+                (unsigned long)(HAL_GetTick() - g_user_start_trigger_ms));
+            board_uart1_write_only(start_log);
+        }
+        /* The chassis command is the launch-critical operation.  Only after
+         * it has been accepted may USB field sync and RK parsing run. */
+        service_selected_field_notice_after_motion();
+        service_rk_link_before_first_station();
         return true;
     }
 #if ROUTE_REQUIRE_MOTOR_TX_SUCCESS
@@ -2207,6 +2225,18 @@ static bool recover_rk_platform_transaction(uint32_t sequence, uint32_t slot,
     }
 }
 
+static void service_selected_field_notice_after_motion(void)
+{
+    if (g_rk_selected_field_notice_pending == 0U) {
+        return;
+    }
+
+    g_rk_selected_field_notice_pending = 0U;
+    board_usb_write(g_route_field_is_red != 0U
+                        ? "FIELD,RED\r\n"
+                        : "FIELD,BLUE\r\n");
+}
+
 static void request_rk_arm_reset_before_field_selection(void)
 {
     g_rk_reset_pending = 1U;
@@ -2218,6 +2248,7 @@ static void request_rk_arm_reset_before_field_selection(void)
     g_rk_prep_before_field_selection = 1U;
     g_rk_selected_field_sync_pending = 0U;
     g_rk_selected_field_sync_last_send_ms = 0U;
+    g_rk_selected_field_notice_pending = 0U;
     g_first_arm_station_reached = 0U;
     g_rk_pretask_line_len = 0U;
     g_rk_pretask_last_sync_ms = HAL_GetTick() - RK_ARM_PRETASK_SYNC_PERIOD_MS;
@@ -4305,17 +4336,20 @@ static bool wait_for_disc_prep_high_with_timeout(uint32_t timeout_ms,
 {
     const uint32_t wait_started_ms = HAL_GetTick();
 
-    (void)service_disc_prep_high_during_arc();
+    /* The power-on PREP_HIGH transaction normally completes before READY.
+     * Do not touch the RK CDC link again on the READY-to-arc fast path. */
     if (g_rk_disc_prep_high_ack != 0U) {
-        board_uart1_write(ack_log);
+        board_uart1_write_only(ack_log);
         return true;
     }
 
-    board_uart1_write(wait_log);
+    (void)service_disc_prep_high_during_arc();
+
+    board_uart1_write_only(wait_log);
     while ((uint32_t)(HAL_GetTick() - wait_started_ms) <
            timeout_ms) {
         if (service_disc_prep_high_during_arc()) {
-            board_uart1_write(ack_log);
+            board_uart1_write_only(ack_log);
             return true;
         }
         if (!keep_chassis_stopped_for_arm_task()) {
@@ -4325,7 +4359,7 @@ static bool wait_for_disc_prep_high_with_timeout(uint32_t timeout_ms,
         HAL_Delay(1U);
     }
 
-    board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_TIMEOUT\r\n");
+    board_uart1_write_only("H7,ARM,DISC_CATCH,PREP_HIGH_TIMEOUT\r\n");
     g_fault_code = FAULT_ARM_TIMEOUT;
     return false;
 }
@@ -4457,7 +4491,6 @@ static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
     g_cross_track_m = 0.0f;
     g_cross_track_command_m_s = 0.0f;
     g_actual_cross_speed_m_s = 0.0f;
-    (void)service_disc_prep_high_during_arc();
     for (;;) {
         uint32_t now_ms = HAL_GetTick();
         float dt;
@@ -4516,8 +4549,6 @@ static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
         bool translation_endpoint_done;
         bool heading_endpoint_done;
         bool segment_done;
-
-        (void)service_disc_prep_high_during_arc();
 
         if ((uint32_t)(now_ms - started_ms) >= ROUTE_DISC_ARC_TIMEOUT_MS) {
             g_fault_code = FAULT_MOTOR_COMMAND;
@@ -4805,6 +4836,7 @@ static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
             preserve_rc_or_set_motor_fault();
             return false;
         }
+        (void)service_disc_prep_high_during_arc();
         if (!route_motor_feedback_update_after_command(
                 measured_wheel_speed, &first_feedback_cycle)) {
             g_fault_code = FAULT_MOTOR_COMMAND;
@@ -6520,6 +6552,7 @@ void route_controller_reset_run_context(void)
     g_cross_track_command_m_s = 0.0f;
     g_actual_cross_speed_m_s = 0.0f;
     g_user_start_trigger_ms = 0U;
+    g_start_arc_release_logged = 0U;
     run_log_reset();
     if (g_task2_test_active_sequence == 0U &&
         g_task3_test_active_sequence == 0U) {
@@ -6542,12 +6575,15 @@ void route_controller_begin_selected_field_sync(void)
     g_rk_reset_before_field_selection = 0U;
     g_rk_prep_before_field_selection = 0U;
     g_rk_selected_field_sync_pending = 1U;
+    g_rk_selected_field_notice_pending = 1U;
     g_rk_selected_field_sync_last_send_ms =
         HAL_GetTick() - RK_ARM_PRETASK_SYNC_PERIOD_MS;
-    board_uart1_write(g_route_field_is_red != 0U
-                          ? "H7,ARM,SELECTED_FIELD_SYNC_ASYNC,FIELD=RED\r\n"
-                          : "H7,ARM,SELECTED_FIELD_SYNC_ASYNC,FIELD=BLUE\r\n");
-    service_rk_link_before_first_station();
+    board_uart1_write_only(g_route_field_is_red != 0U
+                               ? "H7,ARM,SELECTED_FIELD_SYNC_ASYNC,FIELD=RED\r\n"
+                               : "H7,ARM,SELECTED_FIELD_SYNC_ASYNC,FIELD=BLUE\r\n");
+    /* Leave the first chassis command as the next operation.  The selected
+     * field sync is serviced by the existing asynchronous link service during
+     * the entry arc; a synchronous USB read here adds launch latency. */
 }
 
 bool route_controller_wait_for_rk_reset_before_route(void)
@@ -6590,18 +6626,10 @@ void route_controller_service_rk_link(void)
 
 void route_controller_start_disc_prep_high_async(void)
 {
-    if (g_user_start_trigger_ms != 0U) {
-        char start_log[96];
-
-        (void)snprintf(start_log, sizeof(start_log),
-                       "H7,START,ARC_RELEASE,LATENCY_MS=%lu\r\n",
-                       (unsigned long)(HAL_GetTick() - g_user_start_trigger_ms));
-        board_uart1_write(start_log);
-    }
     if (g_rk_disc_prep_high_ack == 0U) {
         (void)service_disc_prep_high_during_arc();
     }
-    board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_STARTED_BEFORE_ARC\r\n");
+    board_uart1_write_only("H7,ARM,DISC_CATCH,PREP_HIGH_STARTED_BEFORE_ARC\r\n");
 }
 
 void route_controller_start_disc_prep_high_before_field_selection(void)
@@ -6807,14 +6835,14 @@ bool route_controller_run_task3_red_final_translation(void)
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     board_uart1_write(
         "H7,ROUTE,TASK3,RED,FIXED_POINT_GYRO_ALIGN,START,"
-        "POINT=FINAL_REVERSE_820\r\n");
+        "POINT=FINAL_REVERSE_835\r\n");
     if (!run_relative_turn(0.0f)) {
         return false;
     }
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     board_uart1_write(
         "H7,ROUTE,TASK3,RED,FIXED_POINT_GYRO_ALIGN,DONE,"
-        "POINT=FINAL_REVERSE_820\r\n");
+        "POINT=FINAL_REVERSE_835\r\n");
     return true;
 }
 
