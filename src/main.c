@@ -474,16 +474,8 @@ route_start:
 #endif
 
     route_controller_reset_pose();
-    route_controller_start_disc_prep_high_before_field_selection();
-    if (!route_controller_wait_for_disc_prep_high_power_on()) {
-        board_uart1_write(
-            "H7,FAULT,POWER_ON_PREP_HIGH_NOT_CONFIRMED,START_BLOCKED\r\n");
-        route_controller_enter_fault_wait_restart(
-            g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
-        goto route_start;
-    }
     board_uart1_write(
-        "H7,START,ARMED,RESET_DONE,PREP_HIGH_DONE,IMU_READY,MOTORS_READY\r\n");
+        "H7,START,ARMED,RESET_DONE,ARM_HOME,IMU_READY,MOTORS_READY\r\n");
 
     route_controller_wait_for_start();
     task2_test = route_controller_take_task2_test(
@@ -572,17 +564,9 @@ route_start:
      * continuous cubic entry.  The field profile mirrors both the side
      * of the obstacle and the final station heading.
      */
-    /* The arm must be physically commanded before the chassis is allowed to
-     * leave the start point.  The old asynchronous request could be rejected
-     * while RK was still opening its USB servo bus, leaving the car moving
-     * with the arm down. */
-    route_controller_start_disc_prep_high_async();
-    if (!route_controller_wait_for_disc_prep_high_before_route()) {
-        board_uart1_write(
-            "H7,FAULT,ARM_PREP_HIGH_NOT_CONFIRMED,ROUTE_BLOCKED\r\n");
-        route_controller_enter_fault_wait_restart(FAULT_ARM_TIMEOUT);
-        goto route_start;
-    }
+    /* Keep the arm contracted through READY. The arc controller sends the
+     * first wheel command immediately, then starts/retries PREP_HIGH in its
+     * non-blocking control loop. */
     g_run_state = RUN_DISC_ARC_ENTRY;
     if (!route_controller_run_disc_arc_entry(field_profile.strafe_sign,
                                              field_profile.turn_sign)) {
@@ -685,9 +669,9 @@ route_start:
                 "SPEED=0.05m/s\r\n");
         }
     }
-    /* PREP_HIGH was required before the arc. The line-search phase also
-     * consumes its ACK if it arrives late; only recover here if that startup
-     * transaction was genuinely not confirmed. Never block the arc handoff. */
+    /* The arc-to-line handoff above is intentionally non-blocking. Once fresh
+     * white-line alignment is complete, retain the arm safety gate before
+     * starting the task-one ball action. */
     if (!route_controller_wait_for_disc_prep_high()) {
         enter_fault(g_fault_code == FAULT_NONE ? FAULT_ARM_TIMEOUT : g_fault_code);
     }

@@ -37,7 +37,6 @@ static volatile uint8_t g_rk_disc_prep_high_ack;
 static uint8_t g_rk_disc_prep_high_requested;
 static uint32_t g_rk_disc_prep_high_last_send_ms;
 static uint8_t g_rk_reset_before_field_selection;
-static uint8_t g_rk_prep_before_field_selection;
 static uint8_t g_rk_selected_field_sync_pending;
 static uint32_t g_rk_selected_field_sync_last_send_ms;
 static uint8_t g_rk_selected_field_notice_pending;
@@ -1728,24 +1727,16 @@ static bool service_disc_prep_high_during_arc(void)
         board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_ASYNC_START\r\n");
     }
 
-    if ((uint32_t)(now_ms - g_rk_disc_prep_high_last_send_ms) >=
+    if (g_rk_disc_prep_high_ack == 0U &&
+        (uint32_t)(now_ms - g_rk_disc_prep_high_last_send_ms) >=
         ROUTE_DISC_PREP_RETRY_PERIOD_MS) {
         g_rk_disc_prep_high_last_send_ms = now_ms;
-        if (g_rk_prep_before_field_selection != 0U) {
-            (void)snprintf(
-                command, sizeof(command),
-                "ARM,DISC_CATCH,PREP_HIGH,ID1,%d,ID2,%d,ID6,%d\r\n",
-                ROUTE_DISC_PREP_HIGH_ID1_TICK,
-                ROUTE_DISC_PREP_HIGH_ID2_TICK,
-                ROUTE_DISC_PREP_HIGH_ID6_TICK);
-        } else {
-            (void)snprintf(
-                command, sizeof(command),
-                "ARM,DISC_CATCH,PREP_HIGH,FIELD,%s,ID1,%d,ID2,%d,ID6,%d\r\n",
-                field_name, ROUTE_DISC_PREP_HIGH_ID1_TICK,
-                ROUTE_DISC_PREP_HIGH_ID2_TICK,
-                ROUTE_DISC_PREP_HIGH_ID6_TICK);
-        }
+        (void)snprintf(
+            command, sizeof(command),
+            "ARM,DISC_CATCH,PREP_HIGH,FIELD,%s,ID1,%d,ID2,%d,ID6,%d\r\n",
+            field_name, ROUTE_DISC_PREP_HIGH_ID1_TICK,
+            ROUTE_DISC_PREP_HIGH_ID2_TICK,
+            ROUTE_DISC_PREP_HIGH_ID6_TICK);
         board_usb_write(command);
     }
 
@@ -2245,7 +2236,6 @@ static void request_rk_arm_reset_before_field_selection(void)
     g_rk_disc_prep_high_requested = 0U;
     g_rk_disc_prep_high_last_send_ms = 0U;
     g_rk_reset_before_field_selection = 1U;
-    g_rk_prep_before_field_selection = 1U;
     g_rk_selected_field_sync_pending = 0U;
     g_rk_selected_field_sync_last_send_ms = 0U;
     g_rk_selected_field_notice_pending = 0U;
@@ -4391,43 +4381,6 @@ bool route_controller_wait_for_disc_prep_high(void)
     }
 }
 
-bool route_controller_wait_for_disc_prep_high_before_route(void)
-{
-    return wait_for_disc_prep_high_with_timeout(
-        RK_ARM_PREP_HIGH_BEFORE_ROUTE_TIMEOUT_MS,
-        "H7,ARM,DISC_CATCH,PREP_HIGH_WAIT_BEFORE_ARC\r\n",
-        "H7,ARM,DISC_CATCH,PREP_HIGH_ACKED_BEFORE_ARC\r\n");
-}
-
-bool route_controller_wait_for_disc_prep_high_power_on(void)
-{
-    uint32_t wait_report_ms = HAL_GetTick();
-
-    lcd_display_set_start_status("ARM HIGH");
-    (void)service_disc_prep_high_during_arc();
-    board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_WAIT_BEFORE_READY\r\n");
-    while (g_rk_disc_prep_high_ack == 0U) {
-        const uint32_t now_ms = HAL_GetTick();
-
-        if (service_disc_prep_high_during_arc()) {
-            break;
-        }
-        if (!keep_chassis_stopped_for_arm_task()) {
-            preserve_rc_or_set_motor_fault();
-            return false;
-        }
-        if ((uint32_t)(now_ms - wait_report_ms) >=
-            RK_ARM_PREP_HIGH_BEFORE_ROUTE_TIMEOUT_MS) {
-            wait_report_ms = now_ms;
-            board_uart1_write(
-                "H7,ARM,DISC_CATCH,PREP_HIGH_STILL_WAITING_BEFORE_READY,RETRYING\r\n");
-        }
-        HAL_Delay(1U);
-    }
-    board_uart1_write("H7,ARM,DISC_CATCH,PREP_HIGH_ACKED_BEFORE_READY\r\n");
-    return true;
-}
-
 bool route_controller_run_task2_prep_high(void)
 {
     /* DISC_CATCH completion has already homed the arm. This transaction is
@@ -6538,7 +6491,6 @@ void route_controller_reset_run_context(void)
     g_rk_disc_prep_high_requested = 0U;
     g_rk_disc_prep_high_last_send_ms = 0U;
     g_rk_reset_before_field_selection = 0U;
-    g_rk_prep_before_field_selection = 0U;
     g_rk_selected_field_sync_pending = 0U;
     g_rk_selected_field_sync_last_send_ms = 0U;
     g_rk_reset_pending = 0U;
@@ -6573,7 +6525,6 @@ void route_controller_begin_pretask_sync(void)
 void route_controller_begin_selected_field_sync(void)
 {
     g_rk_reset_before_field_selection = 0U;
-    g_rk_prep_before_field_selection = 0U;
     g_rk_selected_field_sync_pending = 1U;
     g_rk_selected_field_notice_pending = 1U;
     g_rk_selected_field_sync_last_send_ms =
@@ -6622,22 +6573,6 @@ void route_controller_request_rk_reset(void)
 void route_controller_service_rk_link(void)
 {
     service_rk_link_before_first_station();
-}
-
-void route_controller_start_disc_prep_high_async(void)
-{
-    if (g_rk_disc_prep_high_ack == 0U) {
-        (void)service_disc_prep_high_during_arc();
-    }
-    board_uart1_write_only("H7,ARM,DISC_CATCH,PREP_HIGH_STARTED_BEFORE_ARC\r\n");
-}
-
-void route_controller_start_disc_prep_high_before_field_selection(void)
-{
-    g_rk_prep_before_field_selection = 1U;
-    (void)service_disc_prep_high_during_arc();
-    board_uart1_write(
-        "H7,ARM,DISC_CATCH,PREP_HIGH_STARTED_POWER_ON,FIELD=PENDING\r\n");
 }
 
 void route_controller_reset_pose(void)

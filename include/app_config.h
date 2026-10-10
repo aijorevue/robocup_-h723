@@ -54,10 +54,9 @@
 #define LCD_JOYSTICK_DOWN_MAX_RAW 3500UL
 #define LCD_JOYSTICK_MEDIAN_SAMPLES 3U
 #define ROUTE_POWER_ON_SETTLE_MS 50U
-/* RK RESET/home, task-one PREP_HIGH, IMU calibration, and motor readiness are
- * completed before the LCD shows READY. RIGHT/DOWN then only select the field
- * and release the already-armed route, so no reset or arm motion blocks the
- * first chassis command. */
+/* RK RESET/home, IMU calibration, and motor readiness complete before READY.
+ * The arm stays contracted until the first arc wheel command is accepted;
+ * PREP_HIGH then runs asynchronously during the arc. */
 #define ROUTE_WAIT_RK_READY_ON_BOOT 0U
 #define RK_ARM_BOOT_READY_TIMEOUT_MS 2500U
 #define RK_ARM_PRETASK_SYNC_PERIOD_MS 250U
@@ -66,11 +65,6 @@
  * transient USB disconnect, so the bounded pre-route gate is longer than the
  * per-command ACK timeout. */
 #define RK_ARM_RESET_BEFORE_ROUTE_TIMEOUT_MS 12000U
-/* The formal route must not start the arc until the task-one high pose was
- * accepted by RK and written to the HTD85 bus.  This is intentionally longer
- * than the normal station ACK timeout because the RK service may be reopening
- * a transient USB servo connection after RESET. */
-#define RK_ARM_PREP_HIGH_BEFORE_ROUTE_TIMEOUT_MS 12000U
 #define CAN_STARTUP_RETRY_TIMEOUT_MS 5000U
 #define CAN_STARTUP_RETRY_GAP_MS 50U
 /* Airborne integration mode: keep the route state machine running even if
