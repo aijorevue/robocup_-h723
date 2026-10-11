@@ -4870,6 +4870,10 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
     uint32_t last_right_edge_measurement_ms = 0U;
     uint32_t right_edge_stable_last_measurement_ms = 0U;
     bool first_task1_search_command_sent = false;
+    bool task1_near_target_latched = false;
+    bool task1_near_target_logged = false;
+    const bool task1_white_line_phase =
+        phase == ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC;
     const bool task3_white_line_phase =
         route_white_line_phase_is_task3(phase);
     const bool task3_red_white_line_phase =
@@ -4911,13 +4915,16 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
             ? ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_MAX_LATERAL_SPEED_M_S
             : ROUTE_TASK2_FORMAL_WHITE_LINE_MAX_LATERAL_SPEED_M_S;
     const float no_line_search_speed_m_s =
-        phase == ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC
+        task1_white_line_phase
             ? ROUTE_TASK1_DISC_LINE_SEARCH_SPEED_M_S
             : forward_speed_m_s;
+    const uint32_t measurement_stale_ms = task1_white_line_phase
+        ? ROUTE_TASK1_DISC_LINE_STALE_MS
+        : ROUTE_DISC_LINE_STALE_MS;
 
     /* Keep the formal query allowlist beside the emitter so standalone
      * camera phases cannot accidentally enter this route controller. */
-    if (phase != ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC &&
+    if (!task1_white_line_phase &&
         phase != ROUTE_WHITE_LINE_PHASE_TASK2_AFTER_SHIFT &&
         !task3_white_line_phase) {
         g_fault_code = FAULT_KINEMATICS;
@@ -4927,7 +4934,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
     /* Task one's arc endpoint already provides a stable handoff. Start the
      * no-line forward search at its configured speed on the first control
      * cycle; all other phases retain their existing zero-speed ramp-in. */
-    if (phase == ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC) {
+    if (task1_white_line_phase) {
         commanded_forward_speed_m_s = no_line_search_speed_m_s;
     }
 
@@ -4943,7 +4950,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                    ROUTE_DISC_LINE_REFERENCE_A100);
     /* Do not emit a synchronous diagnostic before task one's first wheel
      * command. UART transmit has a bounded 1000 ms wait on this target. */
-    if (phase != ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC) {
+    if (!task1_white_line_phase) {
         board_uart1_write(log_line);
     }
 
@@ -5016,7 +5023,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
 
         if ((uint32_t)(now_ms - last_query_ms) >=
                 ROUTE_DISC_LINE_QUERY_PERIOD_MS &&
-            (phase != ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC ||
+            (!task1_white_line_phase ||
              first_task1_search_command_sent)) {
             last_query_ms = now_ms;
             board_usb_write(query);
@@ -5067,6 +5074,17 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                             accept_y10 = false;
                         }
                         if (accept_y10) {
+                            if (task1_white_line_phase &&
+                                labs(y10 - reference_y10) <=
+                                    ROUTE_TASK1_DISC_LINE_NEAR_TARGET_BAND_Y10) {
+                                task1_near_target_latched = true;
+                                if (!task1_near_target_logged) {
+                                    task1_near_target_logged = true;
+                                    board_uart1_write_only(
+                                        "H7,VISION,WHITE_LINE,TASK1,NEAR_TARGET,"
+                                        "SPEED=0.02m/s,STALE=150ms\r\n");
+                                }
+                            }
                             if (task3_white_line_phase &&
                                 !right_edge_alignment_active) {
                                 task3_center_not_found_started_ms = 0U;
@@ -5435,7 +5453,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                  * sample or counting the same sample every control cycle. */
                 if (right_edge_measurement_valid &&
                     (uint32_t)(now_ms - last_right_edge_measurement_ms) <=
-                        ROUTE_DISC_LINE_STALE_MS) {
+                        measurement_stale_ms) {
                     if (last_right_edge_measurement_ms !=
                             right_edge_stable_last_measurement_ms) {
                         right_edge_stable_last_measurement_ms =
@@ -5530,7 +5548,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
 
             if (measurement_valid &&
                 (uint32_t)(now_ms - last_measurement_ms) <=
-                    ROUTE_DISC_LINE_STALE_MS) {
+                    measurement_stale_ms) {
                 if (fabsf(error_angle_deg) >
                     ROUTE_DISC_LINE_ANGLE_DEADBAND_DEG) {
                     command_wz_rad_s = clampf(
@@ -5548,6 +5566,13 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                                                  ? filtered_y10
                                                  : last_accepted_y10;
                     const long y10_error = control_y10 - reference_y10;
+                    const float correction_speed_m_s =
+                        task1_white_line_phase &&
+                                (task1_near_target_latched ||
+                                 labs(y10_error) <=
+                                     ROUTE_TASK1_DISC_LINE_NEAR_TARGET_BAND_Y10)
+                            ? ROUTE_TASK1_DISC_LINE_NEAR_TARGET_SPEED_M_S
+                            : forward_speed_m_s;
                     if (y10_error > tolerance_y10) {
                         /* Formal task two is a one-way approach.  A large
                          * positive Y error must never make the chassis back
@@ -5561,10 +5586,10 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                             desired_forward_speed_m_s =
                                 formal_task2_white_line_phase
                                     ? forward_speed_m_s
-                                    : -forward_speed_m_s;
+                                    : -correction_speed_m_s;
                         }
                     } else if (y10_error < -tolerance_y10) {
-                        desired_forward_speed_m_s = forward_speed_m_s;
+                        desired_forward_speed_m_s = correction_speed_m_s;
                     } else {
                         desired_forward_speed_m_s = 0.0f;
                     }
@@ -5633,7 +5658,10 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                         board_uart1_write_only(reverse_log);
                     }
                 } else {
-                    desired_forward_speed_m_s = no_line_search_speed_m_s;
+                    desired_forward_speed_m_s =
+                        task1_white_line_phase && task1_near_target_latched
+                            ? ROUTE_TASK1_DISC_LINE_NEAR_TARGET_SPEED_M_S
+                            : no_line_search_speed_m_s;
                     if (!forward_search_logged) {
                         forward_search_logged = true;
                         char forward_log[128];
@@ -5710,7 +5738,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                 g_task2_test_white_line_active = 0U;
                 return false;
             }
-            if (phase == ROUTE_WHITE_LINE_PHASE_TASK1_AFTER_ARC) {
+            if (task1_white_line_phase) {
                 first_task1_search_command_sent = true;
             }
             if (!route_motor_feedback_update_after_command(
