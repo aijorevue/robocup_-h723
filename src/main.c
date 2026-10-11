@@ -137,8 +137,8 @@ static bool run_formal_task3_red_tail(void)
     }
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     board_uart1_write(
-        "H7,ROUTE,TASK3,RED,POST_ORBIT_REVERSE,DISTANCE=60mm\r\n");
-    if (!task3_align_gyro_at_fixed_point("RED", "POST_ORBIT_REVERSE_60")) {
+        "H7,ROUTE,TASK3,RED,POST_ORBIT_REVERSE,DISTANCE=70mm\r\n");
+    if (!task3_align_gyro_at_fixed_point("RED", "POST_ORBIT_REVERSE_70")) {
         return false;
     }
 
@@ -1032,7 +1032,7 @@ route_start:
                                            : RUN_LOG_EVENT_ARM_BYPASS);
 #endif
 
-            /* Add the requested 80 mm approach immediately before the formal
+            /* Add the requested 90 mm approach immediately before the formal
              * task-three orbit.  The standalone TASK3 test starts at its own
              * orbit entry and is intentionally unchanged. */
             g_run_state = RUN_FORWARD;
@@ -1052,8 +1052,8 @@ route_start:
             }
             board_uart1_write(
                 field_profile.is_red != 0U
-                    ? "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=80mm\r\n"
-                    : "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=80mm\r\n");
+                    ? "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=90mm\r\n"
+                    : "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=90mm\r\n");
 
             g_run_state = RUN_FRONT_CENTER_ORBIT;
             /* Formal COLUMN_CATCH owns its own pause/resume channel.  Do not
@@ -1114,9 +1114,9 @@ route_start:
                                                            : g_fault_code);
                 }
                 board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,POST_ORBIT_REVERSE,DISTANCE=60mm\r\n");
+                    "H7,ROUTE,TASK3,BLUE,POST_ORBIT_REVERSE,DISTANCE=70mm\r\n");
                 if (!task3_align_gyro_at_fixed_point(
-                        "BLUE", "POST_ORBIT_REVERSE_60")) {
+                        "BLUE", "POST_ORBIT_REVERSE_70")) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
                                                            : g_fault_code);
                 }
