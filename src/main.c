@@ -953,14 +953,14 @@ route_start:
     }
 #else
     g_run_state = RUN_DIAGONAL_AFTER_PLATFORM;
-    /* The formal task-three entry uses the same 950/100 mm vector in both
+    /* The formal task-three entry uses the same 955/100 mm vector in both
      * fields, with the field's leftward direction preserved. */
     board_uart1_write(
         field_profile.is_red != 0U
-            ? "H7,ROUTE,TASK2_TO_TASK3,FIELD=RED,BACKWARD=950mm,"
-              "LATERAL=LEFT100mm,DISTANCE=955.249mm\r\n"
-            : "H7,ROUTE,TASK2_TO_TASK3,FIELD=BLUE,BACKWARD=950mm,"
-              "LATERAL=LEFT100mm,DISTANCE=955.249mm\r\n");
+            ? "H7,ROUTE,TASK2_TO_TASK3,FIELD=RED,BACKWARD=955mm,"
+              "LATERAL=LEFT100mm,DISTANCE=960.221mm\r\n"
+            : "H7,ROUTE,TASK2_TO_TASK3,FIELD=BLUE,BACKWARD=955mm,"
+              "LATERAL=LEFT100mm,DISTANCE=960.221mm\r\n");
     if (!route_controller_run_task2_to_task3_translation(
                 -ROUTE_FORWARD_SIGN *
                 (field_profile.is_red != 0U
