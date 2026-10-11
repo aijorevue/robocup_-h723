@@ -85,9 +85,9 @@
  * offset early, then run almost straight into the disc marker.  The final
  * endpoint remains ROUTE_FORWARD_DISTANCE_M / ROUTE_STRAFE_DISTANCE_M. */
 #define ROUTE_DISC_ARC_CONTROL1_FORWARD_M 0.150f
-#define ROUTE_DISC_ARC_CONTROL1_LATERAL_M 0.430f
+#define ROUTE_DISC_ARC_CONTROL1_LATERAL_M 0.460f
 #define ROUTE_DISC_ARC_CONTROL2_FORWARD_M 0.500f
-#define ROUTE_DISC_ARC_CONTROL2_LATERAL_M 0.630f
+#define ROUTE_DISC_ARC_CONTROL2_LATERAL_M 0.650f
 #define ROUTE_DISC_ARC_MAX_SPEED_M_S 1.400f
 #define ROUTE_DISC_ARC_ACCEL_M_S2 0.500f
 #define ROUTE_DISC_ARC_TIMEOUT_MS 9000U
@@ -122,7 +122,7 @@
 /* Formal task-one arc exit: search forward faster while no fresh white-line
  * measurement exists; after the first valid sample, line feedback is limited
  * to ROUTE_DISC_LINE_CONTROL_SPEED_M_S. */
-#define ROUTE_TASK1_DISC_LINE_SEARCH_SPEED_M_S 0.070f
+#define ROUTE_TASK1_DISC_LINE_SEARCH_SPEED_M_S 0.080f
 #define ROUTE_TASK1_DISC_LINE_NEAR_TARGET_SPEED_M_S 0.020f
 #define ROUTE_TASK1_DISC_LINE_NEAR_TARGET_BAND_Y10 400L
 #define ROUTE_DISC_LINE_ACCEL_M_S2 0.100f
