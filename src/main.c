@@ -304,14 +304,14 @@ static bool run_formal_task3_red_tail(void)
     }
     g_run_state = RUN_FORWARD;
     board_uart1_write(
-        "H7,ROUTE,TASK3,RED,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=1000ms\r\n");
+        "H7,ROUTE,TASK3,RED,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=800ms\r\n");
     if (!route_controller_run_timed_forward(
             ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_SPEED_M_S,
             ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_MS)) {
         return false;
     }
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (!task3_align_gyro_at_fixed_point("RED", "PRE_RING_FORWARD_1000MS")) {
+    if (!task3_align_gyro_at_fixed_point("RED", "PRE_RING_FORWARD_800MS")) {
         return false;
     }
     board_uart1_write(
@@ -1303,7 +1303,7 @@ route_start:
                 }
                 g_run_state = RUN_FORWARD;
                 board_uart1_write(
-                    "H7,ROUTE,TASK3,BLUE,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=1000ms\r\n");
+                     "H7,ROUTE,TASK3,BLUE,PRE_RING_FORWARD,SPEED=0.05m/s,TIME=800ms\r\n");
                 if (!route_controller_run_timed_forward(
                         ROUTE_TASK3_BLUE_PRE_RING_FORWARD_SPEED_M_S,
                         ROUTE_TASK3_BLUE_PRE_RING_FORWARD_MS)) {
@@ -1312,7 +1312,7 @@ route_start:
                 }
                 route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
                 if (!task3_align_gyro_at_fixed_point(
-                        "BLUE", "PRE_RING_FORWARD_1000MS")) {
+                         "BLUE", "PRE_RING_FORWARD_800MS")) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
                                                            : g_fault_code);
                 }
