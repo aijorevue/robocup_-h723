@@ -655,7 +655,7 @@ route_start:
         g_run_state = RUN_DISC_FINAL_APPROACH;
             if (ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M > 0.0f) {
             board_uart1_write(
-                "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=58mm,"
+                "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=64mm,"
                 "SPEED=0.08m/s,PROFILE=FIXED\r\n");
             if (!route_controller_run_translation_fixed_speed(
                     ROUTE_FORWARD_SIGN, 0.0f,

@@ -5380,7 +5380,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
             }
             board_uart1_write(
                 "H7,WARN,TASK1,WHITE_LINE,NO_FRESH_FRAME_5500MS,"
-                "CONTINUE_FIXED_FORWARD=58mm\r\n");
+                "CONTINUE_FIXED_FORWARD=64mm\r\n");
             g_task2_test_white_line_active = 0U;
             return true;
         }
