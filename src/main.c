@@ -359,7 +359,7 @@ static bool run_formal_task3_red_tail(void)
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     board_uart1_write(
         "H7,ROUTE,TASK3,RED,POST_ROUTE_FINAL_PATH,DONE,"
-        "PATH=FINAL_TRANSLATION,SHIFT=2250mm,REVERSE=835mm\r\n");
+        "PATH=FINAL_TRANSLATION,SHIFT=2250mm,REVERSE=815mm\r\n");
     return true;
 }
 
@@ -1392,7 +1392,7 @@ route_start:
                 }
                 route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
                 if (!task3_align_gyro_at_fixed_point(
-                        "BLUE", "FINAL_REVERSE_835")) {
+                        "BLUE", "FINAL_REVERSE_815")) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
                                                            : g_fault_code);
                 }

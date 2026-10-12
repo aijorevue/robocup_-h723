@@ -171,6 +171,13 @@ COLUMN_LOCKED_LETTER_MAX_JUMP_PX = 260.0
 COLUMN_LOCKED_LETTER_MAX_SIZE_RATIO = 2.8
 COLUMN_H7_PAUSE_TIMEOUT_S = 3.0
 COLUMN_H7_RESUME_TIMEOUT_S = 3.0
+# Formal task-three letter-grasp window in the main-camera coordinates.
+# Keep this gate task-three-only; task one and task two use their own target
+# policies and windows.
+COLUMN_TASK3_CAPTURE_WINDOW_X_MIN = 150.0
+COLUMN_TASK3_CAPTURE_WINDOW_X_MAX = 650.0
+COLUMN_TASK3_CAPTURE_WINDOW_Y_MIN = 100.0
+COLUMN_TASK3_CAPTURE_WINDOW_Y_MAX = 700.0
 
 BALL_DISTANCE_OFFSET_CM = -1.6072186919749336
 BALL_DISTANCE_SCALE_CM = 31.628878020276648
@@ -3598,8 +3605,21 @@ class TargetGraspController:
             and size_ratio <= COLUMN_LOCKED_BLOCK_MAX_SIZE_RATIO
         )
 
-    @classmethod
-    def _column_letters_in_block(cls, detections, block):
+    def _column_task3_capture_window_contains(self, detection):
+        center = detection.get("center") if detection else None
+        if not isinstance(center, (tuple, list)) or len(center) < 2:
+            return False
+        try:
+            center_x = float(center[0])
+            center_y = float(center[1])
+        except (TypeError, ValueError):
+            return False
+        return (
+            COLUMN_TASK3_CAPTURE_WINDOW_X_MIN <= center_x <= COLUMN_TASK3_CAPTURE_WINDOW_X_MAX
+            and COLUMN_TASK3_CAPTURE_WINDOW_Y_MIN <= center_y <= COLUMN_TASK3_CAPTURE_WINDOW_Y_MAX
+        )
+
+    def _column_letters_in_block(self, detections, block):
         if block is None:
             return []
         bbox = block.get("bbox", ())
@@ -3614,6 +3634,7 @@ class TargetGraspController:
                 det.get("kind") != "letter"
                 or not det.get("fully_visible", True)
                 or str(det.get("letter", "")).upper() not in LETTERS
+                or not self._column_task3_capture_window_contains(det)
             ):
                 continue
             center = np.asarray(det.get("center", ()), dtype=np.float32)
@@ -3632,8 +3653,7 @@ class TargetGraspController:
             < PLATFORM_LETTER_SUCCESS_QUOTA
         )
 
-    @classmethod
-    def _column_locked_letter_fallback(cls, detections, reference, block):
+    def _column_locked_letter_fallback(self, detections, reference, block):
         """Recover the locked glyph if its white border is briefly hidden."""
         if reference is None or block is None:
             return None
@@ -3656,6 +3676,7 @@ class TargetGraspController:
                 det.get("kind") != "letter"
                 or not det.get("fully_visible", True)
                 or str(det.get("letter", "")).upper() != label
+                or not self._column_task3_capture_window_contains(det)
             ):
                 continue
             center = np.asarray(det.get("center", ()), dtype=np.float32)
@@ -3689,6 +3710,7 @@ class TargetGraspController:
             det for det in detections
             if det.get("kind") == "column_block"
             and det.get("fully_visible", True)
+            and self._column_task3_capture_window_contains(det)
             and not self._column_block_has_processed_letter(detections, det)
         ]
         return max(
@@ -4890,6 +4912,8 @@ class TargetGraspController:
             self.state = "COLUMN_CATCH classify paused block"
             if stable_letter_target is not None:
                 stable_selected = (
+                    self._column_task3_capture_window_contains(stable_letter_target)
+                    and
                     self.target_policy.matches_column_letter(
                         stable_letter_target, self.target_letters
                     )
@@ -4899,7 +4923,8 @@ class TargetGraspController:
                 )
                 if not stable_selected:
                     self.status = (
-                        "COLUMN_CATCH ignored stable non-target letter "
+                        "COLUMN_CATCH ignored stable letter outside capture "
+                        f"window or not selected "
                         f"{stable_letter_target.get('letter', '?')}; resume H7"
                     )
                     self.chassis_station_stage = "column_resume_abort"

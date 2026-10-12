@@ -6935,14 +6935,14 @@ bool route_controller_run_task3_red_final_translation(void)
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     board_uart1_write(
         "H7,ROUTE,TASK3,RED,FIXED_POINT_GYRO_ALIGN,START,"
-        "POINT=FINAL_REVERSE_835\r\n");
+        "POINT=FINAL_REVERSE_815\r\n");
     if (!run_relative_turn(0.0f)) {
         return false;
     }
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     board_uart1_write(
         "H7,ROUTE,TASK3,RED,FIXED_POINT_GYRO_ALIGN,DONE,"
-        "POINT=FINAL_REVERSE_835\r\n");
+        "POINT=FINAL_REVERSE_815\r\n");
     return true;
 }
 
