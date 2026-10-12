@@ -261,7 +261,7 @@ DISC_CATCH_BLUE_GRIPPER_CLOSED_TICK = 265
 # Task-one ball trigger window in the original 800x600 main-camera frame.
 # This gate is applied after field-color filtering and is not used by tasks 2/3.
 DISC_CATCH_WINDOW_X_MIN = 290
-DISC_CATCH_WINDOW_X_MAX = 800
+DISC_CATCH_WINDOW_X_MAX = 750
 DISC_CATCH_WINDOW_Y_MIN = 100
 DISC_CATCH_WINDOW_Y_MAX = 510
 DISC_CATCH_SPLITTER_FIELD_TICK = TASK1_ID14_FIELD_TICK
@@ -821,7 +821,10 @@ class FrameState:
 
     def update(self, frame, info):
         with self.lock:
-            self.frame = frame.copy()
+            # `output` is immutable after publication. Copying the full
+            # 800x600 image here added a second copy on every main-loop tick;
+            # HTTP snapshots still copy at the consumer boundary below.
+            self.frame = frame
             self.info = info
 
     def snapshot(self):
@@ -7720,6 +7723,9 @@ class ArmPreviewPublisher:
         self.last_joint_publish_time = 0.0
         self.last_joint_ticks = None
         self.joint_publish_interval_s = 0.12
+        self.last_status_publish_time = 0.0
+        self.last_status_key = None
+        self.status_publish_interval_s = 0.05
 
         if self.enabled:
             self._open()
@@ -7892,6 +7898,21 @@ class ArmPreviewPublisher:
                 self.last_joint_ticks = joint_ticks
                 self.last_joint_publish_time = now
 
+            status_key = (
+                str(detail),
+                str(state or "VISION_PREVIEW"),
+                None if target is None else target.get("kind"),
+                None if target is None else target.get("center"),
+            )
+            if (
+                not should_publish_joint
+                and status_key == self.last_status_key
+                and now - self.last_status_publish_time
+                < self.status_publish_interval_s
+            ):
+                self.rclpy.spin_once(self.node, timeout_sec=0.0)
+                return
+
             payload = {
                 "state": state or "VISION_PREVIEW",
                 "detail": detail,
@@ -7916,6 +7937,8 @@ class ArmPreviewPublisher:
             status = self.String(data=json.dumps(payload, ensure_ascii=False))
             self.status_pub.publish(status)
             self.target_pub.publish(status)
+            self.last_status_key = status_key
+            self.last_status_publish_time = now
             self.rclpy.spin_once(self.node, timeout_sec=0.0)
         except Exception as exc:
             self.enabled = False
@@ -9260,6 +9283,10 @@ def main(argv=None):
     secondary_result_buffer = deque(maxlen=4)
     secondary_result_sequence = 0
     secondary_last_delivered_sequence = 0
+    render_output = None
+    render_info = "searching selected targets..."
+    render_last_at = 0.0
+    render_period_s = 1.0 / 15.0
 
     def current_detection_mode():
         """Select the smallest detector set required by the current H7 phase."""
@@ -9395,7 +9422,10 @@ def main(argv=None):
                 interpolation=cv2.INTER_AREA,
             )
         if secondary_detection_future is None:
-            secondary_detection_pending_frame = secondary_frame.copy()
+            # LatestFrameReader publishes immutable frame objects. The
+            # process executor serializes its argument itself, so this local
+            # copy only doubled memory bandwidth before submission.
+            secondary_detection_pending_frame = secondary_frame
             secondary_detection_future = secondary_detection_executor.submit(
                 secondary_detection_process_worker,
                 secondary_detection_pending_frame,
@@ -9988,7 +10018,11 @@ def main(argv=None):
                 not in {DETECTION_MODE_IDLE, DETECTION_MODE_WHITE_LINE}
             ):
                 last_detection_frame = frame
-                detection_pending_frame = frame.copy()
+                # The camera reader swaps in a new ndarray for each frame and
+                # never mutates an older one. Process-pool pickling and the
+                # task-three resize already create their own worker-side
+                # representation, so avoid a redundant full-frame copy here.
+                detection_pending_frame = frame
                 detection_future_mode = requested_detection_mode
                 detection_future_field = grasp_controller.field_mode.value
                 task3_roi = None
@@ -10093,7 +10127,25 @@ def main(argv=None):
                 if detection_source_frame is not None
                 else frame
             )
-            output, info = detector.draw(render_frame, display_detections)
+            render_enabled = window_enabled or server is not None
+            render_now = time.monotonic()
+            if (
+                render_enabled
+                and (
+                    render_output is None
+                    or detection_fresh
+                    or render_now - render_last_at >= render_period_s
+                )
+            ):
+                render_output, render_info = detector.draw(
+                    render_frame, display_detections
+                )
+                render_last_at = render_now
+            if render_enabled:
+                output, info = render_output, render_info
+            else:
+                output = None
+                info = detector.summary(display_detections)
             aux_info = ""
             if auto_grasp_enabled:
                 chassis_active = (
