@@ -25,7 +25,7 @@ events:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/MaximSDK/Tools/GNUTools/10.3/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -82,15 +82,15 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc.exe.com"
     found: "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc.exe"
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -151,8 +151,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "message-v1"
     backtrace:
@@ -183,7 +183,7 @@ events:
       - "samu"
     candidate_directories:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -241,8 +241,8 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/ninja-build.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/ninja-build.exe"
@@ -253,15 +253,15 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/samu.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/samu.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/samu"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/ninja-build.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/ninja-build.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/ninja-build"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/ninja.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/ninja.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/ninja"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/samu.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/samu.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/samu"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/ninja-build.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/ninja-build.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/ninja-build"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/ninja.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/ninja.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/ninja"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/samu.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/samu.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/samu"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/ninja-build.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/ninja-build.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/ninja-build"
@@ -594,7 +594,7 @@ events:
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -655,8 +655,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "find-v1"
     backtrace:
@@ -685,7 +685,7 @@ events:
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -746,8 +746,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "message-v1"
     backtrace:
@@ -806,7 +806,7 @@ events:
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -867,8 +867,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "message-v1"
     backtrace:
@@ -914,7 +914,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -971,15 +971,15 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-ar.com"
     found: "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-ar.exe"
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -1040,8 +1040,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "find-v1"
     backtrace:
@@ -1065,7 +1065,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -1122,15 +1122,15 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-ranlib.com"
     found: "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-ranlib.exe"
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -1191,8 +1191,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "find-v1"
     backtrace:
@@ -1216,7 +1216,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -1273,15 +1273,15 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-strip.com"
     found: "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-strip.exe"
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -1342,8 +1342,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "find-v1"
     backtrace:
@@ -1367,7 +1367,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -1424,15 +1424,15 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-ld.com"
     found: "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-ld.exe"
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -1493,8 +1493,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "find-v1"
     backtrace:
@@ -1518,7 +1518,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -1575,15 +1575,15 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-nm.com"
     found: "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-nm.exe"
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -1644,8 +1644,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "find-v1"
     backtrace:
@@ -1669,7 +1669,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -1726,15 +1726,15 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-objdump.com"
     found: "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-objdump.exe"
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -1795,8 +1795,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "find-v1"
     backtrace:
@@ -1820,7 +1820,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -1877,15 +1877,15 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-readelf.com"
     found: "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-readelf.exe"
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -1946,8 +1946,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "find-v1"
     backtrace:
@@ -1971,7 +1971,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -2028,8 +2028,8 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-dlltool.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-dlltool.exe"
@@ -2037,9 +2037,9 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-dlltool.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-dlltool.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-dlltool"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-dlltool.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-dlltool.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-dlltool"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-dlltool.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-dlltool.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-dlltool"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-dlltool.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-dlltool.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-dlltool"
@@ -2208,21 +2208,21 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-dlltool.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-dlltool.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-dlltool"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-dlltool.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-dlltool.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-dlltool"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-dlltool.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-dlltool.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-dlltool"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-dlltool.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-dlltool.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-dlltool"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-dlltool.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-dlltool.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-dlltool"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/dlltool.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/dlltool.exe"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/dlltool"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/dlltool.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/dlltool.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/dlltool"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/dlltool.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/dlltool.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/dlltool"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/dlltool.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/dlltool.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/dlltool"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/dlltool.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/dlltool.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/dlltool"
@@ -2279,7 +2279,7 @@ events:
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -2340,8 +2340,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "find-v1"
     backtrace:
@@ -2365,7 +2365,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -2422,15 +2422,15 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-addr2line.com"
     found: "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-addr2line.exe"
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -2491,8 +2491,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "find-v1"
     backtrace:
@@ -2516,7 +2516,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -2573,8 +2573,8 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-tapi.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-tapi.exe"
@@ -2582,9 +2582,9 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-tapi.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-tapi.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-tapi"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-tapi.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-tapi.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-tapi"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-tapi.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-tapi.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-tapi"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-tapi.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-tapi.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-tapi"
@@ -2753,21 +2753,21 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-tapi.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-tapi.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-tapi"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-tapi.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-tapi.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-tapi"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-tapi.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-tapi.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-tapi"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-tapi.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-tapi.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-tapi"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-tapi.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-tapi.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-tapi"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/tapi.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/tapi.exe"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/tapi"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/tapi.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/tapi.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/tapi"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/tapi.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/tapi.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/tapi"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/tapi.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/tapi.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/tapi"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/tapi.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/tapi.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/tapi"
@@ -2936,17 +2936,17 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/tapi.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/tapi.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/tapi"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/tapi.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/tapi.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/tapi"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/tapi.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/tapi.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/tapi"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/tapi.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/tapi.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/tapi"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/tapi.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/tapi.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/tapi"
     found: false
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -3007,8 +3007,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "find-v1"
     backtrace:
@@ -3034,7 +3034,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -3091,8 +3091,8 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar-15.2.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar-15.2.exe"
@@ -3100,9 +3100,9 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar-15.2.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar-15.2.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar-15.2"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar-15.2.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar-15.2.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar-15.2"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar-15.2.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar-15.2.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar-15.2"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar-15.2.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar-15.2.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar-15.2"
@@ -3271,21 +3271,21 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar-15.2.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar-15.2.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar-15.2"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar-15.2.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar-15.2.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar-15.2"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar-15.2.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar-15.2.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar-15.2"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar-15.2.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar-15.2.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar-15.2"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar-15.2.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar-15.2.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar-15.2"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar-15.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar-15.exe"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar-15"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar-15.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar-15.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar-15"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar-15.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar-15.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar-15"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar-15.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar-15.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar-15"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar-15.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar-15.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar-15"
@@ -3454,21 +3454,21 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar-15.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar-15.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar-15"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar-15.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar-15.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar-15"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar-15.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar-15.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar-15"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar-15.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar-15.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar-15"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar-15.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar-15.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar-15"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar15.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar15.exe"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar15"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar15.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar15.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar15"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar15.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar15.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar15"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar15.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar15.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar15"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar15.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar15.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar15"
@@ -3637,18 +3637,18 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar15.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar15.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar15"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar15.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar15.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar15"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar15.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar15.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar15"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar15.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar15.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar15"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar15.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar15.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar15"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar.com"
     found: "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar.exe"
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -3709,8 +3709,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "find-v1"
     backtrace:
@@ -3736,7 +3736,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -3793,8 +3793,8 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib-15.2.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib-15.2.exe"
@@ -3802,9 +3802,9 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib-15.2.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib-15.2.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib-15.2"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib-15.2.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib-15.2.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib-15.2"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib-15.2.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib-15.2.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib-15.2"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib-15.2.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib-15.2.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib-15.2"
@@ -3973,21 +3973,21 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib-15.2.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib-15.2.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib-15.2"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib-15.2.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib-15.2.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib-15.2"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib-15.2.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib-15.2.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib-15.2"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib-15.2.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib-15.2.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib-15.2"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib-15.2.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib-15.2.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib-15.2"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib-15.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib-15.exe"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib-15"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib-15.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib-15.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib-15"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib-15.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib-15.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib-15"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib-15.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib-15.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib-15"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib-15.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib-15.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib-15"
@@ -4156,21 +4156,21 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib-15.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib-15.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib-15"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib-15.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib-15.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib-15"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib-15.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib-15.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib-15"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib-15.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib-15.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib-15"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib-15.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib-15.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib-15"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib15.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib15.exe"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib15"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib15.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib15.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib15"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib15.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib15.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib15"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib15.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib15.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib15"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib15.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib15.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib15"
@@ -4339,18 +4339,18 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib15.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib15.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib15"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib15.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib15.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib15"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib15.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib15.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib15"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib15.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib15.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib15"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib15.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib15.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib15"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib.com"
     found: "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib.exe"
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -4411,8 +4411,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "message-v1"
     backtrace:
@@ -4451,7 +4451,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -4508,8 +4508,8 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar-.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar-.exe"
@@ -4517,9 +4517,9 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar-.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar-.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar-"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar-.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar-.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar-"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar-.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar-.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar-"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar-.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar-.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar-"
@@ -4688,21 +4688,21 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar-.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar-.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar-"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar-.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar-.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar-"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar-.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar-.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar-"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar-.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar-.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar-"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar-.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar-.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar-"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar-.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar-.exe"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar-"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar-.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar-.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ar-"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar-.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar-.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ar-"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar-.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar-.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ar-"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar-.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar-.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ar-"
@@ -4871,18 +4871,18 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar-.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar-.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ar-"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar-.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar-.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ar-"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar-.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar-.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ar-"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar-.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar-.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ar-"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar-.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar-.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ar-"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar.com"
     found: "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ar.exe"
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -4943,8 +4943,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "find-v1"
     backtrace:
@@ -4970,7 +4970,7 @@ events:
     candidate_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/jxrlib/jxrlib/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/"
@@ -5027,8 +5027,8 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/"
     searched_directories:
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib-.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib-.exe"
@@ -5036,9 +5036,9 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib-.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib-.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib-"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib-.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib-.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib-"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib-.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib-.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib-"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib-.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib-.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib-"
@@ -5207,21 +5207,21 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib-.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib-.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib-"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib-.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib-.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib-"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib-.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib-.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib-"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib-.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib-.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib-"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib-.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib-.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib-"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib-.com"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib-.exe"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib-"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib-.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib-.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/arm-none-eabi-gcc-ranlib-"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib-.com"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib-.exe"
-      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0qw5BUF/arm-none-eabi-gcc-ranlib-"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib-.com"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib-.exe"
+      - "C:/Users/19901/.codex/tmp/arg0/codex-arg0ba8ot5/arm-none-eabi-gcc-ranlib-"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib-.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib-.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/libheif/libheif/bin/arm-none-eabi-gcc-ranlib-"
@@ -5390,18 +5390,18 @@ events:
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib-.com"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib-.exe"
       - "C:/Users/19901/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/cmd/arm-none-eabi-gcc-ranlib-"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib-.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib-.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/116cfc4fd47f015a/arm-none-eabi-gcc-ranlib-"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib-.com"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib-.exe"
-      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/bffc5354119c8421/arm-none-eabi-gcc-ranlib-"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib-.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib-.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/9a7ba4b9ea0c44a3/arm-none-eabi-gcc-ranlib-"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib-.com"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib-.exe"
+      - "C:/Users/19901/AppData/Local/OpenAI/Codex/bin/2e5e00daee91c61d/arm-none-eabi-gcc-ranlib-"
       - "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib.com"
     found: "D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc-ranlib.exe"
     search_context:
       ENV{PATH}:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell"
-        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0qw5BUF"
+        - "C:\\Users\\19901\\.codex\\tmp\\arg0\\codex-arg0ba8ot5"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin"
@@ -5462,8 +5462,8 @@ events:
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin"
         - "C:\\Users\\19901\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\116cfc4fd47f015a"
-        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\bffc5354119c8421"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\9a7ba4b9ea0c44a3"
+        - "C:\\Users\\19901\\AppData\\Local\\OpenAI\\Codex\\bin\\2e5e00daee91c61d"
   -
     kind: "try_compile-v1"
     backtrace:
@@ -5473,8 +5473,8 @@ events:
     checks:
       - "Detecting C compiler ABI info"
     directories:
-      source: "D:/\u5c0f\u8f66\u5e95\u76d8/test/test1/build/CMakeFiles/CMakeScratch/TryCompile-wh3ihg"
-      binary: "D:/\u5c0f\u8f66\u5e95\u76d8/test/test1/build/CMakeFiles/CMakeScratch/TryCompile-wh3ihg"
+      source: "D:/\u5c0f\u8f66\u5e95\u76d8/test/test1/build/CMakeFiles/CMakeScratch/TryCompile-m2lc5p"
+      binary: "D:/\u5c0f\u8f66\u5e95\u76d8/test/test1/build/CMakeFiles/CMakeScratch/TryCompile-m2lc5p"
     cmakeVariables:
       CMAKE_C_FLAGS: ""
       CMAKE_C_FLAGS_DEBUG: "-g"
@@ -5483,10 +5483,10 @@ events:
       variable: "CMAKE_C_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: 'D:/小车底盘/test/test1/build/CMakeFiles/CMakeScratch/TryCompile-wh3ihg'
+        Change Dir: 'D:/小车底盘/test/test1/build/CMakeFiles/CMakeScratch/TryCompile-m2lc5p'
         
-        Run Build Command(s): C:/Users/19901/scoop/shims/ninja.exe -v cmTC_dd22d
-        [1/2] D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-gcc.exe   -v -o CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.obj -c C:/Users/19901/scoop/apps/cmake/current/share/cmake-4.2/Modules/CMakeCCompilerABI.c
+        Run Build Command(s): C:/Users/19901/scoop/shims/ninja.exe -v cmTC_7301e
+        [1/2] D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-gcc.exe   -v -o CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.obj -c C:/Users/19901/scoop/apps/cmake/current/share/cmake-4.2/Modules/CMakeCCompilerABI.c
         Using built-in specs.
         COLLECT_GCC=D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-gcc.exe
         Target: arm-none-eabi
@@ -5494,8 +5494,8 @@ events:
         Thread model: single
         Supported LTO compression algorithms: zlib
         gcc version 15.2.1 20251203 (Arm GNU Toolchain 15.2.Rel1 (Build arm-15.86)) 
-        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.obj' '-c' '-mcpu=arm7tdmi' '-mfloat-abi=soft' '-marm' '-mlibarch=armv4t' '-march=armv4t' '-dumpdir' 'CMakeFiles/cmTC_dd22d.dir/'
-         D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../libexec/gcc/arm-none-eabi/15.2.1/cc1.exe -quiet -v -iprefix D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/ -isysroot D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../arm-none-eabi -D__USES_INITFINI__ C:/Users/19901/scoop/apps/cmake/current/share/cmake-4.2/Modules/CMakeCCompilerABI.c -quiet -dumpdir CMakeFiles/cmTC_dd22d.dir/ -dumpbase CMakeCCompilerABI.c.c -dumpbase-ext .c -mcpu=arm7tdmi -mfloat-abi=soft -marm -mlibarch=armv4t -march=armv4t -version -o C:\\Users\\19901\\AppData\\Local\\Temp\\ccWF4LLJ.s
+        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.obj' '-c' '-mcpu=arm7tdmi' '-mfloat-abi=soft' '-marm' '-mlibarch=armv4t' '-march=armv4t' '-dumpdir' 'CMakeFiles/cmTC_7301e.dir/'
+         D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../libexec/gcc/arm-none-eabi/15.2.1/cc1.exe -quiet -v -iprefix D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/ -isysroot D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../arm-none-eabi -D__USES_INITFINI__ C:/Users/19901/scoop/apps/cmake/current/share/cmake-4.2/Modules/CMakeCCompilerABI.c -quiet -dumpdir CMakeFiles/cmTC_7301e.dir/ -dumpbase CMakeCCompilerABI.c.c -dumpbase-ext .c -mcpu=arm7tdmi -mfloat-abi=soft -marm -mlibarch=armv4t -march=armv4t -version -o C:\\Users\\19901\\AppData\\Local\\Temp\\cc715T49.s
         GNU C23 (Arm GNU Toolchain 15.2.Rel1 (Build arm-15.86)) version 15.2.1 20251203 (arm-none-eabi)
         	compiled by GNU C version 13-win32, GMP version 6.2.1, MPFR version 3.1.6, MPC version 1.0.3, isl version isl-0.15-1-g835ea3a-GMP
         
@@ -5513,13 +5513,13 @@ events:
          D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/include
         End of search list.
         Compiler executable checksum: 06ab445c59ba8f89bbf09b9a069e4cf7
-        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.obj' '-c' '-mcpu=arm7tdmi' '-mfloat-abi=soft' '-marm' '-mlibarch=armv4t' '-march=armv4t' '-dumpdir' 'CMakeFiles/cmTC_dd22d.dir/'
-         D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/bin/as.exe -v -march=armv4t -mfloat-abi=soft -meabi=5 -o CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.obj C:\\Users\\19901\\AppData\\Local\\Temp\\ccWF4LLJ.s
+        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.obj' '-c' '-mcpu=arm7tdmi' '-mfloat-abi=soft' '-marm' '-mlibarch=armv4t' '-march=armv4t' '-dumpdir' 'CMakeFiles/cmTC_7301e.dir/'
+         D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/bin/as.exe -v -march=armv4t -mfloat-abi=soft -meabi=5 -o CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.obj C:\\Users\\19901\\AppData\\Local\\Temp\\cc715T49.s
         GNU assembler version 2.45.1 (arm-none-eabi) using BFD version (Arm GNU Toolchain 15.2.Rel1 (Build arm-15.86)) 2.45.1.20251203
         COMPILER_PATH=D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../libexec/gcc/arm-none-eabi/15.2.1/;D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../libexec/gcc/;D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/bin/
         LIBRARY_PATH=D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/;D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/;D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/;D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../arm-none-eabi/lib/
-        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.obj' '-c' '-mcpu=arm7tdmi' '-mfloat-abi=soft' '-marm' '-mlibarch=armv4t' '-march=armv4t' '-dumpdir' 'CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.'
-        [2/2] C:\\WINDOWS\\system32\\cmd.exe /C "cd . && C:\\Users\\19901\\scoop\\apps\\cmake\\current\\bin\\cmake.exe -E rm -f libcmTC_dd22d.a && D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-ar.exe qc libcmTC_dd22d.a  CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.obj && D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-ranlib.exe libcmTC_dd22d.a && cd ."
+        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.obj' '-c' '-mcpu=arm7tdmi' '-mfloat-abi=soft' '-marm' '-mlibarch=armv4t' '-march=armv4t' '-dumpdir' 'CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.'
+        [2/2] C:\\WINDOWS\\system32\\cmd.exe /C "cd . && C:\\Users\\19901\\scoop\\apps\\cmake\\current\\bin\\cmake.exe -E rm -f libcmTC_7301e.a && D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-ar.exe qc libcmTC_7301e.a  CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.obj && D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-ranlib.exe libcmTC_7301e.a && cd ."
         
       exitCode: 0
   -
@@ -5554,10 +5554,10 @@ events:
       Parsed C implicit link information:
         link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
         linker tool regex: [^[ 	]*(->|"|[0-9]+>[ 	-]*Build:[ 	0-9]+ ms[ 	]*)?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)))("|,| |$)]
-        ignore line: [Change Dir: 'D:/小车底盘/test/test1/build/CMakeFiles/CMakeScratch/TryCompile-wh3ihg']
+        ignore line: [Change Dir: 'D:/小车底盘/test/test1/build/CMakeFiles/CMakeScratch/TryCompile-m2lc5p']
         ignore line: []
-        ignore line: [Run Build Command(s): C:/Users/19901/scoop/shims/ninja.exe -v cmTC_dd22d]
-        ignore line: [[1/2] D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-gcc.exe   -v -o CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.obj -c C:/Users/19901/scoop/apps/cmake/current/share/cmake-4.2/Modules/CMakeCCompilerABI.c]
+        ignore line: [Run Build Command(s): C:/Users/19901/scoop/shims/ninja.exe -v cmTC_7301e]
+        ignore line: [[1/2] D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-gcc.exe   -v -o CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.obj -c C:/Users/19901/scoop/apps/cmake/current/share/cmake-4.2/Modules/CMakeCCompilerABI.c]
         ignore line: [Using built-in specs.]
         ignore line: [COLLECT_GCC=D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-gcc.exe]
         ignore line: [Target: arm-none-eabi]
@@ -5565,8 +5565,8 @@ events:
         ignore line: [Thread model: single]
         ignore line: [Supported LTO compression algorithms: zlib]
         ignore line: [gcc version 15.2.1 20251203 (Arm GNU Toolchain 15.2.Rel1 (Build arm-15.86)) ]
-        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.obj' '-c' '-mcpu=arm7tdmi' '-mfloat-abi=soft' '-marm' '-mlibarch=armv4t' '-march=armv4t' '-dumpdir' 'CMakeFiles/cmTC_dd22d.dir/']
-        ignore line: [ D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../libexec/gcc/arm-none-eabi/15.2.1/cc1.exe -quiet -v -iprefix D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/ -isysroot D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../arm-none-eabi -D__USES_INITFINI__ C:/Users/19901/scoop/apps/cmake/current/share/cmake-4.2/Modules/CMakeCCompilerABI.c -quiet -dumpdir CMakeFiles/cmTC_dd22d.dir/ -dumpbase CMakeCCompilerABI.c.c -dumpbase-ext .c -mcpu=arm7tdmi -mfloat-abi=soft -marm -mlibarch=armv4t -march=armv4t -version -o C:\\Users\\19901\\AppData\\Local\\Temp\\ccWF4LLJ.s]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.obj' '-c' '-mcpu=arm7tdmi' '-mfloat-abi=soft' '-marm' '-mlibarch=armv4t' '-march=armv4t' '-dumpdir' 'CMakeFiles/cmTC_7301e.dir/']
+        ignore line: [ D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../libexec/gcc/arm-none-eabi/15.2.1/cc1.exe -quiet -v -iprefix D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/ -isysroot D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../arm-none-eabi -D__USES_INITFINI__ C:/Users/19901/scoop/apps/cmake/current/share/cmake-4.2/Modules/CMakeCCompilerABI.c -quiet -dumpdir CMakeFiles/cmTC_7301e.dir/ -dumpbase CMakeCCompilerABI.c.c -dumpbase-ext .c -mcpu=arm7tdmi -mfloat-abi=soft -marm -mlibarch=armv4t -march=armv4t -version -o C:\\Users\\19901\\AppData\\Local\\Temp\\cc715T49.s]
         ignore line: [GNU C23 (Arm GNU Toolchain 15.2.Rel1 (Build arm-15.86)) version 15.2.1 20251203 (arm-none-eabi)]
         ignore line: [	compiled by GNU C version 13-win32  GMP version 6.2.1  MPFR version 3.1.6  MPC version 1.0.3  isl version isl-0.15-1-g835ea3a-GMP]
         ignore line: []
@@ -5584,8 +5584,8 @@ events:
         ignore line: [ D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/include]
         ignore line: [End of search list.]
         ignore line: [Compiler executable checksum: 06ab445c59ba8f89bbf09b9a069e4cf7]
-        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.obj' '-c' '-mcpu=arm7tdmi' '-mfloat-abi=soft' '-marm' '-mlibarch=armv4t' '-march=armv4t' '-dumpdir' 'CMakeFiles/cmTC_dd22d.dir/']
-        ignore line: [ D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/bin/as.exe -v -march=armv4t -mfloat-abi=soft -meabi=5 -o CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.obj C:\\Users\\19901\\AppData\\Local\\Temp\\ccWF4LLJ.s]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.obj' '-c' '-mcpu=arm7tdmi' '-mfloat-abi=soft' '-marm' '-mlibarch=armv4t' '-march=armv4t' '-dumpdir' 'CMakeFiles/cmTC_7301e.dir/']
+        ignore line: [ D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/bin/as.exe -v -march=armv4t -mfloat-abi=soft -meabi=5 -o CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.obj C:\\Users\\19901\\AppData\\Local\\Temp\\cc715T49.s]
         ignore line: [GNU assembler version 2.45.1 (arm-none-eabi) using BFD version (Arm GNU Toolchain 15.2.Rel1 (Build arm-15.86)) 2.45.1.20251203]
         ignore line: [COMPILER_PATH=D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../libexec/gcc/arm-none-eabi/15.2.1/]
         ignore line: [D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../libexec/gcc/]
@@ -5594,8 +5594,8 @@ events:
         ignore line: [D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/]
         ignore line: [D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/]
         ignore line: [D:/STM32/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi/bin/../arm-none-eabi/lib/]
-        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.obj' '-c' '-mcpu=arm7tdmi' '-mfloat-abi=soft' '-marm' '-mlibarch=armv4t' '-march=armv4t' '-dumpdir' 'CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.']
-        ignore line: [[2/2] C:\\WINDOWS\\system32\\cmd.exe /C "cd . && C:\\Users\\19901\\scoop\\apps\\cmake\\current\\bin\\cmake.exe -E rm -f libcmTC_dd22d.a && D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-ar.exe qc libcmTC_dd22d.a  CMakeFiles/cmTC_dd22d.dir/CMakeCCompilerABI.c.obj && D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-ranlib.exe libcmTC_dd22d.a && cd ."]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.obj' '-c' '-mcpu=arm7tdmi' '-mfloat-abi=soft' '-marm' '-mlibarch=armv4t' '-march=armv4t' '-dumpdir' 'CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.']
+        ignore line: [[2/2] C:\\WINDOWS\\system32\\cmd.exe /C "cd . && C:\\Users\\19901\\scoop\\apps\\cmake\\current\\bin\\cmake.exe -E rm -f libcmTC_7301e.a && D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-ar.exe qc libcmTC_7301e.a  CMakeFiles/cmTC_7301e.dir/CMakeCCompilerABI.c.obj && D:\\STM32\\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi\\bin\\arm-none-eabi-ranlib.exe libcmTC_7301e.a && cd ."]
         ignore line: []
         ignore line: []
         implicit libs: []

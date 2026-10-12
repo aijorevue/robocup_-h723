@@ -174,8 +174,8 @@ COLUMN_H7_RESUME_TIMEOUT_S = 3.0
 # Formal task-three letter-grasp window in the main-camera coordinates.
 # Keep this gate task-three-only; task one and task two use their own target
 # policies and windows.
-COLUMN_TASK3_CAPTURE_WINDOW_X_MIN = 150.0
-COLUMN_TASK3_CAPTURE_WINDOW_X_MAX = 650.0
+COLUMN_TASK3_CAPTURE_WINDOW_X_MIN = 50.0
+COLUMN_TASK3_CAPTURE_WINDOW_X_MAX = 750.0
 COLUMN_TASK3_CAPTURE_WINDOW_Y_MIN = 100.0
 COLUMN_TASK3_CAPTURE_WINDOW_Y_MAX = 700.0
 
@@ -269,7 +269,7 @@ ARM_TUNE_HTD85_AUX_LIMITS = {
     17: (0, 1000),
 }
 COLUMN_CATCH_READY_ID1_TICK = 650
-COLUMN_CATCH_READY_ID2_TICK = 570
+COLUMN_CATCH_READY_ID2_TICK = 556
 # Formal task three keeps its own high-pose calibration. Task-two alignment
 # must not change the column-catch pose implicitly.
 COLUMN_CATCH_READY_ID6_TICK = 413
@@ -285,10 +285,10 @@ COLUMN_CATCH_ID6_CENTER_RANGE = PLATFORM_CENTER_ID6_RANGE
 COLUMN_CATCH_ID2_CENTER_STEP_TICKS = PLATFORM_CENTER_ID2_STEP_TICKS
 COLUMN_CATCH_ID6_CENTER_STEP_TICKS = PLATFORM_CENTER_ID6_STEP_TICKS
 TASK3_RING_PLACE_HIGH = (650, 550, 413)
-TASK3_RING_PLACE_RETURN_HIGH = (600, 480, 413)
+TASK3_RING_PLACE_RETURN_HIGH = (620, 440, 413)
 TASK3_RING_PLACE_POSE = (470, 350, 171)
 TASK3_RING_PLACE_AXIS_TIME_MS = 500
-TASK3_RING_PLACE_INITIAL_HIGH_TIME_MS = 900
+TASK3_RING_PLACE_INITIAL_HIGH_TIME_MS = 1000
 TASK3_RING_PLACE_ID1_TIME_MS = 700
 TASK3_RING_PLACE_HIGH_TIME_MS = 1000
 TASK3_RING_PLACE_GRIPPER_OPEN_TICK = PLATFORM_GRIPPER_OPEN
@@ -296,31 +296,37 @@ TASK3_RING_PLACE_GRIPPER_CLOSED_TICK = PLATFORM_GRIPPER_CLOSED
 TASK3_RING_PLACE_GRIPPER_TIME_MS = 200
 TASK3_RING_PLACE_SLOW_CLOSE_TIME_MS = 2000
 TASK3_RING_PLACE_RELEASE_GRIPPER_TIME_MS = 1000
-TASK3_RING_PLACE_RELEASE_HIGH_TIME_MS = 500
+TASK3_RING_PLACE_RELEASE_HIGH_TIME_MS = 1000
 TASK3_RING_PLACE_RELEASE_HOLD_MS = 1000
 TASK3_RING_PLACE_RELEASE_ID1_TICK = 580
-TASK3_RING_PLACE_RELEASE_ID2_TICK = 467
+TASK3_RING_PLACE_RELEASE_ID2_TICK = 423
 TASK3_RING_PLACE_RELEASE_ID1_TIME_MS = 1000
 TASK3_RING_PLACE_RELEASE_ID1_HOLD_MS = 1000
+TASK3_RING_PLACE_PRE_OPEN_WAIT_MS = 1500
+TASK3_RING_PLACE_RELEASE_POST_ID1_TICK = 570
+TASK3_RING_PLACE_RELEASE_POST_ID2_TICK = 430
+TASK3_RING_PLACE_RELEASE_POST_CONFIRM_TIME_MS = 1000
 TASK3_RING_PLACE_CONTRACT_AXIS_TIME_MS = 500
-COLUMN_CATCH_LETTER_PLACE = (530, 350, 670)
+COLUMN_CATCH_LETTER_PLACE = (535, 345, 630)
 COLUMN_CATCH_LETTER_PLACE_TIME_MS = 500
 COLUMN_CATCH_CENTER_TIME_MS = 100
 # Formal BLUE task-three only: one fixed recovery grab before releasing the
 # post-orbit H7 hold when the selected letter pair still has a quota gap.
-TASK3_SUPPLEMENT_OPEN_HOLD_MS = 500
+TASK3_SUPPLEMENT_OPEN_HOLD_MS = 900
 TASK3_SUPPLEMENT_DESCEND_ID1_TICK = 580
-TASK3_SUPPLEMENT_DESCEND_TIME_MS = 800
+TASK3_SUPPLEMENT_DESCEND_TIME_MS = 700
 TASK3_SUPPLEMENT_GRIPPER_TIME_MS = 200
 TASK3_SUPPLEMENT_AXIS_TIME_MS = 500
 TASK3_SUPPLEMENT_RETURN_HIGH_TIME_MS = 200
 TASK3_SUPPLEMENT_PLACE_TIME_MS = 300
 TASK3_SUPPLEMENT_HIGH = (
-    COLUMN_CATCH_READY_ID1_TICK,
-    COLUMN_CATCH_READY_ID2_TICK,
-    COLUMN_CATCH_READY_ID6_TICK,
+    650,
+    605,
+    410,
 )
-TASK3_SUPPLEMENT_PLACE = (545, 365, 600)
+TASK3_SUPPLEMENT_GRIPPER_OPEN_TICK = 450
+TASK3_SUPPLEMENT_GRIPPER_CLOSED_TICK = 275
+TASK3_SUPPLEMENT_PLACE = (530, 350, 620)
 RING_DISTANCE_OFFSET_CM = BALL_DISTANCE_OFFSET_CM + RING_DISTANCE_EXTRA_CM
 RING_DISTANCE_SCALE_CM = (
     BALL_DISTANCE_SCALE_CM
@@ -426,8 +432,17 @@ def load_last_gripper_target(default):
 
 
 def scale_detections(detections, scale_x, scale_y):
+    """Return frame-scaled detections without mutating detector-owned data.
+
+    The detector result can be retained by a preview or a test harness while
+    the worker rescales it back to camera coordinates.  Copying each mapping
+    here prevents a later consumer from seeing partially scaled coordinates.
+    Array-valued contours are copied when they are rebuilt below.
+    """
     radius_scale = (scale_x + scale_y) * 0.5
-    for detection in detections:
+    scaled_detections = []
+    for source_detection in detections:
+        detection = dict(source_detection)
         if "center" in detection:
             center_x, center_y = detection["center"]
             detection["center"] = (
@@ -461,7 +476,8 @@ def scale_detections(detections, scale_x, scale_y):
                 detection[key] = scaled.reshape(point_shape).astype(np.int32)
         if "projected_area" in detection:
             detection["projected_area"] *= scale_x * scale_y
-    return detections
+        scaled_detections.append(detection)
+    return scaled_detections
 
 
 class DetectionSmoother:
@@ -3120,8 +3136,8 @@ class TargetGraspController:
                 return f"TASK3_RING_PLACE high settling {self.chassis_station_deadline - now:.1f}s"
             self.task3_ring_place_actions.extend([
                 ("WAIT_BEFORE_OPEN_ID17", self._task3_ring_wait,
-                 (TASK3_RING_PLACE_RELEASE_HOLD_MS,
-                  "wait before final ring release")),
+                 (TASK3_RING_PLACE_PRE_OPEN_WAIT_MS,
+                  "wait before ring placement")),
                 ("OPEN_ID17", self._task3_ring_gripper,
                  (TASK3_RING_PLACE_GRIPPER_OPEN_TICK,
                   TASK3_RING_PLACE_GRIPPER_TIME_MS, "open ID17")),
@@ -3154,6 +3170,11 @@ class TargetGraspController:
                 ("WAIT_AFTER_ID1_RELEASE_CONFIRM", self._task3_ring_wait,
                  (TASK3_RING_PLACE_RELEASE_ID1_HOLD_MS,
                   "wait after ID1 release-confirm position")),
+                ("ID1_ID2_RELEASE_ADJUST", self._task3_ring_release_pose,
+                 (TASK3_RING_PLACE_RELEASE_POST_ID1_TICK,
+                  TASK3_RING_PLACE_RELEASE_POST_ID2_TICK,
+                  TASK3_RING_PLACE_RELEASE_POST_CONFIRM_TIME_MS,
+                  "move ID1/ID2 after release confirmation")),
                 ("OPEN_ID17_AGAIN", self._task3_ring_gripper,
                 (TASK3_RING_PLACE_GRIPPER_OPEN_TICK,
                   TASK3_RING_PLACE_RELEASE_GRIPPER_TIME_MS, "open ID17 again")),
@@ -3607,16 +3628,18 @@ class TargetGraspController:
 
     def _column_task3_capture_window_contains(self, detection):
         center = detection.get("center") if detection else None
-        if not isinstance(center, (tuple, list)) or len(center) < 2:
+        if center is None:
             return False
         try:
-            center_x = float(center[0])
-            center_y = float(center[1])
+            center_array = np.asarray(center, dtype=np.float64).reshape(-1)
         except (TypeError, ValueError):
             return False
+        if center_array.size < 2 or not np.isfinite(center_array[:2]).all():
+            return False
+        center_x, center_y = center_array[:2]
         return (
-            COLUMN_TASK3_CAPTURE_WINDOW_X_MIN <= center_x <= COLUMN_TASK3_CAPTURE_WINDOW_X_MAX
-            and COLUMN_TASK3_CAPTURE_WINDOW_Y_MIN <= center_y <= COLUMN_TASK3_CAPTURE_WINDOW_Y_MAX
+            COLUMN_TASK3_CAPTURE_WINDOW_X_MIN <= float(center_x) <= COLUMN_TASK3_CAPTURE_WINDOW_X_MAX
+            and COLUMN_TASK3_CAPTURE_WINDOW_Y_MIN <= float(center_y) <= COLUMN_TASK3_CAPTURE_WINDOW_Y_MAX
         )
 
     def _column_letters_in_block(self, detections, block):
@@ -4041,7 +4064,7 @@ class TargetGraspController:
             *pose,
             f"COLUMN_CATCH SUPPLEMENT {label}",
             raising=raising,
-            id7=COLUMN_CATCH_GRIPPER_CLOSED_TICK,
+            id7=TASK3_SUPPLEMENT_GRIPPER_CLOSED_TICK,
             id5=COLUMN_CATCH_CATCHER_HOME_TICK,
             splitter_id4=COLUMN_CATCH_SPLITTER_TICK,
         )
@@ -4071,10 +4094,10 @@ class TargetGraspController:
                     self._task3_supplement_command,
                     ("open high", TASK3_SUPPLEMENT_OPEN_HOLD_MS),
                     {
-                        "id1": COLUMN_CATCH_HOLD_HIGH[0],
-                        "id2": COLUMN_CATCH_HOLD_HIGH[1],
-                        "id6": COLUMN_CATCH_HOLD_HIGH[2],
-                        "id7": COLUMN_CATCH_GRIPPER_OPEN_TICK,
+                        "id1": TASK3_SUPPLEMENT_HIGH[0],
+                        "id2": TASK3_SUPPLEMENT_HIGH[1],
+                        "id6": TASK3_SUPPLEMENT_HIGH[2],
+                        "id7": TASK3_SUPPLEMENT_GRIPPER_OPEN_TICK,
                     },
                 ),
                 (
@@ -4087,7 +4110,7 @@ class TargetGraspController:
                     "CLOSE_ID17",
                     self._task3_supplement_gripper,
                     (
-                        COLUMN_CATCH_GRIPPER_CLOSED_TICK,
+                        TASK3_SUPPLEMENT_GRIPPER_CLOSED_TICK,
                         TASK3_SUPPLEMENT_GRIPPER_TIME_MS,
                         "close ID17",
                     ),
@@ -4133,7 +4156,7 @@ class TargetGraspController:
                     "OPEN_RELEASE",
                     self._task3_supplement_gripper,
                     (
-                        COLUMN_CATCH_GRIPPER_OPEN_TICK,
+                        TASK3_SUPPLEMENT_GRIPPER_OPEN_TICK,
                         TASK3_SUPPLEMENT_GRIPPER_TIME_MS,
                         "release block",
                     ),
@@ -4143,7 +4166,7 @@ class TargetGraspController:
                     "CLOSE_RELEASE",
                     self._task3_supplement_gripper,
                     (
-                        COLUMN_CATCH_GRIPPER_CLOSED_TICK,
+                        TASK3_SUPPLEMENT_GRIPPER_CLOSED_TICK,
                         TASK3_SUPPLEMENT_GRIPPER_TIME_MS,
                         "close after release",
                     ),
