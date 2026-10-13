@@ -5435,7 +5435,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                     return false;
                 }
                 board_uart1_write_only(
-                    "H7,VISION,WHITE_LINE,TASK2,CENTER_LOST_4S,"
+                "H7,VISION,WHITE_LINE,TASK2,CENTER_LOST_5S,"
                     "FORCE_RIGHT_EDGE\r\n");
             }
 
@@ -5527,7 +5527,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                         *task2_skip_fixed_approach = false;
                     }
                     board_uart1_write_only(
-                        "H7,VISION,WHITE_LINE,TASK2,RIGHT_EDGE_LOST_4S,"
+                "H7,VISION,WHITE_LINE,TASK2,RIGHT_EDGE_LOST_5S,"
                         "FORCE_FIXED_FORWARD,GYRO_THEN_SLOT1\r\n");
                     g_task2_test_white_line_active = 0U;
                     return true;
