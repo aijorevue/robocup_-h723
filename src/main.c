@@ -1052,8 +1052,8 @@ route_start:
             }
             board_uart1_write(
                 field_profile.is_red != 0U
-                    ? "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=95mm\r\n"
-                    : "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=95mm\r\n");
+                    ? "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=90mm\r\n"
+                    : "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=90mm\r\n");
 
             g_run_state = RUN_FRONT_CENTER_ORBIT;
             /* Formal COLUMN_CATCH owns its own pause/resume channel.  Do not
