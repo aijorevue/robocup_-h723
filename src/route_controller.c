@@ -5435,7 +5435,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                     return false;
                 }
                 board_uart1_write_only(
-                "H7,VISION,WHITE_LINE,TASK2,CENTER_LOST_5S,"
+                "H7,VISION,WHITE_LINE,TASK2,CENTER_LOST_6S,"
                     "FORCE_RIGHT_EDGE\r\n");
             }
 
@@ -5470,12 +5470,12 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                 board_uart1_write_only(
                     phase_timeout
                         ? "H7,VISION,WHITE_LINE,CENTER_TIMEOUT,FORCE_RIGHT_EDGE,"
-                          "REASON=PHASE_6S\r\n"
+                          "REASON=PHASE_12S\r\n"
                         : recovery_timeout
                         ? "H7,VISION,WHITE_LINE,CENTER_TIMEOUT,FORCE_RIGHT_EDGE,"
-                          "REASON=FORWARD_RECOVERY_6S\r\n"
+                          "REASON=FORWARD_RECOVERY_12S\r\n"
                         : "H7,VISION,WHITE_LINE,CENTER_TIMEOUT,FORCE_RIGHT_EDGE,"
-                          "REASON=NOT_FOUND_6S\r\n");
+                          "REASON=NOT_FOUND_12S\r\n");
             }
 
             if (right_edge_alignment_active) {
@@ -5527,7 +5527,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                         *task2_skip_fixed_approach = false;
                     }
                     board_uart1_write_only(
-                "H7,VISION,WHITE_LINE,TASK2,RIGHT_EDGE_LOST_5S,"
+                "H7,VISION,WHITE_LINE,TASK2,RIGHT_EDGE_LOST_6S,"
                         "FORCE_FIXED_FORWARD,GYRO_THEN_SLOT1\r\n");
                     g_task2_test_white_line_active = 0U;
                     return true;
@@ -7318,7 +7318,7 @@ bool route_controller_run_task3_blue_white_line(void)
         "H7,ROUTE,TASK3,BLUE,WHITE_LINE_ALIGN,START,REF_Y10=3000,TOL=100,"
         "X=500,ANGLE=0\r\n");
     moved = run_disc_visual_alignment_at_speed(
-        0.050f,
+        ROUTE_FORMAL_TASK3_WHITE_LINE_CONTROL_SPEED_M_S,
         ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_REFERENCE_Y10,
         ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_TOLERANCE_Y10,
         ROUTE_DISC_LINE_ACCEL_M_S2,
@@ -7374,7 +7374,7 @@ bool route_controller_run_task3_red_white_line(void)
         "H7,ROUTE,TASK3,RED,WHITE_LINE_ALIGN,START,REF_Y10=3000,TOL=100,"
         "X=500,ANGLE=0\r\n");
     moved = run_disc_visual_alignment_at_speed(
-        0.050f,
+        ROUTE_FORMAL_TASK3_WHITE_LINE_CONTROL_SPEED_M_S,
         ROUTE_FORMAL_TASK3_RED_WHITE_LINE_REFERENCE_Y10,
         ROUTE_FORMAL_TASK3_RED_WHITE_LINE_TOLERANCE_Y10,
         ROUTE_DISC_LINE_ACCEL_M_S2,

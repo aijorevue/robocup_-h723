@@ -168,11 +168,11 @@
 #define ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_STABLE_SAMPLES 3U
 #define ROUTE_TASK2_FORMAL_WHITE_LINE_LATERAL_KP_M_S_PER_PX 0.0020f
 #define ROUTE_TASK2_FORMAL_WHITE_LINE_MAX_LATERAL_SPEED_M_S 0.010f
-/* Formal task-two white-line recovery is bounded to five seconds per stage.
+/* Formal task-two white-line recovery is bounded to six seconds per stage.
  * The edge-stage fallback must still run the fixed approach below, so it is
  * a recovery path rather than a request to skip that motion. */
-#define ROUTE_TASK2_FORMAL_WHITE_LINE_CENTER_LOSS_TIMEOUT_MS 5000U
-#define ROUTE_TASK2_FORMAL_WHITE_LINE_EDGE_LOSS_TIMEOUT_MS 5000U
+#define ROUTE_TASK2_FORMAL_WHITE_LINE_CENTER_LOSS_TIMEOUT_MS 6000U
+#define ROUTE_TASK2_FORMAL_WHITE_LINE_EDGE_LOSS_TIMEOUT_MS 6000U
 #define ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M 1.610f
 #define ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M 2.000f
 #define ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M 2.567509f
@@ -239,13 +239,16 @@
 #define ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_LATERAL_KP_M_S_PER_PX 0.0020f
 #define ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_MAX_LATERAL_SPEED_M_S 0.010f
 #define ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_EDGE_SEARCH_SWITCH_MS 1200U
+#define ROUTE_FORMAL_TASK3_WHITE_LINE_CONTROL_SPEED_M_S 0.030f
 #define ROUTE_FORMAL_TASK3_WHITE_LINE_NOT_FOUND_FORWARD_SPEED_M_S 0.010f
 #define ROUTE_FORMAL_TASK3_WHITE_LINE_REVERSE_CORRECTION_MAX_MS 1500U
-/* Formal task-three center-line recovery remains bounded to six seconds.
+/* Formal task-three center-line alignment/search has one cumulative
+ * twelve-second budget from phase entry. The dedicated recovery and
+ * NOT_FOUND guards use the same bound and cannot extend that total time.
  * Right-edge alignment gets ten seconds before returning to the caller so
  * the arm-retract and remaining route can continue. */
-#define ROUTE_FORMAL_TASK3_WHITE_LINE_CENTER_RECOVERY_TIMEOUT_MS 6000U
-#define ROUTE_FORMAL_TASK3_WHITE_LINE_NOT_FOUND_TIMEOUT_MS 6000U
+#define ROUTE_FORMAL_TASK3_WHITE_LINE_CENTER_RECOVERY_TIMEOUT_MS 12000U
+#define ROUTE_FORMAL_TASK3_WHITE_LINE_NOT_FOUND_TIMEOUT_MS 12000U
 #define ROUTE_FORMAL_TASK3_WHITE_LINE_EDGE_NOT_FOUND_TIMEOUT_MS 10000U
 #define ROUTE_FORMAL_TASK3_RED_WHITE_LINE_FORWARD_DISTANCE_M 0.660f
 #define ROUTE_FORMAL_TASK3_RED_WHITE_LINE_REFERENCE_Y10 3000L
