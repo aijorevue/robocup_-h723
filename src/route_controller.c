@@ -5499,7 +5499,7 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                     }
                     board_uart1_write_only(
                         "H7,VISION,WHITE_LINE,RIGHT_EDGE_TIMEOUT,"
-                        "FORCE_CONTINUE_6S,ARM_RETRACT_ROUTE\r\n");
+                        "FORCE_CONTINUE_10S,ARM_RETRACT_ROUTE\r\n");
                     g_task2_test_white_line_active = 0U;
                     return true;
                 }

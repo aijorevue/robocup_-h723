@@ -162,7 +162,7 @@
 #define ROUTE_TASK2_TEST_WHITE_LINE_AFTER_CROSSED_FORWARD_M 0.130f
 /* Formal task-two makes a fixed 170 mm approach after the main-camera
  * white-line reference; keep it independent from the standalone test. */
-#define ROUTE_TASK2_FORMAL_WHITE_LINE_AFTER_CROSSED_FORWARD_M 0.178f
+#define ROUTE_TASK2_FORMAL_WHITE_LINE_AFTER_CROSSED_FORWARD_M 0.170f
 #define ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_TARGET_X_PX 600.0f
 #define ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_TOLERANCE_PX 6.0f
 #define ROUTE_TASK2_FORMAL_WHITE_LINE_RIGHT_EDGE_STABLE_SAMPLES 3U
@@ -241,12 +241,12 @@
 #define ROUTE_FORMAL_TASK3_BLUE_WHITE_LINE_EDGE_SEARCH_SWITCH_MS 1200U
 #define ROUTE_FORMAL_TASK3_WHITE_LINE_NOT_FOUND_FORWARD_SPEED_M_S 0.010f
 #define ROUTE_FORMAL_TASK3_WHITE_LINE_REVERSE_CORRECTION_MAX_MS 1500U
-/* Every formal task-three white-line stage has a six-second escape. The
- * center stage then enters right-edge alignment; the edge stage returns to
- * the caller so the arm-retract and remaining route can continue. */
+/* Formal task-three center-line recovery remains bounded to six seconds.
+ * Right-edge alignment gets ten seconds before returning to the caller so
+ * the arm-retract and remaining route can continue. */
 #define ROUTE_FORMAL_TASK3_WHITE_LINE_CENTER_RECOVERY_TIMEOUT_MS 6000U
 #define ROUTE_FORMAL_TASK3_WHITE_LINE_NOT_FOUND_TIMEOUT_MS 6000U
-#define ROUTE_FORMAL_TASK3_WHITE_LINE_EDGE_NOT_FOUND_TIMEOUT_MS 6000U
+#define ROUTE_FORMAL_TASK3_WHITE_LINE_EDGE_NOT_FOUND_TIMEOUT_MS 10000U
 #define ROUTE_FORMAL_TASK3_RED_WHITE_LINE_FORWARD_DISTANCE_M 0.660f
 #define ROUTE_FORMAL_TASK3_RED_WHITE_LINE_REFERENCE_Y10 3000L
 #define ROUTE_FORMAL_TASK3_RED_WHITE_LINE_TOLERANCE_Y10 100L
