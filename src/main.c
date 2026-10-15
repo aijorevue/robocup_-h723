@@ -218,7 +218,7 @@ static bool run_formal_task3_red_tail(void)
         return false;
     }
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
-    if (!task3_align_gyro_at_fixed_point("RED", "RETRACT_SHIFT_RIGHT_180")) {
+    if (!task3_align_gyro_at_fixed_point("RED", "RETRACT_SHIFT_RIGHT_187")) {
         return false;
     }
 
@@ -652,14 +652,24 @@ route_start:
             enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
         }
     } else {
+        const float final_approach_m =
+            field_profile.is_red != 0U
+                ? ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_RED_M
+                : ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_BLUE_M;
+
         g_run_state = RUN_DISC_FINAL_APPROACH;
-            if (ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M > 0.0f) {
-            board_uart1_write(
-                "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=64mm,"
-                "SPEED=0.08m/s,PROFILE=FIXED\r\n");
+        if (final_approach_m > 0.0f) {
+            char approach_log[128];
+
+            (void)snprintf(
+                approach_log, sizeof(approach_log),
+                "H7,ROUTE,WHITE_LINE,REFERENCE_REACHED,FORWARD=%umm,"
+                "SPEED=0.08m/s,PROFILE=FIXED\r\n",
+                (unsigned)(final_approach_m * 1000.0f + 0.5f));
+            board_uart1_write(approach_log);
             if (!route_controller_run_translation_fixed_speed(
                     ROUTE_FORWARD_SIGN, 0.0f,
-                    ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_M,
+                    final_approach_m,
                     ROUTE_DISC_LINE_FORWARD_SPEED_M_S)) {
                 enter_fault(g_fault_code == FAULT_NONE ? FAULT_MOTOR_COMMAND : g_fault_code);
             }
@@ -730,23 +740,31 @@ route_start:
 
     /*
      * Enter task two as one continuous diagonal segment.  The route-frame
-     * components use the 1.610 m reverse and 2.000 m side approach. The
+     * components use 1.615 m reverse on RED, 1.610 m on BLUE, and a
+     * shared 2.000 m side approach. The
      * controller captures the measured two-dimensional endpoint early in the
      * final segment and settles there before handing off to task two.
      * The chassis rotates smoothly through 180 degrees during the segment,
      * mirrored by field, so there are no intermediate 90-degree stops.
      */
+    const float task2_entry_backward_m = field_profile.is_red != 0U
+        ? ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_RED_M
+        : ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_BLUE_M;
+    const float task2_entry_diagonal_m = field_profile.is_red != 0U
+        ? ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_RED_M
+        : ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_BLUE_M;
+
     g_run_state = RUN_TASK2_DIAGONAL_TURN;
     board_uart1_write(
         field_profile.is_red != 0U
-            ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1610mm,"
+            ? "H7,ROUTE,TASK2_DIAGONAL,FIELD=RED,BACKWARD=1615mm,"
               "LATERAL=2000mm,TURN=LEFT180,CONTROL=FULL_SEGMENT_2D\r\n"
             : "H7,ROUTE,TASK2_DIAGONAL,FIELD=BLUE,BACKWARD=1610mm,"
               "LATERAL=2000mm,TURN=RIGHT180,CONTROL=FULL_SEGMENT_2D\r\n");
     if (!route_controller_run_task2_entry_translation_with_turn(
-            -ROUTE_FORWARD_SIGN * ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_M,
+            -ROUTE_FORWARD_SIGN * task2_entry_backward_m,
             field_profile.strafe_sign * ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_M,
-            ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M,
+            task2_entry_diagonal_m,
             ROUTE_TRANSLATION_SPEED_M_S,
             ROUTE_TRANSLATION_ACCEL_M_S2,
             field_profile.turn_sign * ROUTE_TASK2_ENTRY_TURN_ANGLE_RAD *
@@ -1212,7 +1230,7 @@ route_start:
                 }
                 route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
                 if (!task3_align_gyro_at_fixed_point(
-                        "BLUE", "RETRACT_SHIFT_RIGHT_180")) {
+                        "BLUE", "RETRACT_SHIFT_RIGHT_187")) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
                                                            : g_fault_code);
                 }

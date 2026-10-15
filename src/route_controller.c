@@ -3750,7 +3750,10 @@ static bool run_translation_profile_with_turn(float vx_direction,
     const float final_heading_target_rad =
         start_heading_target_rad + heading_delta_rad;
     const bool task2_endpoint_capture_enabled =
-        fabsf(target_distance_m - ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_M) <=
+        fabsf(target_distance_m -
+              (g_route_field_is_red != 0U
+                   ? ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_RED_M
+                   : ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_BLUE_M)) <=
         0.010f;
     const float cross_track_kp = task2_endpoint_capture_enabled
         ? ROUTE_TASK2_ENTRY_CROSS_TRACK_KP
@@ -5351,6 +5354,12 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
         if (task1_white_line_phase && !task1_fresh_sample_seen &&
             (uint32_t)(now_ms - started_ms) >=
                 ROUTE_TASK1_DISC_LINE_NO_FRESH_BYPASS_MS) {
+            char bypass_log[128];
+            const float final_approach_m =
+                g_route_field_is_red != 0U
+                    ? ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_RED_M
+                    : ROUTE_DISC_LINE_AFTER_CROSSED_FORWARD_BLUE_M;
+
             g_command_speed_m_s = 0.0f;
             g_heading_correction_rad_s = 0.0f;
             g_cross_track_command_m_s = 0.0f;
@@ -5360,9 +5369,12 @@ static bool run_disc_visual_alignment_at_speed(float forward_speed_m_s,
                 g_task2_test_white_line_active = 0U;
                 return false;
             }
-            board_uart1_write(
+            (void)snprintf(
+                bypass_log, sizeof(bypass_log),
                 "H7,WARN,TASK1,WHITE_LINE,NO_FRESH_FRAME_6000MS,"
-                "CONTINUE_FIXED_FORWARD=64mm\r\n");
+                "CONTINUE_FIXED_FORWARD=%umm\r\n",
+                (unsigned)(final_approach_m * 1000.0f + 0.5f));
+            board_uart1_write(bypass_log);
             g_task2_test_white_line_active = 0U;
             return true;
         }
