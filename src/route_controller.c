@@ -1892,6 +1892,14 @@ static bool wait_for_rk_arm_task(const char *task)
     char idle_prefix[64];
     char busy_prefix[64];
     char error_prefix[64];
+    char stop_command[64];
+    char stop_ack_prefix[64];
+    const bool disc_task = strcmp(task, "DISC_CATCH") == 0;
+    bool disc_timer_started = false;
+    bool disc_stopping = false;
+    bool disc_stop_acknowledged = false;
+    uint32_t disc_stop_started_ms = 0U;
+    uint32_t last_stop_ms = 0U;
     bool rk_acknowledged = false;
     uint32_t line_len = 0U;
     uint32_t started_ms = HAL_GetTick();
@@ -1928,6 +1936,10 @@ static bool wait_for_rk_arm_task(const char *task)
                     "RK,ARM,%s,BUSY,SEQ,%lu", task, (unsigned long)sequence);
     (void)snprintf(error_prefix, sizeof(error_prefix),
                     "RK,ARM,%s,ERR,SEQ,%lu", task, (unsigned long)sequence);
+    (void)snprintf(stop_command, sizeof(stop_command),
+                    "ARM,%s,STOP,SEQ,%lu\r\n", task, (unsigned long)sequence);
+    (void)snprintf(stop_ack_prefix, sizeof(stop_ack_prefix),
+                    "RK,ARM,%s,STOP_ACK,SEQ,%lu", task, (unsigned long)sequence);
     (void)snprintf(log_line, sizeof(log_line),
                    "H7,ARM,%s,WAIT_RK,SEQ=%lu\r\n", task,
                    (unsigned long)sequence);
@@ -1938,19 +1950,14 @@ static bool wait_for_rk_arm_task(const char *task)
         uint32_t read_len;
         uint32_t i;
 
-#if RK_ARM_TASK_TIMEOUT_MS > 0U
-        if (rk_acknowledged &&
+#if RK_ARM_TASK_TIMEOUT_MS > 0U || RK_ARM_DISC_CATCH_TASK_TIMEOUT_MS > 0U
+        if ((rk_acknowledged || disc_timer_started) && !disc_stopping &&
             task_timeout_ms > 0U &&
             (uint32_t)(now_ms - task_started_ms) >= task_timeout_ms) {
-            char stop_command[64];
-
             (void)snprintf(log_line, sizeof(log_line),
                            "H7,ARM,%s,SOFT_TIMEOUT,SEQ=%lu\r\n", task,
                            (unsigned long)sequence);
             board_uart1_write(log_line);
-            (void)snprintf(stop_command, sizeof(stop_command),
-                           "ARM,%s,STOP,SEQ,%lu\r\n", task,
-                           (unsigned long)sequence);
             board_usb_write(stop_command);
             board_usb_write(stop_command);
             (void)snprintf(log_line, sizeof(log_line),
@@ -1962,11 +1969,20 @@ static bool wait_for_rk_arm_task(const char *task)
             /* A ring placement DONE is the barrier before the final route.
              * Never treat a missing DONE as a successful task, otherwise H7
              * can drive away before RK has released and secured the ring. */
-            if (strcmp(task, "TASK3_RING_PLACE") == 0) {
+            if (disc_task) {
+                /* STOP only requests RK's close -> raise -> home sequence.
+                 * Keep the chassis stopped until matching DONE, never ACK. */
+                disc_stopping = true;
+                disc_stop_started_ms = HAL_GetTick();
+                last_stop_ms = disc_stop_started_ms;
+                board_uart1_write(
+                    "H7,ARM,DISC_CATCH,WAIT_HOME_AFTER_TIMEOUT\r\n");
+            } else if (strcmp(task, "TASK3_RING_PLACE") == 0) {
                 g_fault_code = FAULT_ARM_TIMEOUT;
                 return false;
+            } else {
+                return true;
             }
-            return true;
         }
 #endif
         if ((uint32_t)(now_ms - last_zero_ms) >= CONTROL_PERIOD_MS) {
@@ -1976,7 +1992,7 @@ static bool wait_for_rk_arm_task(const char *task)
                 return false;
             }
         }
-        if (!rk_acknowledged &&
+        if (!rk_acknowledged && !disc_stopping &&
             (uint32_t)(now_ms - last_send_ms) >= RK_ARM_START_RETRY_MS) {
             last_send_ms = now_ms;
             board_usb_write(start_command);
@@ -1984,7 +2000,12 @@ static bool wait_for_rk_arm_task(const char *task)
                            "H7,ARM,%s,START_SENT\r\n", task);
             board_uart1_write_only(log_line);
         }
-        if (rk_acknowledged &&
+        if (disc_stopping && !disc_stop_acknowledged &&
+            (uint32_t)(now_ms - last_stop_ms) >= RK_ARM_START_RETRY_MS) {
+            last_stop_ms = now_ms;
+            board_usb_write(stop_command);
+        }
+        if ((rk_acknowledged || disc_stopping) &&
             (uint32_t)(now_ms - last_status_ms) >= RK_ARM_STATUS_PERIOD_MS) {
             last_status_ms = now_ms;
             board_usb_write(status_command);
@@ -2006,8 +2027,9 @@ static bool wait_for_rk_arm_task(const char *task)
                         ack_timeout_ms = RK_ARM_ACK_TIMEOUT_MS;
                     }
                     if (line_matches_token_prefix(line, ack_prefix)) {
-                        if (!rk_acknowledged) {
+                        if (!rk_acknowledged && !disc_timer_started) {
                             task_started_ms = HAL_GetTick();
+                            disc_timer_started = disc_task;
                         }
                         rk_acknowledged = true;
                         (void)snprintf(log_line, sizeof(log_line),
@@ -2016,7 +2038,7 @@ static bool wait_for_rk_arm_task(const char *task)
                         board_uart1_write(log_line);
                     }
                     if (line_matches_token_prefix(line, done_prefix)) {
-                        g_rk_last_task_bypassed =
+                        g_rk_last_task_bypassed = disc_stopping ||
                             (strcmp(task, "DISC_CATCH") == 0 &&
                              strstr(line, ",REASON,RECOVERED_") != NULL)
                                 ? 1U
@@ -2049,11 +2071,17 @@ static bool wait_for_rk_arm_task(const char *task)
                             board_uart1_write(log_line);
                         }
                     }
-                    if (rk_acknowledged &&
+                    if (disc_stopping &&
+                        line_matches_token_prefix(line, stop_ack_prefix)) {
+                        disc_stop_acknowledged = true;
+                    }
+                    if (rk_acknowledged && !disc_stopping &&
                         line_matches_token_prefix(line, idle_prefix)) {
                         rk_acknowledged = false;
                         started_ms = HAL_GetTick();
-                        task_started_ms = 0U;
+                        if (!disc_task) {
+                            task_started_ms = 0U;
+                        }
                         ack_timeout_ms = RK_ARM_ACK_TIMEOUT_MS;
                         last_send_ms = started_ms - RK_ARM_START_RETRY_MS;
                         (void)snprintf(log_line, sizeof(log_line),
@@ -2070,9 +2098,16 @@ static bool wait_for_rk_arm_task(const char *task)
                 board_uart1_write("H7,ERR,ARM_LINE_TOO_LONG\r\n");
             }
         }
-#if RK_ARM_WAIT_FOREVER_FOR_ACK == 0U
         now_ms = HAL_GetTick();
-        if (!rk_acknowledged &&
+        if (disc_stopping &&
+            (uint32_t)(now_ms - disc_stop_started_ms) >= RK_ARM_STOP_TIMEOUT_MS) {
+            board_uart1_write(
+                "H7,ARM,DISC_CATCH,HOME_TIMEOUT_AFTER_STOP,ROUTE_BLOCKED\r\n");
+            g_fault_code = FAULT_ARM_TIMEOUT;
+            return false;
+        }
+#if RK_ARM_WAIT_FOREVER_FOR_ACK == 0U
+        if (!rk_acknowledged && !disc_stopping &&
             (uint32_t)(now_ms - started_ms) >= ack_timeout_ms) {
             (void)snprintf(log_line, sizeof(log_line),
                            "H7,ARM,%s,BYPASS_NO_RK,SEQ=%lu\r\n", task,
