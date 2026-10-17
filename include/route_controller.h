@@ -157,7 +157,8 @@ bool route_controller_run_task2_entry_translation_with_turn(
 bool route_controller_run_task3_blue_final_bezier(void);
 bool route_controller_run_task3_red_final_translation(void);
 bool route_controller_run_disc_arc_entry(float lateral_sign,
-                                         float turn_sign);
+                                         float turn_sign,
+                                         float forward_distance_m);
 bool route_controller_run_disc_visual_alignment(void);
 bool route_controller_run_task3_blue_white_line(void);
 bool route_controller_run_task3_red_white_line(void);

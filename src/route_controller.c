@@ -4264,7 +4264,8 @@ typedef struct {
     float total_m;
 } disc_arc_length_table_t;
 
-static void disc_arc_point(float u, float lateral_sign, float *x, float *y)
+static void disc_arc_point(float u, float lateral_sign,
+                           float forward_distance_m, float *x, float *y)
 {
     const float one_minus_u = 1.0f - u;
     const float p1_x =
@@ -4275,7 +4276,7 @@ static void disc_arc_point(float u, float lateral_sign, float *x, float *y)
         ROUTE_FORWARD_SIGN * ROUTE_DISC_ARC_CONTROL2_FORWARD_M;
     const float p2_y =
         lateral_sign * ROUTE_DISC_ARC_CONTROL2_LATERAL_M;
-    const float p3_x = ROUTE_FORWARD_SIGN * ROUTE_FORWARD_DISTANCE_M;
+    const float p3_x = ROUTE_FORWARD_SIGN * forward_distance_m;
     const float p3_y = lateral_sign * ROUTE_STRAFE_DISTANCE_M;
     const float one_minus_u_sq = one_minus_u * one_minus_u;
     const float u_sq = u * u;
@@ -4286,7 +4287,9 @@ static void disc_arc_point(float u, float lateral_sign, float *x, float *y)
          3.0f * one_minus_u * u_sq * p2_y + u_sq * u * p3_y;
 }
 
-static void disc_arc_derivative(float u, float lateral_sign, float *dx, float *dy)
+static void disc_arc_derivative(float u, float lateral_sign,
+                                float forward_distance_m,
+                                float *dx, float *dy)
 {
     const float one_minus_u = 1.0f - u;
     const float p1_x =
@@ -4297,7 +4300,7 @@ static void disc_arc_derivative(float u, float lateral_sign, float *dx, float *d
         ROUTE_FORWARD_SIGN * ROUTE_DISC_ARC_CONTROL2_FORWARD_M;
     const float p2_y =
         lateral_sign * ROUTE_DISC_ARC_CONTROL2_LATERAL_M;
-    const float p3_x = ROUTE_FORWARD_SIGN * ROUTE_FORWARD_DISTANCE_M;
+    const float p3_x = ROUTE_FORWARD_SIGN * forward_distance_m;
     const float p3_y = lateral_sign * ROUTE_STRAFE_DISTANCE_M;
 
     *dx = 3.0f * one_minus_u * one_minus_u * p1_x +
@@ -4309,6 +4312,7 @@ static void disc_arc_derivative(float u, float lateral_sign, float *dx, float *d
 }
 
 static void disc_arc_build_length_table(float lateral_sign,
+                                        float forward_distance_m,
                                         disc_arc_length_table_t *table)
 {
     float previous_x = 0.0f;
@@ -4321,7 +4325,7 @@ static void disc_arc_build_length_table(float lateral_sign,
         float y;
         const float u = (float)i / (float)DISC_ARC_LENGTH_SAMPLES;
 
-        disc_arc_point(u, lateral_sign, &x, &y);
+        disc_arc_point(u, lateral_sign, forward_distance_m, &x, &y);
         table->cumulative_m[i] = table->cumulative_m[i - 1U] +
             sqrtf((x - previous_x) * (x - previous_x) +
                   (y - previous_y) * (y - previous_y));
@@ -4445,7 +4449,8 @@ bool route_controller_run_task2_prep_high(void)
     return true;
 }
 
-static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
+static bool run_disc_arc_entry(float lateral_sign, float turn_sign,
+                               float forward_distance_m)
 {
     disc_arc_length_table_t arc_length_table;
     float wheel_speed[4] = {0.0f};
@@ -4465,7 +4470,7 @@ static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
     const float target_turn_rad = turn_sign * ROUTE_TURN_ANGLE_RAD *
                                   ROUTE_GYRO_TURN_SCALE;
     const float target_heading_rad = start_heading_rad + target_turn_rad;
-    const float final_x_m = ROUTE_FORWARD_SIGN * ROUTE_FORWARD_DISTANCE_M;
+    const float final_x_m = ROUTE_FORWARD_SIGN * forward_distance_m;
     const float final_y_m = lateral_sign * ROUTE_STRAFE_DISTANCE_M;
     float arc_length_m;
     uint32_t previous_ms = HAL_GetTick();
@@ -4476,7 +4481,8 @@ static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
     bool first_feedback_cycle = true;
     bool translation_endpoint_latched = false;
 
-    disc_arc_build_length_table(lateral_sign, &arc_length_table);
+    disc_arc_build_length_table(lateral_sign, forward_distance_m,
+                                &arc_length_table);
     arc_length_m = arc_length_table.total_m;
     if (arc_length_m <= 0.001f || ROUTE_DISC_ARC_MAX_SPEED_M_S <= 0.0f ||
         ROUTE_DISC_ARC_ACCEL_M_S2 <= 0.0f) {
@@ -4595,8 +4601,10 @@ static bool run_disc_arc_entry(float lateral_sign, float turn_sign)
             clampf(commanded_distance_m / arc_length_m, 0.0f, 1.0f);
         u = disc_arc_parameter_at_distance(&arc_length_table,
                                            commanded_distance_m);
-        disc_arc_point(u, lateral_sign, &desired_x, &desired_y);
-        disc_arc_derivative(u, lateral_sign, &derivative_x, &derivative_y);
+        disc_arc_point(u, lateral_sign, forward_distance_m,
+                       &desired_x, &desired_y);
+        disc_arc_derivative(u, lateral_sign, forward_distance_m,
+                            &derivative_x, &derivative_y);
         derivative_norm = sqrtf(derivative_x * derivative_x +
                                 derivative_y * derivative_y);
         if (derivative_norm <= 0.001f) {
@@ -7313,9 +7321,10 @@ bool route_controller_run_task3_test(uint32_t sequence)
 }
 
 bool route_controller_run_disc_arc_entry(float lateral_sign,
-                                         float turn_sign)
+                                         float turn_sign,
+                                         float forward_distance_m)
 {
-    return run_disc_arc_entry(lateral_sign, turn_sign);
+    return run_disc_arc_entry(lateral_sign, turn_sign, forward_distance_m);
 }
 
 bool route_controller_run_disc_visual_alignment(void)

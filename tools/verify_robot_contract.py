@@ -45,24 +45,35 @@ def verify(root: Path) -> int:
 
     checks = 0
     for pattern, label in (
+        (r"ROUTE_FORWARD_DISTANCE_M\s+3\.937f", "H7 RED task-one arc forward"),
+        (r"ROUTE_FORWARD_DISTANCE_BLUE_M\s+3\.940f", "H7 BLUE task-one arc forward"),
+        (r"ROUTE_TASK2_ENTRY_BACKWARD_COMPONENT_BLUE_M\s+1\.610f", "H7 BLUE task-one to task-two reverse"),
+        (r"ROUTE_TASK2_ENTRY_LATERAL_COMPONENT_BLUE_M\s+2\.005f", "H7 BLUE task-one to task-two lateral"),
+        (r"ROUTE_TASK2_ENTRY_DIAGONAL_DISTANCE_BLUE_M\s+2\.571405f", "H7 BLUE task-one to task-two chord"),
+        (r"ROUTE_FORMAL_TASK3_BLUE_PRE_ORBIT_FORWARD_DISTANCE_M\s+0\.085f", "H7 BLUE pre-orbit forward"),
+        (r"ROUTE_FORMAL_TASK3_BLUE_POST_ORBIT_REVERSE_DISTANCE_M\s+0\.070f", "H7 BLUE post-orbit reverse"),
         (r"ROUTE_FORMAL_TASK3_RED_RING_PREPLACE_FIRST_SHIFT_DISTANCE_M\s+0\.162f", "H7 RED first shift"),
         (r"ROUTE_FORMAL_TASK3_RED_RING_PREPLACE_SECOND_SHIFT_DISTANCE_M\s+0\.292f", "H7 RED second shift"),
         (r"ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_MS\s+1000U", "H7 RED first forward"),
         (r"ROUTE_FORMAL_TASK3_RED_RING_PREPLACE_POST_SHIFT_FORWARD_MS\s+1500U", "H7 RED second forward"),
-        (r"ROUTE_TASK3_BLUE_RING_PREPLACE_FIRST_SHIFT_DISTANCE_M\s+0\.159f", "H7 BLUE first shift"),
+        (r"ROUTE_TASK3_BLUE_RING_PREPLACE_FIRST_SHIFT_DISTANCE_M\s+0\.154f", "H7 BLUE first shift"),
         (r"ROUTE_TASK3_BLUE_RING_PREPLACE_SECOND_SHIFT_DISTANCE_M\s+0\.292f", "H7 BLUE second shift"),
         (r"ROUTE_TASK3_BLUE_PRE_RING_FORWARD_MS\s+1000U", "H7 BLUE first forward"),
-        (r"ROUTE_TASK3_BLUE_RING_PREPLACE_POST_SHIFT_FORWARD_MS\s+1500U", "H7 BLUE second forward"),
+        (r"ROUTE_TASK3_BLUE_RING_PREPLACE_POST_SHIFT_FORWARD_MS\s+2000U", "H7 BLUE second forward"),
     ):
         _require(pattern, h7_config, label)
         checks += 1
 
     for pattern, label in (
+        (r"FIELD=BLUE,BACKWARD=1610mm", "H7 BLUE task-one to task-two reverse log"),
+        (r"LATERAL=2005mm", "H7 BLUE task-one to task-two lateral log"),
+        (r"TASK3,BLUE,POST_ORBIT_REVERSE,DISTANCE=70mm", "H7 BLUE post-orbit reverse log"),
         (r"PRE_RING_SHIFT_LEFT_162", "H7 RED 162 mm log"),
-        (r"PRE_RING_SHIFT_LEFT_159", "H7 BLUE 159 mm log"),
+        (r"PRE_RING_SHIFT_LEFT_154", "H7 BLUE 154 mm log"),
         (r"PRE_RING_FORWARD_1000MS", "H7 RED/BLUE 1000 ms log"),
         (r"PRE_RING_SHIFT_LEFT_292", "H7 RED/BLUE 292 mm log"),
-        (r"POST_SHIFT_FORWARD_1500MS", "H7 RED/BLUE 1500 ms log"),
+        (r'"RED", "POST_SHIFT_FORWARD_1500MS"', "H7 RED 1500 ms log"),
+        (r'"BLUE", "POST_SHIFT_FORWARD_2000MS"', "H7 BLUE 2000 ms log"),
     ):
         _require(pattern, h7_main, label)
         checks += 1
