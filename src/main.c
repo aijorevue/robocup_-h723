@@ -137,8 +137,8 @@ static bool run_formal_task3_red_tail(void)
     }
     route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
     board_uart1_write(
-        "H7,ROUTE,TASK3,RED,POST_ORBIT_REVERSE,DISTANCE=75mm\r\n");
-    if (!task3_align_gyro_at_fixed_point("RED", "POST_ORBIT_REVERSE_75")) {
+        "H7,ROUTE,TASK3,RED,POST_ORBIT_REVERSE,DISTANCE=70mm\r\n");
+    if (!task3_align_gyro_at_fixed_point("RED", "POST_ORBIT_REVERSE_70")) {
         return false;
     }
 
@@ -1070,7 +1070,7 @@ route_start:
             }
             board_uart1_write(
                 field_profile.is_red != 0U
-                    ? "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=90mm\r\n"
+                    ? "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=85mm\r\n"
                     : "H7,ROUTE,TASK3,PRE_ORBIT_FORWARD,DISTANCE=90mm\r\n");
 
             g_run_state = RUN_FRONT_CENTER_ORBIT;
@@ -1316,7 +1316,7 @@ route_start:
                 }
                 route_controller_hold_zero(ROUTE_SEGMENT_SETTLE_MS);
                 if (!task3_align_gyro_at_fixed_point(
-                        "BLUE", "PRE_RING_SHIFT_LEFT_162")) {
+                        "BLUE", "PRE_RING_SHIFT_LEFT_159")) {
                     enter_fault(g_fault_code == FAULT_NONE ? FAULT_TURN_TIMEOUT
                                                            : g_fault_code);
                 }

@@ -49,7 +49,7 @@ def verify(root: Path) -> int:
         (r"ROUTE_FORMAL_TASK3_RED_RING_PREPLACE_SECOND_SHIFT_DISTANCE_M\s+0\.292f", "H7 RED second shift"),
         (r"ROUTE_FORMAL_TASK3_RED_PRE_RING_FORWARD_MS\s+1000U", "H7 RED first forward"),
         (r"ROUTE_FORMAL_TASK3_RED_RING_PREPLACE_POST_SHIFT_FORWARD_MS\s+1500U", "H7 RED second forward"),
-        (r"ROUTE_TASK3_BLUE_RING_PREPLACE_FIRST_SHIFT_DISTANCE_M\s+0\.162f", "H7 BLUE first shift"),
+        (r"ROUTE_TASK3_BLUE_RING_PREPLACE_FIRST_SHIFT_DISTANCE_M\s+0\.159f", "H7 BLUE first shift"),
         (r"ROUTE_TASK3_BLUE_RING_PREPLACE_SECOND_SHIFT_DISTANCE_M\s+0\.292f", "H7 BLUE second shift"),
         (r"ROUTE_TASK3_BLUE_PRE_RING_FORWARD_MS\s+1000U", "H7 BLUE first forward"),
         (r"ROUTE_TASK3_BLUE_RING_PREPLACE_POST_SHIFT_FORWARD_MS\s+1500U", "H7 BLUE second forward"),
@@ -58,7 +58,8 @@ def verify(root: Path) -> int:
         checks += 1
 
     for pattern, label in (
-        (r"PRE_RING_SHIFT_LEFT_162", "H7 RED/BLUE 162 mm log"),
+        (r"PRE_RING_SHIFT_LEFT_162", "H7 RED 162 mm log"),
+        (r"PRE_RING_SHIFT_LEFT_159", "H7 BLUE 159 mm log"),
         (r"PRE_RING_FORWARD_1000MS", "H7 RED/BLUE 1000 ms log"),
         (r"PRE_RING_SHIFT_LEFT_292", "H7 RED/BLUE 292 mm log"),
         (r"POST_SHIFT_FORWARD_1500MS", "H7 RED/BLUE 1500 ms log"),
